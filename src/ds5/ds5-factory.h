@@ -30,5 +30,8 @@ namespace librealsense
         std::vector<platform::uvc_device_info> _depth;
         std::vector<platform::usb_device_info> _hwm;
         std::vector<platform::hid_device_info> _hid;
+
+        uint16_t resolve_device_type(std::shared_ptr<context> ctx,
+            const platform::backend_device_group& group) const;
     };
 }

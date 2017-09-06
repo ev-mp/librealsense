@@ -20,10 +20,24 @@
 #include "ds5-active.h"
 #include "ds5-color.h"
 #include "ds5-motion.h"
+#include "ds5-test-device.h"
 #include "sync.h"
 
 namespace librealsense
 {
+    // USB2 Test Device
+    class rs400_usb2_device : public ds5_rolling_shutter,
+                              public ds5_advanced_mode_base
+    {
+    public:
+        rs400_usb2_device(std::shared_ptr<context> ctx,
+            const platform::backend_device_group& group)
+            : device(ctx, group),
+            ds5_device(ctx, group),
+            ds5_rolling_shutter(ctx, group),
+            ds5_advanced_mode_base(ds5_device::_hw_monitor, get_depth_sensor()) {}
+    };
+
     // PSR
     class rs400_device : public ds5_rolling_shutter, public ds5_advanced_mode_base
     {
@@ -109,7 +123,7 @@ namespace librealsense
                             public ds5_advanced_mode_base
     {
     public:
-        rs430_mm_device(std::shared_ptr<context> ctx, 
+        rs430_mm_device(std::shared_ptr<context> ctx,
                         const platform::backend_device_group group)
             : device(ctx, group),
               ds5_device(ctx, group),
@@ -124,7 +138,7 @@ namespace librealsense
                          public ds5_advanced_mode_base
     {
     public:
-        rs435_device(std::shared_ptr<context> ctx, 
+        rs435_device(std::shared_ptr<context> ctx,
                      const platform::backend_device_group group)
             : device(ctx, group),
               ds5_device(ctx, group),
@@ -160,6 +174,10 @@ namespace librealsense
         if (_depth.size() == 0) throw std::runtime_error("Depth Camera not found!");
         auto pid = _depth.front().pid;
         platform::backend_device_group group{_depth, _hwm, _hid};
+
+        // All the supported devices in USB2 mode will be assigned a single PID.
+        // we will employ a two-stage identification to get the actual device type
+        if (pid == RS400_USB2_PID) pid = resolve_device_type(ctx, group);
 
         switch(pid)
         {
@@ -234,14 +252,20 @@ namespace librealsense
 
         return results;
     }
+
+    uint16_t ds5_info::resolve_device_type(std::shared_ptr<context> ctx,
+        const platform::backend_device_group& group) const
+    {
+        auto test_dev = std::make_shared<ds5_test_device>(ctx, group);
+        return test_dev.get()->get_sku_id();
+    }
+
     std::shared_ptr<matcher> rs435_device::create_matcher(const frame_holder& frame) const
     {
         if(!frame.frame->supports_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER))
         {
             return device::create_matcher(frame);
         }
-
-
 
         std::vector<std::shared_ptr<matcher>> depth_matchers;
 

@@ -17,9 +17,9 @@ namespace librealsense
     namespace ds
     {
         const uint16_t RS400_PID        = 0x0ad1; // PSR
-        const uint16_t RS400_MM_PID     = 0x0b00; // PSR
+        const uint16_t RS400_MM_PID     = 0x0b00; // PSRT
         const uint16_t RS410_PID        = 0x0ad2; // ASR
-        const uint16_t RS410_MM_PID     = 0x0aff; // ASR
+        const uint16_t RS410_MM_PID     = 0x0aff; // ASRT
         const uint16_t RS415_PID        = 0x0ad3; // ASRC
         const uint16_t RS420_PID        = 0x0af6; // PWG
         const uint16_t RS420_MM_PID     = 0x0afe; // PWGT
@@ -27,7 +27,8 @@ namespace librealsense
         const uint16_t RS430_MM_PID     = 0x0ad5; // AWGT
         const uint16_t RS430_MM_RGB_PID = 0x0b01; // AWGCT
         const uint16_t RS435_RGB_PID    = 0x0b07; // AWGC
-        const uint16_t RS460_PID       = 0x0b03; // DS5U
+        const uint16_t RS460_PID        = 0x0b03; // DS5U
+        const uint16_t RS400_USB2_PID   = 0x0ad6; // DS5 with USB2 Interface
 
         // DS5 depth XU identifiers
         const uint8_t DS5_HWMONITOR                       = 1;
@@ -52,23 +53,66 @@ namespace librealsense
             ds::RS430_MM_PID,
             ds::RS430_MM_RGB_PID,
             ds::RS435_RGB_PID,
-            ds::RS460_PID
+            ds::RS460_PID,
+            ds::RS400_USB2_PID
+        };
+
+        enum fw_prod_id : uint8_t
+        {
+            // operational SKUs
+            e_platform_PSR,
+            e_platform_ASR,
+            e_platform_PWG,
+            e_platform_AWG,
+            e_platform_ASRT,
+            e_platform_AWGT,
+            e_platform_ASRC,
+            e_platform_PWGT,
+            e_platform_PSRT,
+            e_platform_AWGCT,
+            e_platform_AWGC,
+            e_platform_DS5U,
+            e_num_of_oper_platforms,
+            // non operational SKUs
+            e_platform_t = e_num_of_oper_platforms,
+            e_platform_upgrade,
+            e_num_of_platforms,
+            e_platform_invalid,
         };
 
         static const std::map<std::uint16_t, std::string> rs400_sku_names = {
-            { RS400_PID,    "Intel RealSense 400"},
-            { RS400_MM_PID, "Intel RealSense 400 with Tracking Module"},
-            { RS410_PID,    "Intel RealSense 410"},
-            { RS410_MM_PID, "Intel RealSense 410 with Tracking Module"},
-            { RS415_PID,    "Intel RealSense 415"},
-            { RS420_PID,    "Intel RealSense 420"},
-            { RS420_MM_PID, "Intel RealSense 420 with Tracking Module"},
-            { RS430_PID,    "Intel RealSense 430"},
-            { RS430_MM_PID, "Intel RealSense 430 with Tracking Module"},
-            { RS430_MM_PID, "Intel RealSense 430 with Tracking Module and RGB Module"},
-            { RS435_RGB_PID,"Intel RealSense 435"},
-            { RS460_PID,    "Intel RealSense 460" },
+            { RS400_PID,        "Intel RealSense 400"},
+            { RS400_MM_PID,     "Intel RealSense 400 with Tracking Module"},
+            { RS410_PID,        "Intel RealSense 410"},
+            { RS410_MM_PID,     "Intel RealSense 410 with Tracking Module"},
+            { RS415_PID,        "Intel RealSense 415"},
+            { RS420_PID,        "Intel RealSense 420"},
+            { RS420_MM_PID,     "Intel RealSense 420 with Tracking Module"},
+            { RS430_PID,        "Intel RealSense 430"},
+            { RS430_MM_PID,     "Intel RealSense 430 with Tracking Module"},
+            { RS430_MM_RGB_PID, "Intel RealSense 430 with Tracking Module and RGB Module"},
+            { RS435_RGB_PID,    "Intel RealSense 435"},
+            { RS460_PID,        "Intel RealSense 460"},
+            { RS400_USB2_PID,   "Intel RealSense USB2" },
         };
+
+
+        // Mapping Firmware SKU ID codes to the standartized USB PID
+        static const std::map<std::uint8_t, std::uint16_t> rs400_fw_type_2_pid = {
+            { e_platform_PSR,   RS400_PID},
+            { e_platform_PSRT,  RS400_MM_PID},
+            { e_platform_ASR,   RS410_PID},
+            { e_platform_ASRT,  RS410_MM_PID},
+            { e_platform_ASRC,  RS415_PID},
+            { e_platform_PWG,   RS420_PID},
+            { e_platform_PWGT,  RS420_MM_PID},
+            { e_platform_AWG,   RS430_PID},
+            { e_platform_AWGT,  RS430_MM_PID},
+            { e_platform_AWGCT, RS430_MM_RGB_PID},
+            { e_platform_AWGC,  RS435_RGB_PID},
+            { e_platform_DS5U,  RS460_PID},
+        };
+
 
         // DS5 fisheye XU identifiers
         const uint8_t FISHEYE_EXPOSURE = 1;
@@ -255,22 +299,23 @@ namespace librealsense
 
         enum gvd_fields
         {
+            product_type_offset             = 4,
             camera_fw_version_offset        = 12,
+            is_camera_locked_offset         = 25,
             module_serial_offset            = 48,
-            motion_module_fw_version_offset = 212,
-            is_camera_locked_offset         = 25
+            motion_module_fw_version_offset = 212
         };
 
-        enum calibration_table_id
+        enum calibration_table_id : int32_t
         {
-            coefficients_table_id = 25,
-            depth_calibration_id = 31,
-            rgb_calibration_id = 32,
-            fisheye_calibration_id = 33,
-            imu_calibration_id = 34,
-            lens_shading_id = 35,
-            projector_id = 36,
-            max_id = -1
+            coefficients_table_id       = 25,
+            depth_calibration_id        = 31,
+            rgb_calibration_id          = 32,
+            fisheye_calibration_id      = 33,
+            imu_calibration_id          = 34,
+            lens_shading_id             = 35,
+            projector_id                = 36,
+            max_id                      = -1
         };
 
         struct ds5_calibration

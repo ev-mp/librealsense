@@ -191,7 +191,8 @@ namespace librealsense
           _depth_stream(new stream(ctx, RS2_STREAM_DEPTH)),
           _left_ir_stream(new stream(ctx, RS2_STREAM_INFRARED, 1)),
           _right_ir_stream(new stream(ctx, RS2_STREAM_INFRARED, 2)),
-          _depth_device_idx(add_sensor(create_depth_device(ctx, group.uvc_devices)))
+          _depth_device_idx(add_sensor(create_depth_device(ctx, group.uvc_devices))),
+          _usb2_mode(ds::RS400_USB2_PID==group.uvc_devices.front().pid)
     {
         using namespace ds;
 
@@ -223,14 +224,17 @@ namespace librealsense
 
         ctx->register_same_extrinsics(*_depth_stream, *_left_ir_stream);
         ctx->register_extrinsics(*_depth_stream, *_right_ir_stream, _left_right_extrinsics);
-        
+
         register_stream_to_extrinsic_group(*_depth_stream, 0);
         register_stream_to_extrinsic_group(*_left_ir_stream, 0);
         register_stream_to_extrinsic_group(*_right_ir_stream, 0);
 
         _coefficients_table_raw = [this]() { return get_raw_calibration_table(coefficients_table_id); };
 
-        std::string device_name = (rs400_sku_names.end() != rs400_sku_names.find(group.uvc_devices.front().pid)) ? rs400_sku_names.at(group.uvc_devices.front().pid) : "RS4xx";
+        auto dev_type = get_device_type(group.uvc_devices.front().pid);
+
+        std::string device_name = (rs400_sku_names.end() != rs400_sku_names.find(dev_type)) ? rs400_sku_names.at(dev_type) : "RS4xx";
+        if (_usb2_mode) device_name += " - USB2 Mode";
         _fw_version = firmware_version(_hw_monitor->get_firmware_version_string(GVD, camera_fw_version_offset));
         auto serial = _hw_monitor->get_module_serial_string(GVD, module_serial_offset);
 
@@ -359,8 +363,21 @@ namespace librealsense
         register_info(RS2_CAMERA_INFO_FIRMWARE_VERSION,  _fw_version);
         register_info(RS2_CAMERA_INFO_LOCATION,          group.uvc_devices.front().device_path);
         register_info(RS2_CAMERA_INFO_DEBUG_OP_CODE,     std::to_string(static_cast<int>(fw_cmd::GLD)));
-        register_info(RS2_CAMERA_INFO_ADVANCED_MODE,            ((advanced_mode)?"YES":"NO"));
-        register_info(RS2_CAMERA_INFO_PRODUCT_ID,               pid_hex_str);
+        register_info(RS2_CAMERA_INFO_ADVANCED_MODE,     ((advanced_mode)?"YES":"NO"));
+        register_info(RS2_CAMERA_INFO_PRODUCT_ID,        pid_hex_str);
+    }
+
+    uint16_t ds5_device::get_device_type(const uint16_t pid) const
+    {
+        auto res = pid;
+        if (_usb2_mode)
+        {
+            auto prod_id = _hw_monitor->get_product_type(ds::GVD, ds::product_type_offset);
+            if (ds::rs400_fw_type_2_pid.end() == ds::rs400_fw_type_2_pid.find(prod_id))
+                throw invalid_value_exception(to_string() << "Cannot resolve USB2-type device " << prod_id);
+            res = ds::rs400_fw_type_2_pid.at(prod_id);
+        }
+        return res;
     }
 
     notification ds5_notification_decoder::decode(int value)

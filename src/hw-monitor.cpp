@@ -180,4 +180,14 @@ namespace librealsense
         librealsense::copy(&value, gvd.data() + offset, 1);
         return value;
     }
+
+    uint8_t hw_monitor::get_product_type(uint8_t gvd_cmd, uint32_t offset) const
+    {
+        if (offset >= HW_MONITOR_BUFFER_SIZE)
+            throw invalid_value_exception(to_string() << "requested gvd field " << offset <<" is out of range [0 - " << HW_MONITOR_BUFFER_SIZE << "]");
+
+        std::vector<unsigned char> gvd(HW_MONITOR_BUFFER_SIZE);
+        get_gvd(gvd.size(), gvd.data(), gvd_cmd);
+        return gvd[offset];
+    }
 }

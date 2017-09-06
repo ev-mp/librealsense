@@ -131,6 +131,7 @@ set(REALSENSE_CPP
     src/ds5/ds5-device.cpp
     src/ds5/ds5-color.cpp
     src/ds5/ds5-active.cpp
+    src/ds5/ds5-test-device.cpp
     src/ds5/ds5-factory.cpp
     src/win/win-helpers.cpp
     src/win/win-uvc.cpp
@@ -232,6 +233,7 @@ set(REALSENSE_HPP
     src/ds5/ds5-motion.h
     src/ds5/ds5-rolling-shutter.h
     src/ds5/ds5-color.h
+    src/ds5/ds5-test-device.h
     src/linux/backend-v4l2.h
     src/linux/backend-hid.h
     src/win/win-helpers.h
@@ -380,6 +382,7 @@ if(WIN32)
         src/ds5/ds5-rolling-shutter.cpp
         src/ds5/ds5-color.cpp
         src/ds5/ds5-active.cpp
+        src/ds5/ds5-test-device.cpp
         src/ivcam/sr300.cpp
         src/ivcam/ivcam-private.cpp
         )
@@ -405,6 +408,7 @@ if(WIN32)
         src/ds5/ds5-motion.h
         src/ds5/ds5-rolling-shutter.h
         src/ds5/ds5-color.h
+        src/ds5/ds5-test-device.h
         src/ivcam/sr300.h
         src/ivcam/ivcam-private.h
         )

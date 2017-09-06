@@ -2384,7 +2384,7 @@ namespace rs2
         ImGui::Begin(label.c_str(), nullptr, flags);
 
         ImGui::PushStyleColor(ImGuiCol_Text, text_color);
-        ImGui::Text(text);
+        ImGui::Text("%s", text);
         ImGui::PopStyleColor();
 
         ImGui::End();
@@ -2557,7 +2557,7 @@ namespace rs2
 
     void viewer_model::render_3d_view(const rect& viewer_rect, float scale_factor)
     {
-        glViewport(viewer_rect.x * scale_factor, viewer_rect.y * scale_factor, 
+        glViewport(viewer_rect.x * scale_factor, viewer_rect.y * scale_factor,
                    viewer_rect.w * scale_factor, viewer_rect.h * scale_factor);
 
         glClearColor(0, 0, 0, 1);

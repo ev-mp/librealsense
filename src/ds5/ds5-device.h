@@ -50,6 +50,7 @@ namespace librealsense
     private:
 
         bool is_camera_in_advanced_mode() const;
+        uint16_t get_device_type(const uint16_t pid) const;
 
         uint8_t _depth_device_idx;
         std::shared_ptr<uvc_sensor> _depth_sensor;
@@ -59,6 +60,8 @@ namespace librealsense
         std::unique_ptr<polling_error_handler> _polling_error_handler;
 
         std::shared_ptr<lazy<rs2_extrinsics>> _left_right_extrinsics;
+
+        bool _usb2_mode;
     };
 
     class ds5_notification_decoder : public notification_decoder

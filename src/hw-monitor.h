@@ -168,5 +168,6 @@ namespace librealsense
         std::string get_firmware_version_string(int gvd_cmd, uint32_t offset) const;
         std::string get_module_serial_string(uint8_t gvd_cmd, uint32_t offset) const;
         bool is_camera_locked(uint8_t gvd_cmd, uint32_t offset) const;
+        uint8_t get_product_type(uint8_t gvd_cmd, uint32_t offset) const;
     };
 }

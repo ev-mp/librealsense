@@ -157,7 +157,7 @@ public:
      */
     template<class T>
     void write(std::string const& topic, ros::Time const& time, std::shared_ptr<T const> const& msg,
-		std::shared_ptr<ros::M_string> connection_header = std::shared_ptr<ros::M_string>());
+        std::shared_ptr<ros::M_string> connection_header = std::shared_ptr<ros::M_string>());
 
     //! Write a message into the bag file
     /*!
@@ -170,7 +170,7 @@ public:
      */
     template<class T>
     void write(std::string const& topic, ros::Time const& time, std::shared_ptr<T> const& msg,
-		std::shared_ptr<ros::M_string> connection_header = std::shared_ptr<ros::M_string>());
+        std::shared_ptr<ros::M_string> connection_header = std::shared_ptr<ros::M_string>());
 
 private:
     // This helper function actually does the write with an arbitrary serializable message
@@ -184,7 +184,7 @@ private:
     void closeWrite();
 
     template<class T>
-	std::shared_ptr<T> instantiateBuffer(IndexEntry const& index_entry) const;  //!< deserializes the message held in record_buffer_
+    std::shared_ptr<T> instantiateBuffer(IndexEntry const& index_entry) const;  //!< deserializes the message held in record_buffer_
 
     void startWriting();
     void stopWriting();

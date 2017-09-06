@@ -193,6 +193,9 @@ namespace librealsense
                     case RS435_RGB_PID:
                         found = (result.mi == 5);
                         break;
+                    case RS400_USB2_PID:
+                        found = (result.mi == 3);   // TODO Evgeni
+                        break;
                     default:
                         throw not_implemented_exception(to_string() << "USB device " << info.pid << ":" << info.vid << " is not supported.");
                         break;
