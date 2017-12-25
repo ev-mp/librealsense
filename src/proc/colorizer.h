@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "align.h"
-
 #include <map>
 #include <vector>
 
@@ -34,13 +32,13 @@ namespace librealsense {
 
         color_map() {}
 
-        float3 get(float value) const
-        {
+        inline float3 get(float value) const;
+        /*{
             if (_max == _min) return *_data;
             auto t = (value - _min) / (_max - _min);
-            t = std::min(std::max(t, 0.f), 1.f);
+            t = clamp_val(t, 0.f, 1.f);
             return _data[(int)(t * (_size - 1))];
-        }
+        }*/
 
         float min_key() const { return _min; }
         float max_key() const { return _max; }

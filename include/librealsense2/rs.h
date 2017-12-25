@@ -24,7 +24,7 @@ extern "C" {
 
 #define RS2_API_MAJOR_VERSION    2
 #define RS2_API_MINOR_VERSION    8
-#define RS2_API_PATCH_VERSION    2
+#define RS2_API_PATCH_VERSION    3
 #define RS2_API_BUILD_VERSION    0
 
 #define STRINGIFY(arg) #arg
@@ -71,7 +71,29 @@ void rs2_log_to_console(rs2_log_severity min_severity, rs2_error ** error);
 
 void rs2_log_to_file(rs2_log_severity min_severity, const char * file_path, rs2_error ** error);
 
+/**
+ * Add custom message into librealsense log
+ * \param[in] severity  The log level for the message to be written under
+ * \param[in] message   Message to be logged
+ * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+ */
+void rs2_log(rs2_log_severity severity, const char * message, rs2_error ** error);
+
+/**
+* Given the 2D depth coordinate (x,y) provide the corresponding depth in metric units
+* \param[in] frame_ref  2D depth pixel coordinates (Left-Upper corner origin)
+* \param[in] x,y  2D depth pixel coordinates (Left-Upper corner origin)
+* \param[out] float  Depth value in millimeters
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
 float rs2_depth_frame_get_distance(const rs2_frame* frame_ref, int x, int y, rs2_error** error);
+
+/**
+* Retrieve the stereoscopic baseline value. Applicable to stereo-based depth modules
+* \param[out] float  Stereoscopic baseline in millimeters
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+float rs2_depth_stereo_frame_get_baseline(const rs2_frame* frame_ref, rs2_error** error);
 
 /**
 * return the time at specific time point

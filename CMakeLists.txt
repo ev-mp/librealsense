@@ -63,6 +63,12 @@ if(BUILD_WITH_OPENMP)
     endif()
 endif()
 
+option(BUILD_EASYLOGGINGPP "Build EasyLogging++ as a part of the build" ON)
+
+if (BUILD_EASYLOGGINGPP)
+    add_definitions(-DBUILD_EASYLOGGINGPP)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
 
 set(REALSENSE_CPP
@@ -89,8 +95,15 @@ set(REALSENSE_CPP
     src/linux/backend-hid.cpp
     src/backend.cpp
     src/verify.c
-    src/align.cpp
-    src/colorizer.cpp
+    src/proc/align.cpp
+    src/proc/colorizer.cpp
+    src/proc/pointcloud.cpp
+    src/proc/synthetic-stream.cpp
+    src/proc/syncer-processing-block.cpp
+    src/proc/decimation-filter.cpp
+    src/proc/spatial-filter.cpp
+    src/proc/temporal-filter.cpp
+    src/proc/disparity-transform.cpp
     src/source.cpp
     src/ds5/ds5-options.cpp
     src/ds5/ds5-timestamp.cpp
@@ -112,7 +125,6 @@ set(REALSENSE_CPP
     src/ds5/advanced_mode/presets.cpp
     src/ds5/advanced_mode/advanced_mode.cpp
 
-    third-party/easyloggingpp/src/easylogging++.cc
     third-party/sqlite/sqlite3.c
 
     src/mock/sql.cpp
@@ -178,8 +190,15 @@ set(REALSENSE_HPP
     src/sync.h
     src/sensor.h
     src/stream.h
-    src/align.h
-    src/colorizer.h
+    src/proc/align.h
+    src/proc/colorizer.h
+    src/proc/pointcloud.h
+    src/proc/synthetic-stream.h
+    src/proc/decimation-filter.h
+    src/proc/spatial-filter.h
+    src/proc/temporal-filter.h
+    src/proc/syncer-processing-block.h
+    src/proc/disparity-transform.h
     src/algo.h
     src/option.h
     src/metadata.h
@@ -222,13 +241,17 @@ set(REALSENSE_HPP
     src/ds5/advanced_mode/json_loader.hpp
     src/ds5/advanced_mode/presets.h
 
-    third-party/easyloggingpp/src/easylogging++.h
     third-party/sqlite/sqlite3.h
     src/mock/sql.h
     src/mock/recorder.h
 
     src/media/ros/ros_file_format.h
 )
+
+if(BUILD_EASYLOGGINGPP)
+    list(APPEND REALSENSE_CPP third-party/easyloggingpp/src/easylogging++.cc)
+    list(APPEND REALSENSE_HPP third-party/easyloggingpp/src/easylogging++.h)
+endif()
 
 if(WIN32)
     source_group("Source Files\\Backend" FILES
@@ -388,11 +411,27 @@ if(WIN32)
         )
 
     source_group("Source Files\\Processing Blocks" FILES
-        src/colorizer.cpp
+        src/proc/colorizer.cpp
+        src/proc/synthetic-stream.cpp
+        src/proc/align.cpp
+        src/proc/pointcloud.cpp
+        src/proc/decimation-filter.cpp
+        src/proc/spatial-filter.cpp
+        src/proc/temporal-filter.cpp
+        src/proc/syncer-processing-block.cpp
+        src/proc/disparity-transform.cpp
         )
 
     source_group("Header Files\\Processing Blocks" FILES
-        src/colorizer.h
+        src/proc/colorizer.h
+        src/proc/align.h
+        src/proc/pointcloud.h
+        src/proc/synthetic-stream.h
+        src/proc/decimation-filter.h
+        src/proc/spatial-filter.h
+        src/proc/temporal-filter.h
+        src/proc/syncer-processing-block.h
+        src/proc/disparity-transform.h
         )
 
     foreach(flag_var
@@ -440,17 +479,17 @@ if(FORCE_LIBUVC)
     src/libuvc/init.c
     src/libuvc/misc.c
     src/libuvc/stream.c
-	src/libuvc/libuvc.cpp
-	)
-	
-	list(APPEND REALSENSE_HPP
+    src/libuvc/libuvc.cpp
+    )
+    
+    list(APPEND REALSENSE_HPP
     src/libuvc/libuvc.h
     src/libuvc/libuvc_internal.h
     src/libuvc/utlist.h
     src/libuvc/libuvc_config.h
-	)
-	
-	message( WARNING "Using libuvc!" )
+    )
+    
+    message( WARNING "Using libuvc!" )
 endif()
 
 if (MSVC)

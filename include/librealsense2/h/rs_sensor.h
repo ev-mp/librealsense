@@ -54,6 +54,7 @@ typedef enum rs2_format
     RS2_FORMAT_ANY             , /**< When passed to enable stream, librealsense will try to provide best suited format */
     RS2_FORMAT_Z16             , /**< 16-bit linear depth values. The depth is meters is equal to depth scale * pixel value. */
     RS2_FORMAT_DISPARITY16     , /**< 16-bit linear disparity values. The depth in meters is equal to depth scale / pixel value. */
+    RS2_FORMAT_DISPARITY32     , /**< 32-bit float-point disparity values. Depth->Disparity conversion : Disparity = Baseline*FocalLength/Depth */
     RS2_FORMAT_XYZ32F          , /**< 32-bit floating point 3D coordinates. */
     RS2_FORMAT_YUYV            , /**< Standard YUV pixel format as described in https://en.wikipedia.org/wiki/YUV */
     RS2_FORMAT_RGB8            , /**< 8-bit red, green and blue channels */
@@ -388,6 +389,7 @@ void rs2_get_extrinsics(const rs2_stream_profile* from,
  * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
 void rs2_get_video_stream_intrinsics(const rs2_stream_profile* from, rs2_intrinsics* intrinsics, rs2_error** error);
+
 
 #ifdef __cplusplus
 }

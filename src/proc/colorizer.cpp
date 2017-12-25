@@ -1,12 +1,14 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
-#include "../include/librealsense2/rs.hpp"
+#include "../include/librealsense2/hpp/rs_sensor.hpp"
+#include "../include/librealsense2/hpp/rs_processing.hpp"
 
+#include "proc/synthetic-stream.h"
 #include "context.h"
-#include "colorizer.h"
 #include "environment.h"
 #include "option.h"
+#include "colorizer.h"
 
 namespace librealsense
 {
@@ -121,6 +123,14 @@ namespace librealsense
         { 0, 0, 0 },
         } };
 
+    float3 color_map::get(float value) const
+    {
+        if (_max == _min) return *_data;
+        auto t = (value - _min) / (_max - _min);
+        t = clamp_val(t, 0.f, 1.f);
+        return _data[(int)(t * (_size - 1))];
+    }
+
     colorizer::colorizer()
         : _min(0.f), _max(6.f), _equalize(true), _stream()
     {
@@ -132,7 +142,7 @@ namespace librealsense
         auto max_opt = std::make_shared<ptr_option<float>>(0.f, 16.f, 0.1f, 6.f, &_max, "Max range in meters");
         register_option(RS2_OPTION_MAX_DISTANCE, max_opt);
 
-        auto color_map = std::make_shared<ptr_option<int>>(0, _maps.size() - 1, 1, 0, &_map_index, "Color map");
+        auto color_map = std::make_shared<ptr_option<int>>(0, (int)_maps.size() - 1, 1, 0, &_map_index, "Color map");
         color_map->set_description(0.f, "Jet");
         color_map->set_description(1.f, "Classic");
         color_map->set_description(2.f, "White to Black");
@@ -214,6 +224,7 @@ namespace librealsense
 
                     for (auto i = 0; i < w*h; ++i) ++histogram[depth_data[i]];
                     for (auto i = 2; i < max_depth; ++i) histogram[i] += histogram[i - 1]; // Build a cumulative histogram for the indices in [1,0xFFFF]
+                    auto cm = _maps[_map_index];
                     for (auto i = 0; i < w*h; ++i)
                     {
                         auto d = depth_data[i];
@@ -222,7 +233,7 @@ namespace librealsense
                         {
                             auto f = histogram[d] / (float)histogram[0xFFFF]; // 0-255 based on histogram location
 
-                            auto c = _maps[_map_index]->get(f);
+                            auto c = cm->get(f);
                             rgb_data[i * 3 + 0] = (uint8_t)c.x;
                             rgb_data[i * 3 + 1] = (uint8_t)c.y;
                             rgb_data[i * 3 + 2] = (uint8_t)c.z;
@@ -242,9 +253,9 @@ namespace librealsense
                     const auto depth_data = reinterpret_cast<const uint16_t*>(depth.get_data());
                     auto rgb_data = reinterpret_cast<uint8_t*>(const_cast<void *>(rgb.get_data()));
 
-                    auto depth_frame = (frame_interface*)depth.get();
-                    auto sensor = depth_frame->get_sensor();
-                    auto depth_units = sensor->get_option(RS2_OPTION_DEPTH_UNITS).query();
+                    auto fi = (frame_interface*)depth.get();
+                    auto df = dynamic_cast<librealsense::depth_frame*>(fi);
+                    auto depth_units = df->get_units();
 
                     for (auto i = 0; i < w*h; ++i)
                     {
@@ -272,8 +283,8 @@ namespace librealsense
                 if (f.get_profile().stream_type() == RS2_STREAM_DEPTH)
                 {
                     auto vf = f.as<rs2::video_frame>();
-
-                    ret = source.allocate_video_frame(*_stream, f, 3, vf.get_width(), vf.get_height(), vf.get_width() * 3, RS2_EXTENSION_DEPTH_FRAME);
+                    rs2_extension ext = f.is<rs2::disparity_frame>() ? RS2_EXTENSION_DISPARITY_FRAME : RS2_EXTENSION_DEPTH_FRAME;
+                    ret = source.allocate_video_frame(*_stream, f, 3, vf.get_width(), vf.get_height(), vf.get_width() * 3, ext);
 
                     if (_equalize) make_equalized_histogram(f, ret);
                     else make_value_cropped_frame(f, ret);
