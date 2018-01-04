@@ -1751,11 +1751,11 @@ void rs2_bypass_on_video_frame(rs2_device* dev, int sensor, void* pixels,
 HANDLE_EXCEPTIONS_AND_RETURN(, dev, sensor, pixels)
 
 void rs2_bypass_add_video_stream(rs2_device* dev, int sensor,
-    rs2_stream type, int index, int uid, int width, int height, int bpp, rs2_format fmt, rs2_error** error) BEGIN_API_CALL
+    rs2_stream type, int index, int uid, int width, int height, int bpp, rs2_format fmt, rs2_intrinsics intrinsics, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(dev);
     auto df = VALIDATE_INTERFACE(dev->device, librealsense::bypass_device);
-    return df->get_bypass_sensor(sensor).add_video_stream(type, index, uid, width, height, bpp, fmt);
+    return df->get_bypass_sensor(sensor).add_video_stream(type, index, uid, width, height, bpp, fmt, intrinsics);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, dev, sensor, index, width, height, bpp, fmt)
 

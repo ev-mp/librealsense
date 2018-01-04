@@ -63,7 +63,7 @@ void rs2_bypass_on_video_frame(rs2_device* dev,
     const rs2_stream_profile* profile, 
     rs2_error** error);
 void rs2_bypass_add_video_stream(rs2_device* dev, int sensor,
-    rs2_stream type, int index, int uid, int width, int height, int bpp, rs2_format fmt, rs2_error** error);
+    rs2_stream type, int index, int uid, int width, int height, int bpp, rs2_format fmt, rs2_intrinsics intrinsics, rs2_error** error);
 
 #ifdef __cplusplus
 }
