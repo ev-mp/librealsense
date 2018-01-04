@@ -120,6 +120,8 @@ namespace rs2
 
         operator rs2_options*() const { return (rs2_options*)_block.get(); }
 
+        rs2_processing_block* get() { return _block.get(); }
+
     private:
         std::shared_ptr<rs2_processing_block> _block;
     };
@@ -384,10 +386,17 @@ namespace rs2
 
         video_frame operator()(frame depth) const { return colorize(depth); }
 
-     private:
+    private:
          std::shared_ptr<processing_block> _block;
          frame_queue _queue;
-     };
+    };
+
+    template<class T, class S>
+    S& operator >> (T& t, S& s)
+    {
+        t.start(s);
+        return s;
+    }
 
     class decimation_filter : public options
     {
@@ -404,7 +413,7 @@ namespace rs2
             // Redirect options API to the processing block
             options::operator=(pb);
 
-            _block->start(_queue);
+            //_block->start(_queue);
         }
 
         rs2::frame proccess(rs2::frame frame)
@@ -419,6 +428,15 @@ namespace rs2
         {
             (*_block)(std::move(f));
         }
+
+        template<class S>
+        void start(S on_frame)
+        {
+            rs2_error* e = nullptr;
+            rs2_start_processing(_block.get()->get(), new frame_callback<S>(on_frame), &e);
+            error::handle(e);
+        }
+
     private:
         friend class context;
 
@@ -492,6 +510,11 @@ namespace rs2
         void operator()(frame f) const
         {
             (*_block)(std::move(f));
+        }
+
+        rs2::frame wait_for_frame()
+        {
+            return _queue.wait_for_frame();
         }
     private:
         friend class context;
