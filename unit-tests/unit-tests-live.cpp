@@ -4081,8 +4081,10 @@ TEST_CASE("Syncer sanity with bypass device", "[live][bypass]") {
 
         std::shared_ptr<bypass_device> dev = std::make_shared<bypass_device>();
         dev->add_sensor("DS5u");
-        dev->add_video_stream(0, RS2_STREAM_DEPTH, 0, 0, W, H, BPP, RS2_FORMAT_Z16);
-        dev->add_video_stream(0, RS2_STREAM_INFRARED, 1, 1, W, H, BPP, RS2_FORMAT_Y8);
+
+        rs2_intrinsics intrinsics{ W, H, 0, 0, 0, 0, RS2_DISTORTION_NONE ,{ 0,0,0,0,0 } };
+        dev->add_video_stream(0, RS2_STREAM_DEPTH, 0, 0, W, H, BPP, RS2_FORMAT_Z16, intrinsics);
+        dev->add_video_stream(0, RS2_STREAM_INFRARED, 1, 1, W, H, BPP, RS2_FORMAT_Y8, intrinsics);
         
         //recorder rec("1.bag", dev);
 
@@ -4174,8 +4176,10 @@ TEST_CASE("Syncer clean_inactive_streams by frame number with bypass device", "[
 
         std::shared_ptr<bypass_device> dev = std::make_shared<bypass_device>();
         dev->add_sensor("DS5u");
-        dev->add_video_stream(0, RS2_STREAM_DEPTH, 0, 0, W, H, BPP, RS2_FORMAT_Z16);
-        dev->add_video_stream(0, RS2_STREAM_INFRARED, 1, 1, W, H, BPP, RS2_FORMAT_Y8);
+
+        rs2_intrinsics intrinsics{ W, H, 0, 0, 0, 0, RS2_DISTORTION_NONE ,{ 0,0,0,0,0 } };
+        dev->add_video_stream(0, RS2_STREAM_DEPTH, 0, 0, W, H, BPP, RS2_FORMAT_Z16, intrinsics);
+        dev->add_video_stream(0, RS2_STREAM_INFRARED, 1, 1, W, H, BPP, RS2_FORMAT_Y8, intrinsics);
 
         //recorder rec("1.bag", dev);
         frame_queue q;
