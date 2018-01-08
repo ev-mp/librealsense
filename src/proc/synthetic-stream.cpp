@@ -2,6 +2,7 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "core/video.h"
+#include "option.h"
 #include "proc/synthetic-stream.h"
 
 namespace librealsense
@@ -18,14 +19,19 @@ namespace librealsense
     }
 
     processing_block::processing_block()
-        : _source_wrapper(_source)
+        : _source_wrapper(_source),
+        _callback(nullptr),
+        _output_type(RS2_EXTENSION_UNKNOWN),
+        _benchmark(std::make_shared<benchmarker>())
     {
+        register_option(RS2_OPTION_BENCHMARK_TIME, _benchmark);
         register_option(RS2_OPTION_FRAMES_QUEUE_SIZE, _source.get_published_size_option());
         _source.init(std::make_shared<metadata_parser_map>());
     }
 
     void processing_block::invoke(frame_holder f)
     {
+        _benchmark->start();
         auto callback = _source.begin_callback();
         try
         {
@@ -35,6 +41,7 @@ namespace librealsense
                 std::swap(f.frame, ptr);
 
                 _callback->on_frame((rs2_frame*)ptr, _source_wrapper.get_c_wrapper());
+                _benchmark->stop();
             }
         }
         catch(...)

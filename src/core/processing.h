@@ -47,4 +47,13 @@ namespace librealsense
 
         virtual ~processing_block_interface() = default;
     };
+
+    class benchmark_interface
+    {
+    public:
+        virtual double get_benchmark_ms() const = 0;
+
+        virtual ~benchmark_interface() = default;
+    };
+
 }

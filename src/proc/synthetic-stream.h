@@ -3,8 +3,11 @@
 
 #pragma once
 
+#include <chrono>
+#include <limits> // For std::numeric_limits
 #include "core/processing.h"
 #include "image.h"
+#include "option.h"
 #include "source.h"
 
 namespace librealsense
@@ -38,6 +41,63 @@ namespace librealsense
         std::shared_ptr<rs2_source> _c_wrapper;
     };
 
+    // "Borrowed from rendering.h" - to be refactored into a common base. Evgeni
+    using clock = std::chrono::high_resolution_clock;
+
+    class benchmarker : public benchmark_interface, public readonly_option
+    {
+    public:
+
+        virtual float query() const { return static_cast<float>(get_benchmark_ms()); };
+        double get_benchmark_ms() const { return _sample_ms; };
+
+        virtual option_range get_range() const { return option_range{ 0.f, std::numeric_limits<float>::max(), 1.f, 0.f }; }
+
+        virtual bool is_enabled() const { return true; }
+
+        virtual const char * get_description() const { return "Processing time"; }
+
+        virtual ~benchmarker() = default;
+
+        // Helper class to keep track of time
+        class benchmark_timer
+        {
+        public:
+            benchmark_timer()
+            {
+                _start = std::chrono::steady_clock::now();
+            }
+
+            void reset() { _start = std::chrono::steady_clock::now(); }
+
+            // Get elapsed milliseconds since timer creation
+            double elapsed_ms() const
+            {
+                return std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(elapsed()).count();
+            }
+
+            clock::duration elapsed() const
+            {
+                return clock::now() - _start;
+            }
+
+            clock::time_point mark()
+            {
+                return (_start = clock::now());
+            }
+        private:
+            clock::time_point _start;
+        };
+
+    protected:
+        friend class processing_block;
+        void start(){ _timer.mark(); }
+        void stop() { _sample_ms = _timer.elapsed_ms(); }
+
+        benchmark_timer _timer;
+        double _sample_ms;
+    };
+
     class processing_block : public processing_block_interface, public options_container
     {
     public:
@@ -50,11 +110,15 @@ namespace librealsense
         synthetic_source_interface& get_source() override { return _source_wrapper; }
 
         virtual ~processing_block(){_source.flush();}
+
     protected:
+
         frame_source _source;
         std::mutex _mutex;
         frame_processor_callback_ptr _callback;
         synthetic_source _source_wrapper;
         rs2_extension _output_type;
+
+        std::shared_ptr<benchmarker> _benchmark;
     };
 }

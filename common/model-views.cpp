@@ -4,6 +4,8 @@
 #include <regex>
 #include <thread>
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 
 #include <librealsense2/rs_advanced_mode.hpp>
 #include <librealsense2/rsutil.h>
@@ -294,19 +296,29 @@ namespace rs2
                         if (read_only)
                         {
                             ImVec2 vec{ 0, 14 };
-                            std::string text = (value == (int)value) ? std::to_string((int)value) : std::to_string(value);
-                            if (range.min != range.max)
+                            std::ostringstream oss;
+                            std::streamsize precision = (value == std::floorf(value)) ? 0 : 2; // Trim representation of Float to 2 decimal places
+                            oss << std::fixed << std::setw(6) << std::right << std::setprecision(precision) << value << " ms";
+                            if (range.max == std::numeric_limits<float>::max())       // Benchmarking data
                             {
-                                ImGui::ProgressBar((value / (range.max - range.min)), vec, text.c_str());
+                                ImGui::SameLine(); //ImGui::SetCursorPosX(5);
+                                ImGui::Text("%s", oss.str().c_str());
                             }
-                            else //constant value options
+                            else
                             {
-                                auto c = ImGui::ColorConvertU32ToFloat4(ImGui::GetColorU32(ImGuiCol_FrameBg));
-                                ImGui::PushStyleColor(ImGuiCol_FrameBgActive, c);
-                                ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, c);
-                                float dummy = (int)value;
-                                ImGui::DragFloat(id.c_str(), &dummy, 1, 0, 0, text.c_str());
-                                ImGui::PopStyleColor(2);
+                                if (range.min != range.max)
+                                {
+                                    ImGui::ProgressBar((value / (range.max - range.min)), vec, oss.str().c_str());
+                                }
+                                else //constant value options
+                                {
+                                    auto c = ImGui::ColorConvertU32ToFloat4(ImGui::GetColorU32(ImGuiCol_FrameBg));
+                                    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, c);
+                                    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, c);
+                                    float dummy = (int)value;
+                                    ImGui::DragFloat(id.c_str(), &dummy, 1, 0, 0, oss.str().c_str());
+                                    ImGui::PopStyleColor(2);
+                                }
                             }
                         }
                         else if (is_all_integers())
@@ -4248,7 +4260,7 @@ namespace rs2
                             if (opt == RS2_OPTION_FRAMES_QUEUE_SIZE) continue;
                             pb->get_option(opt).draw_option(
                                 dev.is<playback>() || update_read_only_options,
-                                false, error_message, viewer.not_model);
+                                true, error_message, viewer.not_model); // Evgeni - opened for rendering benchmark
                         }
 
                         ImGui::TreePop();
@@ -4414,7 +4426,7 @@ namespace rs2
                                     if (opt == RS2_OPTION_FRAMES_QUEUE_SIZE) continue;
                                     pb->get_option(opt).draw_option(
                                         dev.is<playback>() || update_read_only_options,
-                                        false, error_message, viewer.not_model);
+                                        true, error_message, viewer.not_model); // Evgeni - opened for rendering benchmark
                                 }
 
                                 ImGui::TreePop();

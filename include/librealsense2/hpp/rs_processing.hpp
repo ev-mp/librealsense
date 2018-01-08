@@ -413,7 +413,7 @@ namespace rs2
             // Redirect options API to the processing block
             options::operator=(pb);
 
-            //_block->start(_queue);
+            _block->start(_queue);
         }
 
         rs2::frame proccess(rs2::frame frame)

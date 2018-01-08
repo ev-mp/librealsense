@@ -213,7 +213,7 @@ int main(int argv, const char** argc) try
     std::vector<device> connected_devs;
     std::mutex m;
 
-    periodic_timer update_readonly_options_timer(std::chrono::seconds(6));
+    periodic_timer update_readonly_options_timer(std::chrono::seconds(1/*6*/)); // For updating the benchmark option
 
     window.on_file_drop = [&](std::string filename)
     {

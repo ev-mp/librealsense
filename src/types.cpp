@@ -251,6 +251,7 @@ namespace librealsense
         CASE(FILTER_SMOOTH_ALPHA)
         CASE(FILTER_SMOOTH_DELTA)
         CASE(STEREO_BASELINE)
+        CASE(BENCHMARK_TIME)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
         #undef CASE

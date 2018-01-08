@@ -121,6 +121,7 @@ PYBIND11_PLUGIN(NAME) {
         .value("filter_smooth_alpha", RS2_OPTION_FILTER_SMOOTH_ALPHA)
         .value("filter_smooth_delta", RS2_OPTION_FILTER_SMOOTH_DELTA)
         .value("stereo_baseline", RS2_OPTION_STEREO_BASELINE)
+        .value("benchmark_time", RS2_OPTION_BENCHMARK_TIME)
         .value("count", RS2_OPTION_COUNT);
 
     py::enum_<platform::power_state> power_state(m, "power_state");
