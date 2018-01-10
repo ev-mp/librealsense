@@ -122,10 +122,9 @@ namespace rs2
 
         rs2_processing_block* get() { return _block.get(); }
 
-    private:
+    protected:
         std::shared_ptr<rs2_processing_block> _block;
     };
-
 
     class frame_queue
     {

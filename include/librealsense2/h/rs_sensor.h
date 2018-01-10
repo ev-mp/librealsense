@@ -166,7 +166,8 @@ float rs2_depth_stereo_frame_get_baseline(const rs2_frame* frame_ref, rs2_error*
  * \param[in] max_y      upper vertical bound in pixels
  * \param[out] error     if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
-void rs2_set_region_of_interest(const rs2_sensor* sensor, int min_x, int min_y, int max_x, int max_y, rs2_error** error);
+//void rs2_set_region_of_interest(const rs2_sensor* sensor, int min_x, int min_y, int max_x, int max_y, rs2_error** error); Evgeni
+void rs2_set_region_of_interest(const rs2_roi* roi_instance, int min_x, int min_y, int max_x, int max_y, rs2_error** error);
 
 /**
  * \brief gets the active region of interest to be used by auto-exposure algorithm
@@ -177,7 +178,8 @@ void rs2_set_region_of_interest(const rs2_sensor* sensor, int min_x, int min_y, 
  * \param[out] max_y     upper vertical bound in pixels
  * \param[out] error     if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
-void rs2_get_region_of_interest(const rs2_sensor* sensor, int* min_x, int* min_y, int* max_x, int* max_y, rs2_error** error);
+//void rs2_get_region_of_interest(const rs2_sensor* sensor, int* min_x, int* min_y, int* max_x, int* max_y, rs2_error** error); Evgeni - update documentation
+void rs2_get_region_of_interest(const rs2_roi* roi_instance, int* min_x, int* min_y, int* max_x, int* max_y, rs2_error** error);
 
 /**
 * open subdevice for exclusive access, by committing to a configuration

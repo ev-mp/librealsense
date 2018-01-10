@@ -171,6 +171,7 @@ set(REALSENSE_HPP
     include/librealsense2/h/rs_sensor.h
     include/librealsense2/h/rs_internal.h
     include/librealsense2/h/rs_pipeline.h
+    include/librealsense2/h/rs_extension.h
 
     include/librealsense2/hpp/rs_types.hpp
     include/librealsense2/hpp/rs_context.hpp
@@ -181,6 +182,7 @@ set(REALSENSE_HPP
     include/librealsense2/hpp/rs_sensor.hpp
     include/librealsense2/hpp/rs_internal.hpp
     include/librealsense2/hpp/rs_pipeline.hpp
+    include/librealsense2/hpp/rs_extension.hpp
 
     include/librealsense2/rsutil.h
     include/librealsense2/rs_advanced_mode.h
@@ -331,6 +333,7 @@ if(WIN32)
         include/librealsense2/rsutil.h
         include/librealsense2/rs_advanced_mode.h
         include/librealsense2/h/rs_advanced_mode_command.h
+        include/librealsense2/h/rs_extension.h
         )
 
     source_group("Header Files\\API\\C++ Headers" FILES
@@ -343,8 +346,8 @@ if(WIN32)
         include/librealsense2/hpp/rs_record_playback.hpp
         include/librealsense2/hpp/rs_sensor.hpp
         include/librealsense2/hpp/rs_internal.hpp
-
         include/librealsense2/rs_advanced_mode.hpp
+        include/librealsense2/hpp/rs_extension.hpp
         )
 
     source_group("Header Files\\Recorder" FILES

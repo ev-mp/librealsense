@@ -51,6 +51,15 @@ rs2_processing_block* rs2_create_pointcloud(rs2_error** error);
 rs2_processing_block* rs2_create_processing_block(rs2_frame_processor_callback* proc, rs2_error** error);
 
 /**
+* Test if the given processing block can be extended to the requested extension
+* \param[in] processing_block  Realsense processing_block
+* \param[in] extension The extension to which the block should be tested if it is extendable
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return non-zero value iff the block can be extended to the given extension
+*/
+int rs2_is_processing_block_extendable_to(const rs2_processing_block* processing_block, rs2_extension extension, rs2_error** error);
+
+/**
 * This method is used to direct the output from the processing block to some callback or sink object
 * \param[in] block          Processing block
 * \param[in] on_frame       Callback to be invoked every time the processing block calls frame_ready

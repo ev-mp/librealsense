@@ -17,7 +17,7 @@ class single_consumer_queue
     std::deque<T> q;
     std::mutex mutex;
     std::condition_variable cv; // not empty signal
-    unsigned int cap;
+    size_t cap;
     bool accepting;
 
     // flush mechanism is required to abort wait on cv
@@ -27,7 +27,7 @@ class single_consumer_queue
     std::condition_variable was_flushed_cv;
     std::mutex was_flushed_mutex;
 public:
-    explicit single_consumer_queue<T>(unsigned int cap = QUEUE_MAX_SIZE)
+    explicit single_consumer_queue<T>(size_t cap = QUEUE_MAX_SIZE)
         : q(), mutex(), cv(), cap(cap), need_to_flush(false), was_flushed(false), accepting(true)
     {}
 

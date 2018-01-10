@@ -161,7 +161,7 @@ namespace librealsense
     };
 
     class uvc_sensor : public sensor_base,
-                       public roi_sensor_interface
+                       public roi_interface
     {
     public:
         explicit uvc_sensor(std::string name, std::shared_ptr<platform::uvc_device> uvc_device,

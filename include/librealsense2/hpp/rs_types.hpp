@@ -103,7 +103,7 @@ namespace rs2
         static void handle(rs2_error* e);
     };
 
-    #define RS2_ERROR_CLASS(name, base) \
+#define RS2_ERROR_CLASS(name, base) \
     class name : public base\
     {\
     public:\
@@ -118,7 +118,7 @@ namespace rs2
     RS2_ERROR_CLASS(invalid_value_error, recoverable_error);
     RS2_ERROR_CLASS(wrong_api_call_sequence_error, recoverable_error);
     RS2_ERROR_CLASS(not_implemented_error, recoverable_error);
-    #undef RS2_ERROR_CLASS
+#undef RS2_ERROR_CLASS
 
     inline void error::handle(rs2_error* e)
     {

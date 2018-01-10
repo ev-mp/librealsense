@@ -125,6 +125,7 @@ EXPORTS
     rs2_is_sensor_extendable_to
     rs2_is_device_extendable_to
     rs2_is_frame_extendable_to
+    rs2_is_processing_block_extendable_to
     rs2_stream_profile_is
 
     rs2_set_stream_profile_data
@@ -156,6 +157,9 @@ EXPORTS
     rs2_extract_frame
     rs2_depth_frame_get_distance
     rs2_depth_stereo_frame_get_baseline
+    rs2_create_sensor_roi
+    rs2_create_processing_block_roi
+    rs2_delete_roi
 
     rs2_set_depth_control
     rs2_get_depth_control

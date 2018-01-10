@@ -6,6 +6,7 @@
 
 #include "rs_types.hpp"
 #include "rs_sensor.hpp"
+//Evgeni?#include "rs_extension.hpp"
 
 namespace rs2
 {

@@ -16,6 +16,7 @@
 #include "core/advanced_mode.h"
 #include "source.h"
 #include "core/processing.h"
+#include "core/roi.h"
 #include "proc/synthetic-stream.h"
 #include "proc/align.h"
 #include "proc/colorizer.h"
@@ -31,6 +32,7 @@
 #include "environment.h"
 #include "proc/temporal-filter.h"
 #include "bypass-device.h"
+
 
 ////////////////////////
 // API implementation //
@@ -67,7 +69,6 @@ struct rs2_sensor : public rs2_options
     rs2_sensor(const rs2_sensor&) = delete;
 };
 
-
 struct rs2_context
 {
     ~rs2_context() { ctx->stop(); }
@@ -96,7 +97,7 @@ struct rs2_pipeline_profile
 
 struct rs2_frame_queue
 {
-    explicit rs2_frame_queue(int cap)
+    explicit rs2_frame_queue(size_t cap)
         : queue(cap)
     {
     }
@@ -120,6 +121,12 @@ struct rs2_sensor_list
 {
     rs2_device dev;
 };
+
+struct rs2_roi
+{
+    librealsense::roi_interface * _roi;
+};
+
 
 int major(int version)
 {
@@ -974,37 +981,37 @@ rs2_context* rs2_create_mock_context(int api_version, const char* filename, cons
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version, filename, section)
 
-void rs2_set_region_of_interest(const rs2_sensor* sensor, int min_x, int min_y, int max_x, int max_y, rs2_error** error) BEGIN_API_CALL
+void rs2_set_region_of_interest(const rs2_roi* roi, int min_x, int min_y, int max_x, int max_y, rs2_error** error) BEGIN_API_CALL
 {
-    VALIDATE_NOT_NULL(sensor);
+    VALIDATE_NOT_NULL(roi);
 
     VALIDATE_LE(min_x, max_x);
     VALIDATE_LE(min_y, max_y);
     VALIDATE_LE(0, min_x);
     VALIDATE_LE(0, min_y);
 
-    auto roi = VALIDATE_INTERFACE(sensor->sensor, librealsense::roi_sensor_interface);
-    roi->get_roi_method().set({ min_x, min_y, max_x, max_y });
+    auto roi_obj = VALIDATE_INTERFACE(roi->_roi, librealsense::roi_interface);
+    roi_obj->get_roi_method().set({ min_x, min_y, max_x, max_y });
 }
-HANDLE_EXCEPTIONS_AND_RETURN(, sensor, min_x, min_y, max_x, max_y)
+HANDLE_EXCEPTIONS_AND_RETURN(, roi, min_x, min_y, max_x, max_y)
 
-void rs2_get_region_of_interest(const rs2_sensor* sensor, int* min_x, int* min_y, int* max_x, int* max_y, rs2_error** error) BEGIN_API_CALL
+void rs2_get_region_of_interest(const rs2_roi* roi, int* min_x, int* min_y, int* max_x, int* max_y, rs2_error** error) BEGIN_API_CALL
 {
-    VALIDATE_NOT_NULL(sensor);
+    VALIDATE_NOT_NULL(roi);
     VALIDATE_NOT_NULL(min_x);
     VALIDATE_NOT_NULL(min_y);
     VALIDATE_NOT_NULL(max_x);
     VALIDATE_NOT_NULL(max_y);
 
-    auto roi = VALIDATE_INTERFACE(sensor->sensor, librealsense::roi_sensor_interface);
-    auto rect = roi->get_roi_method().get();
+    auto roi_obj = VALIDATE_INTERFACE(roi->_roi, librealsense::roi_interface);
+    auto rect = roi_obj->get_roi_method().get();
 
     *min_x = rect.min_x;
     *min_y = rect.min_y;
     *max_x = rect.max_x;
     *max_y = rect.max_y;
 }
-HANDLE_EXCEPTIONS_AND_RETURN(, sensor, min_x, min_y, max_x, max_y)
+HANDLE_EXCEPTIONS_AND_RETURN(, roi, min_x, min_y, max_x, max_y)
 
 void rs2_free_error(rs2_error* error) { if (error) delete error; }
 const char* rs2_get_failed_function(const rs2_error* error) { return error ? error->function : nullptr; }
@@ -1052,7 +1059,7 @@ int rs2_is_sensor_extendable_to(const rs2_sensor* sensor, rs2_extension extensio
     case RS2_EXTENSION_MOTION:        return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::motion_sensor_interface) != nullptr;
     case RS2_EXTENSION_OPTIONS:       return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::options_interface) != nullptr;
     case RS2_EXTENSION_VIDEO:         return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::video_sensor_interface) != nullptr;
-    case RS2_EXTENSION_ROI:           return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::roi_sensor_interface) != nullptr;
+    case RS2_EXTENSION_ROI:           return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::roi_interface) != nullptr;
     case RS2_EXTENSION_DEPTH_SENSOR:  return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::depth_sensor) != nullptr;
     case RS2_EXTENSION_DEPTH_STEREO_SENSOR :  return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::depth_stereo_sensor) != nullptr;
     default:
@@ -1072,7 +1079,7 @@ int rs2_is_device_extendable_to(const rs2_device* dev, rs2_extension extension, 
     case RS2_EXTENSION_MOTION: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::motion_sensor_interface) != nullptr;
     case RS2_EXTENSION_OPTIONS: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::options_interface) != nullptr;
     case RS2_EXTENSION_VIDEO: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::video_sensor_interface) != nullptr;
-    case RS2_EXTENSION_ROI: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::roi_sensor_interface) != nullptr;
+    case RS2_EXTENSION_ROI: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::roi_interface) != nullptr;
     case RS2_EXTENSION_DEPTH_SENSOR: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_sensor) != nullptr;
     case RS2_EXTENSION_DEPTH_STEREO_SENSOR:  return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_stereo_sensor) != nullptr;
     case RS2_EXTENSION_ADVANCED_MODE: return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::ds5_advanced_mode_interface) != nullptr;
@@ -1083,7 +1090,6 @@ int rs2_is_device_extendable_to(const rs2_device* dev, rs2_extension extension, 
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, dev, extension)
-
 
 int rs2_is_frame_extendable_to(const rs2_frame* f, rs2_extension extension_type, rs2_error** error) BEGIN_API_CALL
 {
@@ -1103,6 +1109,20 @@ int rs2_is_frame_extendable_to(const rs2_frame* f, rs2_extension extension_type,
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
+
+int rs2_is_processing_block_extendable_to(const rs2_processing_block* processing_block, rs2_extension extension_type, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(processing_block);
+    VALIDATE_ENUM(extension_type);
+    switch (extension_type)
+    {
+    case RS2_EXTENSION_ROI:           return VALIDATE_INTERFACE_NO_THROW(processing_block->block, librealsense::roi_interface) != nullptr;
+    default:
+        return false;
+    }
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, processing_block, extension_type)
+
 
 int rs2_stream_profile_is(const rs2_stream_profile* f, rs2_extension extension_type, rs2_error** error) BEGIN_API_CALL
 {
@@ -1787,3 +1807,30 @@ void rs2_log(rs2_log_severity severity, const char * message, rs2_error ** error
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, severity, message)
+
+
+rs2_roi* rs2_create_sensor_roi(const rs2_sensor* sensor, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+
+    auto roi = dynamic_cast<roi_interface*>(sensor->sensor);
+    VALIDATE_NOT_NULL(roi);
+    return new rs2_roi{ roi };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, sensor)
+
+rs2_roi* rs2_create_processing_block_roi(const rs2_processing_block* pb, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(pb);
+    auto roi = dynamic_cast<roi_interface*>(pb->block.get());
+    VALIDATE_NOT_NULL(roi);
+    return new rs2_roi{ roi };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, pb)
+
+void rs2_delete_roi(rs2_roi* roi) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(roi);
+    delete roi;
+}
+NOEXCEPT_RETURN(, roi)

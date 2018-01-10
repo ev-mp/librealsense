@@ -608,7 +608,7 @@ bool playback_device::try_extend_snapshot(std::shared_ptr<extension_snapshot>& e
     case RS2_EXTENSION_MOTION:  return try_extend<motion_sensor_interface>(e, ext);
     case RS2_EXTENSION_OPTIONS: return try_extend<options_interface>(e, ext);
     case RS2_EXTENSION_VIDEO:   return try_extend<video_sensor_interface>(e, ext);
-    case RS2_EXTENSION_ROI:     return try_extend<roi_sensor_interface>(e, ext);
+    case RS2_EXTENSION_ROI:     return try_extend<roi_interface>(e, ext);
     case RS2_EXTENSION_DEPTH_SENSOR: return try_extend<depth_sensor>(e, ext);
     case RS2_EXTENSION_DEPTH_STEREO_SENSOR: return try_extend<depth_stereo_sensor>(e, ext);
     case RS2_EXTENSION_UNKNOWN: //[[fallthrough]]

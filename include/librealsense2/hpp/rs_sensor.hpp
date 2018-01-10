@@ -6,6 +6,7 @@
 
 #include "rs_types.hpp"
 #include "rs_frame.hpp"
+//#include "rs_extension.hpp"
 
 namespace rs2
 {
@@ -220,6 +221,8 @@ namespace rs2
     private:
         rs2_options* _options;
     };
+
+    class roi_sensor;
 
     class sensor : public options
     {
@@ -440,38 +443,40 @@ namespace rs2
             && std::string(lhs.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)) == rhs.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
     }
 
-    class roi_sensor : public sensor
-    {
-    public:
-        roi_sensor(sensor s)
-            : sensor(s.get())
-        {
-            rs2_error* e = nullptr;
-            if(rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_ROI, &e) == 0 && !e)
-            {
-                _sensor = nullptr;
-            }
-            error::handle(e);
-        }
+    //// Evgeni WIP
+    //class roi_interface;
 
-        void set_region_of_interest(const region_of_interest& roi)
-        {
-            rs2_error* e = nullptr;
-            rs2_set_region_of_interest(_sensor.get(), roi.min_x, roi.min_y, roi.max_x, roi.max_y, &e);
-            error::handle(e);
-        }
+    //class roi_sensor : public sensor//, public roi_interface
+    //{
+    //public:
+    //    roi_sensor(sensor s): sensor(s.get())//, roi_interface(s)
+    //    {
+    //        rs2_error* e = nullptr;
+    //        if(rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_ROI, &e) == 0 && !e)
+    //        {
+    //            _sensor = nullptr;
+    //        }
+    //        error::handle(e);
+    //    }
 
-        region_of_interest get_region_of_interest() const
-        {
-            region_of_interest roi {};
-            rs2_error* e = nullptr;
-            rs2_get_region_of_interest(_sensor.get(), &roi.min_x, &roi.min_y, &roi.max_x, &roi.max_y, &e);
-            error::handle(e);
-            return roi;
-        }
+    //    //void set_region_of_interest(const region_of_interest& roi)
+    //    //{
+    //    //    rs2_error* e = nullptr;
+    //    //    rs2_set_region_of_interest(_sensor.get(), roi.min_x, roi.min_y, roi.max_x, roi.max_y, &e);
+    //    //    error::handle(e);
+    //    //}
 
-        operator bool() const { return _sensor.get() != nullptr; }
-    };
+    //    //region_of_interest get_region_of_interest() const
+    //    //{
+    //    //    region_of_interest roi {};
+    //    //    rs2_error* e = nullptr;
+    //    //    rs2_get_region_of_interest(_sensor.get(), &roi.min_x, &roi.min_y, &roi.max_x, &roi.max_y, &e);
+    //    //    error::handle(e);
+    //    //    return roi;
+    //    //}
+
+    //    operator bool() const { return _sensor.get() != nullptr; }
+    //};
 
     class depth_sensor : public sensor
     {
