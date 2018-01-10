@@ -160,8 +160,7 @@ namespace librealsense
         uint32_t fps_to_sampling_frequency(rs2_stream stream, uint32_t fps) const;
     };
 
-    class uvc_sensor : public sensor_base,
-                       public roi_interface
+    class uvc_sensor : public sensor_base, public roi_interface
     {
     public:
         explicit uvc_sensor(std::string name, std::shared_ptr<platform::uvc_device> uvc_device,

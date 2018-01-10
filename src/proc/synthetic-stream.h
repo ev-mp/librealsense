@@ -121,4 +121,32 @@ namespace librealsense
 
         std::shared_ptr<benchmarker> _benchmark;
     };
+
+    // Auxillary interface class for enabling ROI masking for the processing block
+    // Requires to implement get() and set() functionality
+    class processing_block_roi_method : public region_of_interest_method, public roi_interface
+    {
+    public:
+        explicit processing_block_roi_method():
+            //evgeni_roi_norm({0.f, 0.f, 1.f, 1.f}),
+            _roi_norm({ 0.4f, 0.4f, 0.6f, 0.6f }),
+            _roi_method(nullptr)
+        {}
+
+        region_of_interest_method& get_roi_method() const override
+        {
+            if (!_roi_method.get())
+                throw librealsense::not_implemented_exception("Region-of-interest is not implemented for this device!");
+            return *_roi_method;
+        }
+
+        void set_roi_method(std::shared_ptr<region_of_interest_method> roi_method) override
+        {
+            _roi_method = roi_method;
+        }
+
+    protected:
+        normalized_region_of_interest _roi_norm;
+        std::shared_ptr<region_of_interest_method> _roi_method;
+    };
 }

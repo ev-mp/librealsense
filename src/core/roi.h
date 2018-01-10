@@ -16,6 +16,15 @@ namespace librealsense
         int max_y;
     };
 
+    // Axis normalized to [0..1] range
+    struct normalized_region_of_interest
+    {
+        float min_x_norm;
+        float min_y_norm;
+        float max_x_norm;
+        float max_y_norm;
+    };
+
     class region_of_interest_method
     {
     public:

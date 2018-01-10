@@ -36,7 +36,8 @@ namespace librealsense
         _delta_param(temp_delta_default),
         _width(0), _height(0), _stride(0), _bpp(0),
         _extension_type(RS2_EXTENSION_DEPTH_FRAME),
-        _current_frm_size_pixels(0)
+        _current_frm_size_pixels(0),
+        _cur_frame_index(0)
     {
         auto temporal_creadibility_control = std::make_shared<ptr_option<uint8_t>>(cred_min, cred_max, cred_step, cred_default,
             &_credibility_param, "Threshold of previous frames with valid data");
@@ -158,12 +159,16 @@ namespace librealsense
             _stride = _width*_bpp;
             _current_frm_size_pixels = _width * _height;
 
+            // Preserve ROI selection when input changes
+            _selected_roi = { int(_roi_norm.min_x_norm * _width), int(_roi_norm.min_y_norm * _height),
+                              int(_roi_norm.max_x_norm * _width), int(_roi_norm.max_y_norm * _height) };
+
+            // reset history tracking
             _last_frame.clear();
             _last_frame.resize(_current_frm_size_pixels*_bpp);
 
             _history.clear();
             _history.resize(_current_frm_size_pixels*_bpp);
-
         }
     }
 
@@ -311,5 +316,32 @@ namespace librealsense
                 }
             }
         }
+    }
+
+    void temporal_filter::set(const region_of_interest& roi)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        if ((roi.max_x > _width) || (roi.min_x < 0) ||
+            (roi.max_y > _height) || (roi.min_y < 0))
+            throw std::runtime_error(to_string()
+                << "Invalid ROI requested [" << roi.min_x << "," << roi.min_y << "," << roi.max_x << "," << roi.max_y
+                << "] with actual frame size [" << _width << "," << _height << "]");
+
+        // Recalculate the normalized ROI
+        _roi_norm = { (float)roi.min_x / _width, (float)roi.min_y / _height,
+                      (float)roi.max_x / _width, (float)roi.max_y / _height };
+
+        _selected_roi = roi;
+
+        // reset the temporal filter history when changing ROI region
+        _cur_frame_index = 0;
+        _last_frame.clear();
+        _history.clear();
+    }
+
+    region_of_interest temporal_filter::get() const
+    {
+        return _selected_roi;
     }
 }

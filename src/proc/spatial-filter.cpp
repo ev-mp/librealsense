@@ -126,8 +126,11 @@ namespace librealsense
             _stride                     = _width*_bpp;
             _current_frm_size_pixels    = _width * _height;
 
-            // Check if the new frame originated from stereo-based depth sensor
-            // retrieve the stereo baseline parameter
+            // Preserve ROI selection when input changes
+            _selected_roi = { int(_roi_norm.min_x_norm * _width), int(_roi_norm.min_y_norm * _height),
+                int(_roi_norm.max_x_norm * _width), int(_roi_norm.max_y_norm * _height) };
+
+            // retrieve the stereo baseline parameter when appropriate
             // TODO refactor disparity parameters into the frame's metadata
             auto snr = ((frame_interface*)f.get())->get_sensor().get();
             librealsense::depth_stereo_sensor* dss;
@@ -160,5 +163,25 @@ namespace librealsense
 
         memmove(const_cast<void*>(tgt.get_data()), f.get_data(), _current_frm_size_pixels * _bpp);
         return tgt;
+    }
+
+    void spatial_filter::set(const region_of_interest& roi)
+    {
+        if ((roi.max_x > _width) || (roi.min_x < 0) ||
+            (roi.max_y > _height) || (roi.min_y < 0))
+            throw std::runtime_error(to_string()
+                << "Invalid ROI requested [" << roi.min_x << "," << roi.min_y << "," << roi.max_x << "," << roi.max_y
+                << "] with actual frame size [" << _width << "," << _height << "]");
+
+        // Recalculate the normalized ROI
+        _roi_norm = { (float)roi.min_x / _width, (float)roi.min_y / _height,
+            (float)roi.max_x / _width, (float)roi.max_y / _height };
+
+        _selected_roi = roi;
+    }
+
+    region_of_interest spatial_filter::get() const
+    {
+        return _selected_roi;
     }
 }

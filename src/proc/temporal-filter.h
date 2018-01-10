@@ -8,10 +8,13 @@ namespace librealsense
 {
     const size_t CREDIBILITY_MAP_SIZE = 256;
 
-    class temporal_filter : public processing_block
+    class temporal_filter : public processing_block, public processing_block_roi_method
     {
     public:
         temporal_filter();
+
+        void set(const region_of_interest& roi) override;
+        region_of_interest get() const override;
 
     protected:
         void    update_configuration(const rs2::frame& f);
@@ -36,53 +39,58 @@ namespace librealsense
             unsigned char mask = 1 << _cur_frame_index;
 
             // pass one -- go through image and update all
-            for (size_t i = 0; i < _current_frm_size_pixels; i++)
+            //Evgeni for (size_t i = 0; i < _current_frm_size_pixels; i++)
+            for (size_t i = _selected_roi.min_y; i < _selected_roi.max_y; i++)
             {
-                T cur_val = frame[i];
-                T prev_val = _last_frame[i];
-
-                if (cur_val)
+                for (size_t j = _selected_roi.min_x; j < _selected_roi.max_x; j++)
                 {
-                    if (!prev_val)
-                    {
-                        _last_frame[i] = cur_val;
-                        history[i] = mask;
-                    }
-                    else
-                    {  // old and new val
-                        T diff = static_cast<T>(fabs(cur_val - prev_val));
+                    size_t idx = i*_width + j;
+                    T cur_val = frame[idx];
+                    T prev_val = _last_frame[idx];
 
-                        if (diff > noise && (diff/cur_val) < max_radius)
-                        {  // old and new val agree
-                            history[i] |= mask;
-                            float filtered = _alpha_param * cur_val + _one_minus_alpha * prev_val;
-                            T result = static_cast<T>(filtered);
-                            frame[i] = result;
-                            _last_frame[i] = result;
+                    if (cur_val)
+                    {
+                        if (!prev_val)
+                        {
+                            _last_frame[idx] = cur_val;
+                            history[idx] = mask;
                         }
                         else
-                        {
-                            _last_frame[i] = cur_val;
-                            history[i] = mask;
-                        }
-                    }
-                }
-                else
-                {  // no cur_val
-                    if (prev_val)
-                    { // only case we can help
-                        unsigned char hist = history[i];
-                        unsigned char classification = _credibility_map[hist];
-                        if (classification & mask)
-                        { // we have had enough samples lately
-                            frame[i] = prev_val;
-                        }
-                    }
-                    history[i] &= ~mask;
-                }
-            }
+                        {  // old and new val
+                            T diff = static_cast<T>(fabs(cur_val - prev_val));
 
-            _cur_frame_index = (_cur_frame_index + 1) % 8;  // at end of cycle
+                            if (diff > noise && (diff / cur_val) < max_radius)
+                            {  // old and new val agree
+                                history[idx] |= mask;
+                                float filtered = _alpha_param * cur_val + _one_minus_alpha * prev_val;
+                                T result = static_cast<T>(filtered);
+                                frame[idx] = result;
+                                _last_frame[idx] = result;
+                            }
+                            else
+                            {
+                                _last_frame[idx] = cur_val;
+                                history[idx] = mask;
+                            }
+                        }
+                    }
+                    else
+                    {  // no cur_val
+                        if (prev_val)
+                        { // only case we can help
+                            unsigned char hist = history[idx];
+                            unsigned char classification = _credibility_map[hist];
+                            if (classification & mask)
+                            { // we have had enough samples lately
+                                frame[idx] = prev_val;
+                            }
+                        }
+                        history[idx] &= ~mask;
+                    }
+                }
+
+                _cur_frame_index = (_cur_frame_index + 1) % 8;  // at end of cycle
+            }
         }
 
     private:
@@ -91,7 +99,7 @@ namespace librealsense
         void on_set_delta(float val);
 
         void recalc_creadibility_map();
-        std::mutex _mutex;
+        mutable std::mutex _mutex;
         uint8_t                 _credibility_param;
 
         float                   _alpha_param;               // The normalized weight of the current pixel
@@ -107,5 +115,6 @@ namespace librealsense
         std::vector<uint8_t>    _history;                   // represents the history over the last 8 frames, 1 bit per frame
         uint8_t                 _cur_frame_index;
         std::array<uint8_t, CREDIBILITY_MAP_SIZE> _credibility_map;  // encodes whether a particular 8 bit history is good enough for all 8 phases of storage
+        region_of_interest      _selected_roi;
     };
 }

@@ -14,10 +14,13 @@
 
 namespace librealsense
 {
-    class spatial_filter : public processing_block
+    class spatial_filter : public processing_block, public processing_block_roi_method
     {
     public:
         spatial_filter();
+
+        void set(const region_of_interest& roi) override;
+        region_of_interest get() const override;
 
     protected:
         void    update_configuration(const rs2::frame& f);
@@ -53,12 +56,14 @@ namespace librealsense
 
             auto image = reinterpret_cast<T*>(image_data);
 
-            for (v = 0; v < _height; v++) 
+            //Evgenifor (v = 0; v < _height; v++)
+            for (v = _selected_roi.min_y; v < _selected_roi.max_y; v++)
             {
                 // left to right
-                T *im = image + v * _width;
+                T *im = image + v * _width + _selected_roi.min_x;
                 T val0 = im[0];
-                for (u = 1; u < _width; u++)
+                //Evgeni for (u = 1; u < _width; u++)
+                for (u = _selected_roi.min_x+1; u < _selected_roi.max_x; u++)
                 {
                     T val1 = im[1];
 
@@ -82,9 +87,12 @@ namespace librealsense
                 }
 
                 // right to left
-                im = image + (v + 1) * _width - 2;  // end of row - two pixels
+                //Evgeni im = image + (v + 1) * _width - 2;  // end of row - two pixels
+                im = image + v * _width + _selected_roi .max_x - 2;  // end of ROI row - two pixels
                 T val1 = im[1];
-                for (u = _width - 1; u > 0; u--)
+
+                //Evgeni for (u = _width - 1; u > 0; u--)
+                for (u = _selected_roi.max_x - 1; u > _selected_roi.min_x; u--)
                 {
                     T val0 = im[0];
 
@@ -115,13 +123,13 @@ namespace librealsense
             size_t v{}, u{};
 
             // Handle conversions for invalid input data
-            bool fp = (std::is_floating_point<T>::value);
+            constexpr bool fp = (std::is_floating_point<T>::value);
 
             // Filtering integer values requires round-up to the nearest discrete value
-            const float round = fp ? 0.f : 0.5f;
+            constexpr float round = fp ? 0.f : 0.5f;
             // Disparity value of 0.001 corresponds to 0.5 mm at 0.5 meter to 5 mm at 5m
             // For Depth values the smoothing will take effect when the gradient is more than 4 level (~0.4mm)
-            const T noise = fp ? static_cast<T>(0.001f) : static_cast<T>(4);
+            constexpr T noise = fp ? static_cast<T>(0.001f) : static_cast<T>(4);
             const T max_radius = static_cast<T>(fp ? 2.f : deltaZ);
 
             auto image = reinterpret_cast<T*>(image_data);
@@ -133,12 +141,20 @@ namespace librealsense
             T *im = image;
             T im0{};
             T imw{};
-            for (v = 1; v < _height; v++)
+            //Evgeni for (v = 1; v < _height; v++)
+            for (v = _selected_roi.min_y + 1 ; v < _selected_roi.max_y; v++)
             {
-                for (u = 0; u < _width; u++)
+                //Evgeni - small refactoring
+                im = &image[v*_width];
+
+                //Evgeni for (u = 0; u < _width; u++)
+                for (u = _selected_roi.min_x ; u < _selected_roi.max_x; u++)
                 {
-                    im0 = im[0];
-                    imw = im[_width];
+                    //Evgeni
+                    /*im0 = im[0];
+                    imw = im[_width];*/
+                    im0 = im[ u];
+                    imw = im[ u + _width];
 
                     if ((im0 >noise) && (imw > noise))
                     {
@@ -146,7 +162,7 @@ namespace librealsense
                         if (delta > noise && delta < max_radius)
                         {
                             float filtered = imw * alpha + im0 * (1.f - alpha);
-                            im[_width] = static_cast<T>(filtered + round);
+                            im[_width + u] = static_cast<T>(filtered + round);
                         }
                     }
                     im += 1;
@@ -155,12 +171,17 @@ namespace librealsense
 
             // bottom to top
             im = image + (_height - 2) * _width;
-            for (v = 1; v < _height; v++, im -= (_width * 2))
+            //Evgeni for (v = 1; v < _height; v++, im -= (_width * 2))
+            for (v = _selected_roi.min_y + 1; v < _selected_roi.max_y; v++, im -= (_width * 2))
             {
-                for (u = 0; u < _width; u++)
+                //Evgeni for (u = 0; u < _width; u++)
+                for (u = _selected_roi.min_x; u < _selected_roi.max_x; u++)
                 {
-                    im0 = im[0];
-                    imw = im[_width];
+                    //Evgeni
+                    /*im0 = im[0];
+                    imw = im[_width];*/
+                    im0 = im[u];
+                    imw = im[u + _width];
 
                     if ((im0 >noise) && (imw > noise))
                     {
@@ -168,7 +189,8 @@ namespace librealsense
                         if (delta > noise && delta < max_radius)
                         {
                             float filtered = im0 * alpha + imw * (1.f - alpha);
-                            im[0] = static_cast<T>(filtered + round);
+                            //Evgeni im[0] = static_cast<T>(filtered + round);
+                            im[u] = static_cast<T>(filtered + round);
                         }
                     }
                     im += 1;
@@ -191,5 +213,6 @@ namespace librealsense
         bool                    _stereoscopic_depth;
         float                   _focal_lenght_mm;
         float                   _stereo_baseline_mm;
+        region_of_interest      _selected_roi;
     };
 }
