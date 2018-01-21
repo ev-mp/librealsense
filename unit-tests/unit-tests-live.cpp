@@ -15,6 +15,8 @@
 #include <ctime>
 #include <algorithm>
 #include <librealsense2/rsutil.h>
+#include <numeric>
+#include <cmath>
 
 using namespace rs2;
 
@@ -5917,3 +5919,237 @@ TEST_CASE("l500_presets_set_preset", "[live]")
        
     }
 }
+
+#pragma pack(push, 1)
+struct test_case
+{
+    float dx;   // Depth pixel x-coordinate                                                                                                                                                             
+    float dy;   // Depth pixel Y-coordinate                                                                                                                                                             
+    float wx;   // Ground truth - the expected X,Y coordinates in 3D space corersponding to the pixel denoted by (dx,dy)                                                                                
+    float wy;
+    float wz;    // Z value for the given (dx,dy). rectified                                                                                                                                            
+    float u;    // The calculated Texture (U,V) coordinates in the Color image that correspond to the requested (dx,dy) depth coordinate                                                                
+    float v;
+};
+#pragma pack(pop, 1)
+
+// std::vector<test_case>, // test_points [Depth Pixel (i,j), Z] > Depth X,Y, UV Map U,V coordinates
+std::tuple< std::vector<test_case>, // test_points [Depth Pixel (i,j), Z] > Depth X,Y, UV Map U,V coordinates
+            rs2_intrinsics, // depth_intrin
+            rs2_intrinsics, // color_intrin
+            librealsense::pose, // color sensor pose
+            bool> // result
+    parse_reference_data(const std::string&tests_set_file_name,
+        const std::string&coeff_tbl_file_name,
+        const std::string&rgb_calib_file_name, 
+        size_t dpt_width, size_t dpt_height,
+        size_t rgb_width, size_t rgb_height)
+{
+    using namespace librealsense;
+    using namespace librealsense::ds;
+    std::vector<test_case> test_points;
+    bool res = true;
+    rs2_intrinsics      depth_intrin;
+    rs2_intrinsics      color_intrin;
+    pose  color_pose;
+
+    auto get_raw_data=[&](const std::string&file_name)
+    { 
+        std::vector<uint8_t> raw_calib_data{};
+        if (file_exists(file_name))
+        {
+            std::ifstream file;
+            file.open(file_name, std::ios::binary);
+            file.seekg(0, std::ios::end);
+            raw_calib_data.resize(file.tellg());
+            file.seekg(0, std::ios::beg);
+            file.read((char*)(raw_calib_data.data()), raw_calib_data.size());
+            file.close();
+        }
+        else
+        {
+            res = false;
+            std::cout << "Could find" << file_name << " calibration file!" << std::endl;
+        }
+
+        return raw_calib_data;
+    };
+
+    // Obtain depth stream intrinsics
+    std::vector<uint8_t> raw_calib = get_raw_data(coeff_tbl_file_name);
+    if (raw_calib.size())
+    {
+        depth_intrin        = librealsense::ds::get_intrinsic_by_resolution(raw_calib, calibration_table_id::coefficients_table_id, dpt_width, dpt_height);
+    }
+    else
+    {
+        res = false;
+        std::cout << "Zero-size calibration read from " << coeff_tbl_file_name << std::endl;
+    }
+
+    // retrieve color sream calibration
+    raw_calib = get_raw_data(rgb_calib_file_name);
+    if (raw_calib.size())
+    {
+        color_intrin    = librealsense::ds::get_intrinsic_by_resolution(raw_calib, calibration_table_id::rgb_calibration_id, rgb_width, rgb_height);
+        color_pose      = librealsense::ds::get_color_stream_extrinsic(raw_calib);
+    }
+    else
+    {
+        res = false;
+        std::cout << "Zero-size calibration read from " << coeff_tbl_file_name << std::endl;
+    }
+
+    // read reference data set - binary of raws of float with the following inputs:
+    // i    j       x       y           z        u       v
+    //106   12 - 416.33 - 251.477   708.092   176.846  24.4679
+    raw_calib = get_raw_data(tests_set_file_name);
+    if (raw_calib.size())
+    {
+        std::vector<float> floats;
+        for (size_t i = 0; i < raw_calib.size(); i += sizeof(float) )
+            floats.push_back(*(reinterpret_cast<float*>(&raw_calib[i])));
+
+        auto line = sizeof(test_case) / sizeof(float);
+        test_case t;
+        for (size_t i = 0; i < floats.size(); i+= line)
+        {
+            t = *(reinterpret_cast<test_case*>(&floats[i]));
+            test_points.push_back(t);
+        }
+    }
+    else
+    {
+        res = false;
+        std::cout << "Zero-size calibration read from " << coeff_tbl_file_name << std::endl;
+    }
+
+    return std::make_tuple(test_points,depth_intrin, color_intrin, color_pose, res);
+}
+
+TEST_CASE("Projection Testing", "[live]")
+{
+    rs2::context ctx;
+
+    using pt = std::array<float, 3>;
+    using pix = std::array<float, 2>;
+
+    if (make_context(SECTION_FROM_TEST_NAME, &ctx))
+    {
+        using namespace librealsense;
+        using namespace librealsense::ds;
+
+        float dpt_width = 1280;
+        float dpt_height = 720;
+        float rgb_width = 1920;
+        float rgb_height = 1080;
+
+        rs2_intrinsics depth_intrinsic; // From calibration table
+        rs2_intrinsics color_intrinsic; // Calculated from the Projection R normalized matrix
+        rs2_extrinsics depth2color_extrinsic;
+        pose color_pose;
+        std::vector<test_case> projection_tests;
+        bool res = false;
+
+        std::string tests_set_file_name("trace.bin");
+        std::string coeff_tbl_file_name("coeffTable.bin");
+        std::string rgb_calib_file_name("rgbParams.bin");
+
+        std::tie(projection_tests, depth_intrinsic, color_intrinsic, color_pose, res) = parse_reference_data(
+            tests_set_file_name,
+            coeff_tbl_file_name,
+            rgb_calib_file_name,
+            dpt_width, dpt_height, rgb_width, rgb_height);
+
+        // Note that the extrinsic for RGB provides for RGB->Depth.Here we use an inverser to align Depth to Color
+        depth2color_extrinsic = from_pose(inverse((color_pose)));
+
+        std::ofstream of;
+        of.open("Projection_Test_Results.txt");
+        of << "Calculated U, Calculated V, Groun truth U, Ground Truth V" << std::endl;
+        pt  wp_depth_cs;
+        pt  wp_color_cs;
+        pix  uv_coord;
+        std::vector<pix> resulted_uv;
+        resulted_uv.reserve(projection_tests.size());
+
+        for (auto test_case : projection_tests)
+        {
+            // Convert units from mm to meters, the way it is processes in librelasense
+            test_case.wx *= 0.001f;
+            test_case.wy *= 0.001f;
+            test_case.wz *= 0.001f;
+
+            const float depth_pixel[] = { test_case.dx, test_case.dy };
+            CAPTURE(depth_intrinsic.width);
+            CAPTURE(depth_intrinsic.height);
+            CAPTURE(depth_intrinsic.fx);
+            CAPTURE(depth_intrinsic.fy);
+            CAPTURE(depth_intrinsic.ppx);
+            CAPTURE(depth_intrinsic.ppy);
+            CAPTURE(color_intrinsic.width);
+            CAPTURE(color_intrinsic.height);
+            CAPTURE(color_intrinsic.fx);
+            CAPTURE(color_intrinsic.fy);
+            CAPTURE(color_intrinsic.ppx);
+            CAPTURE(color_intrinsic.ppy);
+
+            CAPTURE(test_case.dx);
+            CAPTURE(test_case.dy);
+            CAPTURE(test_case.wx);
+            CAPTURE(test_case.wy);
+            CAPTURE(test_case.wz);
+            CAPTURE(test_case.u);
+            CAPTURE(test_case.v);
+
+            // Test deprojection from depth-2D representation into 3D coordinates
+            rs2_deproject_pixel_to_point(wp_depth_cs.data(), &depth_intrinsic, depth_pixel, test_case.wz);
+            REQUIRE(wp_depth_cs[0] == Approx(test_case.wx).epsilon(0.0001)); // Tolerance of 0.01%
+            REQUIRE(wp_depth_cs[1] == Approx(test_case.wy).epsilon(0.0001));
+            REQUIRE(wp_depth_cs[2] == Approx(test_case.wz).epsilon(0.0001));
+
+            // Test transformation from depth to color CS
+            rs2_transform_point_to_point((float*)(&wp_color_cs), &depth2color_extrinsic, (float*)(&wp_depth_cs));
+            //Heuristicly verify that the RGB is positioned to the left of Depth (in Depth CS)
+            CAPTURE(wp_color_cs[0]);
+            CAPTURE(wp_color_cs[1]);
+            CAPTURE(wp_color_cs[2]);
+
+
+            // Test projection from 3D points in Color CS onto Color 2D image
+            rs2_project_point_to_pixel((float*)(&uv_coord), &color_intrinsic, (float*)(&wp_color_cs));
+
+            CAPTURE(uv_coord[0]);
+            CAPTURE(uv_coord[1]);
+            
+            REQUIRE(uv_coord[0] == Approx(test_case.u).epsilon(0.005)); //threshold mapping error -  0.5% tolerance
+            REQUIRE(uv_coord[1] == Approx(test_case.v).epsilon(0.005));
+            // Log the resulted vs "Ground Truth" UV map coordinates
+            of << std::fixed << std::setprecision(5) << uv_coord[0] << "," << uv_coord[1] << "," << test_case.u << "," << test_case.v << std::endl;
+            resulted_uv.emplace_back(uv_coord);
+        }
+
+        // Calculate statistic of UV mapping displacements
+        std::vector<float> u_error, v_error;
+        for (size_t i = 0; i < resulted_uv.size(); i++)
+        {
+            u_error.push_back(projection_tests[i].u - resulted_uv[i][0]);
+            v_error.push_back(projection_tests[i].v - resulted_uv[i][1]);
+        }
+
+        float u_sum = std::accumulate(std::begin(u_error), std::end(u_error), 0.f);
+        float v_sum = std::accumulate(std::begin(v_error), std::end(v_error), 0.f);
+        float u_mean = u_sum / resulted_uv.size();
+        float v_mean = v_sum / resulted_uv.size();
+        float u_variance = std::inner_product(u_error.begin(), u_error.end(), u_error.begin(), 0.f);
+        float v_variance = std::inner_product(v_error.begin(), v_error.end(), v_error.begin(), 0.f);
+        double u_std = sqrt(u_variance / (u_error.size()));
+        double v_std = sqrt(v_variance / (v_error.size()));
+        std::stringstream ss;
+        ss << "U avg error: " << u_mean << ",V avg error: " << v_mean << ",U STD: " << u_std << ",V STD: " << v_std;
+        WARN(ss.str().c_str());
+        of << "Statistics:" << std::endl <<  ss.str().c_str();
+        of.close();
+    }
+}
+

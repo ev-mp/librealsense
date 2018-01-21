@@ -700,6 +700,7 @@ namespace rs2
         int get_bytes_per_pixel() const { return get_bits_per_pixel() / 8; }
     };
 
+#pragma pack(push,1)
     struct vertex {
         float x, y, z;
         operator const float*() const { return &x; }
@@ -708,6 +709,7 @@ namespace rs2
         float u, v;
         operator const float*() const { return &u; }
     };
+#pragma pack(pop)
 
     class points : public frame
     {

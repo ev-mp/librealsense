@@ -336,6 +336,10 @@ namespace rs2
         auto n = std::make_shared<export_notification_model>(manager);
         ns.add_notification(n);
         n->forced = true;
+                
+       //// Dump 3D points along with the UV-map for validation
+       //save_frame_raw_data(fname, p);
+
 
         auto invoke = [n](std::function<void()> action) {
             n->invoke(action);
