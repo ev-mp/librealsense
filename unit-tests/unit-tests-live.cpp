@@ -1514,7 +1514,9 @@ TEST_CASE("Check option API", "[live][options]")
     }
 }
 
-TEST_CASE("Multiple devices", "[live][multicam]")
+/// The test may fail due to changes in profiles list that do not indicate regression.
+/// TODO - refactoring required to make the test agnostic to changes imposed by librealsense core
+TEST_CASE("Multiple devices", "[live][multicam][!mayfail]")
 {
     rs2::context ctx;
     if (make_context(SECTION_FROM_TEST_NAME, &ctx))
