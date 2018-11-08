@@ -164,8 +164,43 @@ namespace librealsense
 
         if(has_metadata(mode, fo.metadata, fo.metadata_size))
         {
+            static int error_count=0;
+            static bool error_trigger=false;
             auto timestamp = *((uint64_t*)((const uint8_t*)fo.metadata));
+            auto fb = const_cast<uint8_t*>(static_cast<const uint8_t*>(fo.pixels));
+//            auto system_timestamp = *reinterpret_cast<uint64_t*>(&fb[2]);
+            static uint64_t prev_ts = 0;
+            if (prev_ts >= timestamp)
+            {
+                std::cout   << " TS Corruption: prev, current :" << prev_ts << ", " << timestamp << ", " << std::endl;
+                exit(1);
+            }
+            else
+            {
+                if (timestamp -prev_ts > 4000000 )
+                { // 15msec
+                    std::cout   << " TS drops: prev, current :" << prev_ts << ", " << timestamp << ", " << std::endl;
+                    error_count++;
+                    if (error_count > 2)
+                    exit(1);
+                }
+                else
+                {
+                    // Reset error trigger
+//                    error_count = 0;
+//                    if (error_trigger)
+//                        exit(1);
+                }
+            }
+
+            if (error_count>2)
+                error_trigger = true;
+
+//                else
+//                    std::cout   << "[Report,State]:" << int(fb[0]) << ", " << int(fb[1]) << ", " << std::endl;
             // The FW timestamps for HID are converted to Nanosec in Linux kernel. This may produce conflicts with MS API.
+            //std::cout   << " TS :"  << timestamp << std::endl;
+            prev_ts = timestamp;
             return static_cast<rs2_time_t>(timestamp) * TIMESTAMP_NSEC_TO_MSEC;
         }
 

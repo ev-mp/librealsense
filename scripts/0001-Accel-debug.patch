@@ -1,0 +1,115 @@
+From 9ab439197ca859af2b7a1582fa2138994924522d Mon Sep 17 00:00:00 2001
+From: Evgeni Raikhel <evgeni.raikhel@intel.com>
+Date: Sun, 21 Oct 2018 18:36:25 +0300
+Subject: [PATCH] d
+
+---
+ drivers/iio/accel/hid-sensor-accel-3d.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/drivers/iio/accel/hid-sensor-accel-3d.c b/drivers/iio/accel/hid-sensor-accel-3d.c
+index 2238a26..0ca5c96 100644
+--- a/drivers/iio/accel/hid-sensor-accel-3d.c
++++ b/drivers/iio/accel/hid-sensor-accel-3d.c
+@@ -132,6 +132,7 @@ static const struct iio_chan_spec gravity_channels[] = {
+ static void accel_3d_adjust_channel_bit_mask(struct iio_chan_spec *channels,
+ 						int channel, int size)
+ {
++	printk(KERN_ALERT "EV: Passed %s %d \n",__FUNCTION__,__LINE__);
+ 	channels[channel].scan_type.sign = 's';
+ 	/* Real storage bits will change based on the report desc. */
+ 	channels[channel].scan_type.realbits = size * 8;
+@@ -151,6 +152,7 @@ static int accel_3d_read_raw(struct iio_dev *indio_dev,
+ 	int ret_type;
+ 	struct hid_sensor_hub_device *hsdev =
+ 					accel_state->common_attributes.hsdev;
++	printk(KERN_ALERT "EV: Passed %s %d \n",__FUNCTION__,__LINE__);
+ 
+ 	*val = 0;
+ 	*val2 = 0;
+@@ -177,21 +179,26 @@ static int accel_3d_read_raw(struct iio_dev *indio_dev,
+ 		*val = accel_state->scale_pre_decml;
+ 		*val2 = accel_state->scale_post_decml;
+ 		ret_type = accel_state->scale_precision;
++		printk("case IIO_CHAN_INFO_SCALE: val1=%d, val2=%d, ret=%d \n",*val,*val2,ret_type);
+ 		break;
+ 	case IIO_CHAN_INFO_OFFSET:
+ 		*val = accel_state->value_offset;
+ 		ret_type = IIO_VAL_INT;
++		printk("case IIO_CHAN_INFO_OFFSET: val1=%d, ret=%d \n",*val,ret_type);
+ 		break;
+ 	case IIO_CHAN_INFO_SAMP_FREQ:
+ 		ret_type = hid_sensor_read_samp_freq_value(
+ 			&accel_state->common_attributes, val, val2);
++		printk("case IIO_CHAN_INFO_SAMP_FREQ: val1=%d, val2=%d, ret=%d \n",*val,*val2,ret_type);
+ 		break;
+ 	case IIO_CHAN_INFO_HYSTERESIS:
+ 		ret_type = hid_sensor_read_raw_hyst_value(
+ 			&accel_state->common_attributes, val, val2);
++		printk("case IIO_CHAN_INFO_HYSTERESIS: val1=%d, val2=%d, ret=%d \n",*val,*val2,ret_type);
+ 		break;
+ 	default:
+ 		ret_type = -EINVAL;
++		printk("case default");
+ 		break;
+ 	}
+ 
+@@ -273,6 +280,11 @@ static int accel_3d_capture_sample(struct hid_sensor_hub_device *hsdev,
+ 	int offset;
+ 	int ret = -EINVAL;
+ 
++	printk("Ev: Accel: scales=[pre,post,precision]=[%d,%d,%d] \n",
++		accel_state->scale_pre_decml,
++		accel_state->scale_post_decml,
++		accel_state->scale_precision);
++
+ 	switch (usage_id) {
+ 	case HID_USAGE_SENSOR_ACCEL_X_AXIS:
+ 	case HID_USAGE_SENSOR_ACCEL_Y_AXIS:
+@@ -281,14 +293,18 @@ static int accel_3d_capture_sample(struct hid_sensor_hub_device *hsdev,
+ 		accel_state->accel_val[CHANNEL_SCAN_INDEX_X + offset] =
+ 						*(u32 *)raw_data;
+ 		ret = 0;
++		printk("Ev: Accel axis %x val=%d\n",usage_id,
++			accel_state->accel_val[CHANNEL_SCAN_INDEX_X + offset]);
+ 	break;
+ 	case HID_USAGE_SENSOR_TIME_TIMESTAMP:
+ 		accel_state->timestamp =
+ 			hid_sensor_convert_timestamp(
+ 					&accel_state->common_attributes,
+ 					*(int64_t *)raw_data);
++		printk("Ev: HID_USAGE_SENSOR_TIME_TIMESTAMP: timestamp=%l\n",accel_state->timestamp);
+ 	break;
+ 	default:
++		printk("Ev: default val => %x\n",usage_id);
+ 		break;
+ 	}
+ 
+@@ -305,6 +321,8 @@ static int accel_3d_parse_report(struct platform_device *pdev,
+ 	int ret;
+ 	int i;
+ 
++	printk(KERN_ALERT "EV: Passed %s %d \n",__FUNCTION__,__LINE__);
++
+ 	for (i = 0; i <= CHANNEL_SCAN_INDEX_Z; ++i) {
+ 		ret = sensor_hub_input_get_attribute_info(hsdev,
+ 				HID_INPUT_REPORT,
+@@ -353,6 +371,7 @@ static int hid_accel_3d_probe(struct platform_device *pdev)
+ 	const struct iio_chan_spec *channel_spec;
+ 	int channel_size;
+ 
++	printk(KERN_ALERT "EV: Passed %s %d \n",__FUNCTION__,__LINE__);
+ 	struct hid_sensor_hub_device *hsdev = pdev->dev.platform_data;
+ 
+ 	indio_dev = devm_iio_device_alloc(&pdev->dev,
+@@ -448,6 +467,7 @@ static int hid_accel_3d_probe(struct platform_device *pdev)
+ /* Function to deinitialize the processing for usage id */
+ static int hid_accel_3d_remove(struct platform_device *pdev)
+ {
++	printk(KERN_ALERT "EV: Passed %s %d \n",__FUNCTION__,__LINE__);
+ 	struct hid_sensor_hub_device *hsdev = pdev->dev.platform_data;
+ 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
+ 	struct accel_3d_state *accel_state = iio_priv(indio_dev);
+-- 
+2.7.4
+
