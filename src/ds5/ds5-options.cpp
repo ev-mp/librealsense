@@ -127,22 +127,28 @@ namespace librealsense
 
     option_range motion_module_temperature_option::get_range() const
     {
-        if (!is_enabled())
-            throw wrong_api_call_sequence_exception("get option range is allow only in streaming!");
+        // Evgeni  temporal override
+        if (true) // BMI055 static range
+            return option_range { -40, 125, 0, 0 };
+        else
+        {
+            if (!is_enabled())
+                throw wrong_api_call_sequence_exception("get option range is allow only in streaming!");
 
-        static const auto min_report_field = platform::custom_sensor_report_field::minimum;
-        static const auto max_report_field = platform::custom_sensor_report_field::maximum;
-        auto min_data = _ep.get_custom_report_data(custom_sensor_name, report_name, min_report_field);
-        auto max_data = _ep.get_custom_report_data(custom_sensor_name, report_name, max_report_field);
-        if (min_data.empty() || max_data.empty())
-            throw invalid_value_exception("get_range() motion_module_temperature_option failed! Empty buffer arrived.");
+            static const auto min_report_field = platform::custom_sensor_report_field::minimum;
+            static const auto max_report_field = platform::custom_sensor_report_field::maximum;
+            auto min_data = _ep.get_custom_report_data(custom_sensor_name, report_name, min_report_field);
+            auto max_data = _ep.get_custom_report_data(custom_sensor_name, report_name, max_report_field);
+            if (min_data.empty() || max_data.empty())
+                throw invalid_value_exception("get_range() motion_module_temperature_option failed! Empty buffer arrived.");
 
-        auto min_str = std::string(reinterpret_cast<char const*>(min_data.data()));
-        auto max_str = std::string(reinterpret_cast<char const*>(max_data.data()));
+            auto min_str = std::string(reinterpret_cast<char const*>(min_data.data()));
+            auto max_str = std::string(reinterpret_cast<char const*>(max_data.data()));
 
-        return option_range{std::stof(min_str),
-                            std::stof(max_str),
-                            0, 0};
+            return option_range{std::stof(min_str),
+                                std::stof(max_str),
+                                0, 0};
+        }
     }
 
     bool motion_module_temperature_option::is_enabled() const

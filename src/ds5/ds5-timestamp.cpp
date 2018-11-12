@@ -164,43 +164,67 @@ namespace librealsense
 
         if(has_metadata(mode, fo.metadata, fo.metadata_size))
         {
-            static int error_count=0;
+
             static bool error_trigger=false;
-            auto timestamp = *((uint64_t*)((const uint8_t*)fo.metadata));
-            auto fb = const_cast<uint8_t*>(static_cast<const uint8_t*>(fo.pixels));
-//            auto system_timestamp = *reinterpret_cast<uint64_t*>(&fb[2]);
-            static uint64_t prev_ts = 0;
-            if (prev_ts >= timestamp)
+            auto timestamp = *reinterpret_cast<const uint64_t*>(fo.metadata);
+            const uint8_t *pxls = (const uint8_t*)fo.pixels;
+
+            uint16_t type = mode.profile.fps;
+
+            // Mapping between fps (stream intrinsic) to timestamp
+            static std::map<uint16_t, uint64_t> deltas;
+            static std::map<uint16_t, uint64_t> prev_time;
+            static std::map<uint16_t, uint64_t> fc;
+            static std::map<uint16_t, int> error_count;
+
+            if (prev_time.find(type) != prev_time.end())
             {
-                std::cout   << " TS Corruption: prev, current :" << prev_ts << ", " << timestamp << ", " << std::endl;
-                exit(1);
-            }
-            else
-            {
-                if (timestamp -prev_ts > 4000000 )
-                { // 15msec
-                    std::cout   << " TS drops: prev, current :" << prev_ts << ", " << timestamp << ", " << std::endl;
-                    error_count++;
-                    if (error_count > 2)
-                    exit(1);
+                if (prev_time[type] > timestamp)
+                {
+                    std::cout   << " TS Corruption: for type " << (int)type
+                                << " prev, current :" << prev_time[type] << ", " << timestamp << ", " << std::endl;
+                    return nan("");
                 }
                 else
                 {
-                    // Reset error trigger
-//                    error_count = 0;
-//                    if (error_trigger)
-//                        exit(1);
+                    auto interval = 1000000000 / type;
+                    uint64_t delta = timestamp - prev_time[type];
+                    if ((deltas.find(type) != deltas.end()) &&  (delta > interval*4) )
+                    {
+                        std::stringstream ss;
+                        ss   << " TS drop for type " << int(type)
+                             << " prev, current :" << prev_time[type] << ", " << timestamp
+                             << ", expected/actual intervals: " << interval << "/" << delta
+                             << " total errors : "  << error_count[type] << std::endl;
+                         std::cout << ss.str().c_str();
+
+                        if (fc[type] > 200)
+                        {
+                            error_count[type]++;
+                            if (error_count[type] > 0)
+                            {
+                                return nan("");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        deltas[type] = delta;
+                        // Reset error trigger
+    //                    error_count = 0;
+    //                    if (error_trigger)
+    //                        exit(1);
+                    }
                 }
             }
 
-            if (error_count>2)
-                error_trigger = true;
-
+            std::cout << "TS errors: " << error_count[type] << " frame type: " << type << " ,fc: " << fc[type] << std::endl;
 //                else
 //                    std::cout   << "[Report,State]:" << int(fb[0]) << ", " << int(fb[1]) << ", " << std::endl;
             // The FW timestamps for HID are converted to Nanosec in Linux kernel. This may produce conflicts with MS API.
             //std::cout   << " TS :"  << timestamp << std::endl;
-            prev_ts = timestamp;
+            fc[type]++;
+            prev_time[type] = timestamp;
             return static_cast<rs2_time_t>(timestamp) * TIMESTAMP_NSEC_TO_MSEC;
         }
 

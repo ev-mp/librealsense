@@ -97,6 +97,8 @@ else
 	# See reference https://patchwork.kernel.org/patch/9907707/
 	echo -e "\e[32mRetrofit uvc bug fix enabled with 4.18+\e[0m"
 	patch -p1 < ../scripts/v1-media-uvcvideo-mark-buffer-error-where-overflow.patch
+	 echo -e "\e[32mDebugging accelerometer HID\e[0m"
+	patch -p1 < ../scripts/0001-Accel-debug.patch
 fi
 
 # Copy configuration

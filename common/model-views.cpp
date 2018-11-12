@@ -678,6 +678,9 @@ namespace rs2
         try
         {
             supported = endpoint->supports(opt);
+            if ((opt==27) || (opt==23))
+                std::cout << __FUNCTION__ << " for " << opt << " is " << int(supported) << " at "
+                    << std::fixed << std::chrono::duration_cast<std::chrono::duration<double,std::deci>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() << std::endl;
         }
         catch (const error& e)
         {
@@ -3481,6 +3484,8 @@ namespace rs2
         draw_viewport(viewer_rect, window, devices, error_message, texture_frame, p);
 
         not_model.draw(window.get_font(), static_cast<int>(window.width()), static_cast<int>(window.height()));
+        if (not_model.tt)
+            throw std::runtime_error("");
 
         popup_if_error(window.get_font(), error_message);
 
@@ -5949,9 +5954,10 @@ namespace rs2
                     }
                 }
 
-                if (sub->num_supported_non_default_options())
+                if (sub->num_supported_non_default_options() || update_read_only_options)
                 {
                     label = to_string() << "Controls ##" << sub->s->get_info(RS2_CAMERA_INFO_NAME) << "," << id;
+
                     if (ImGui::TreeNode(label.c_str()))
                     {
                         for (auto i = 0; i < RS2_OPTION_COUNT; i++)
@@ -6498,6 +6504,9 @@ namespace rs2
         else
         {
             ImGui::Text("%s", message.c_str());
+            // Evgeni - gracefully terminate recording
+            if (message == "IMU Timestamps gap")
+                to_terminate = true;
         }
 
         if (lines == 1)
@@ -6558,9 +6567,13 @@ namespace rs2
                 noti.draw(w, height, selected);
                 height += noti.height + 4;
                 idx++;
+                if (noti.to_terminate)
+                {
+                    this->tt = true;
+                    break;
+                }
             }
         }
-
 
         auto flags = ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
