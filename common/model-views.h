@@ -645,6 +645,7 @@ namespace rs2
         std::chrono::high_resolution_clock::time_point created_time;
         rs2_notification_category category;
         bool to_close = false; // true when user clicks on close notification
+        bool to_terminate = false; // true when user clicks on close notification
         // TODO: Add more info
     };
 
@@ -680,6 +681,7 @@ namespace rs2
             new_log = true;
         }
 
+        bool tt = false;
     private:
         std::vector<notification_model> pending_notifications;
         int index = 1;

@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <iomanip>
 
 #include <algorithm>
 #include <functional>
@@ -174,13 +175,13 @@ namespace librealsense
         }
 
         hid_custom_sensor::hid_custom_sensor(const std::string& device_path, const std::string& sensor_name)
-            : _custom_device_path(device_path),
-              _custom_sensor_name(sensor_name),
-              _callback(nullptr),
-              _is_capturing(false),
-              _custom_device_name(""),
+            : _stop_pipe_fd{},
               _fd(0),
-              _stop_pipe_fd{}
+              _custom_device_path(device_path),
+              _custom_sensor_name(sensor_name),
+              _custom_device_name(""),
+              _callback(nullptr),
+              _is_capturing(false)
         {
             init();
         }
@@ -301,6 +302,7 @@ namespace librealsense
                         else if (FD_ISSET(_fd, &fds))
                         {
                             read_size = read(_fd, raw_data.data(), raw_data.size());
+                            std::cout << "hid custom_report size: " << read_size << std::endl;
                             if (read_size <= 0 )
                                 continue;
                         }
@@ -342,7 +344,7 @@ namespace librealsense
             signal_stop();
             _hid_thread->join();
             enable(false);
-            _callback = NULL;
+            _callback = nullptr;
 
             if(::close(_fd) < 0)
                 throw linux_backend_exception("hid_custom_sensor: close(_fd) failed");
@@ -382,7 +384,7 @@ namespace librealsense
             static const char* suffix_name_field = "name";
             DIR* dir = nullptr;
             struct dirent* ent = nullptr;
-            if ((dir = opendir(_custom_device_path.c_str())) != NULL)
+            if ((dir = opendir(_custom_device_path.c_str())) != nullptr)
             {
               while ((ent = readdir(dir)) != NULL)
               {
@@ -456,13 +458,14 @@ namespace librealsense
         }
 
         iio_hid_sensor::iio_hid_sensor(const std::string& device_path, uint32_t frequency)
-            : _iio_device_path(device_path),
+            : _stop_pipe_fd{},
+              _fd(0),
+              _iio_device_path(device_path),
               _sensor_name(""),
+              _sampling_frequency_name(""),
               _callback(nullptr),
               _is_capturing(false),
-              _sampling_frequency_name(""),
-              _fd(0),
-              _stop_pipe_fd{}
+              _hid_thread(nullptr)
         {
             init(frequency);
         }
@@ -576,9 +579,15 @@ namespace librealsense
                             continue;
                         }
 
+                        if ((read_size%24))
+                            std::cout << "non standard iio report size: " << read_size << std::endl;
+
+                        std::cout << "Parsing chunk of " << read_size / channel_size << " messages " << std::endl;
+
                         // TODO: code refactoring to reduce latency
                         for (auto i = 0; i < read_size / channel_size; ++i)
                         {
+
                             auto p_raw_data = raw_data.data() + channel_size * i;
                             sensor_data sens_data{};
                             sens_data.sensor = hid_sensor{get_sensor_name()};
@@ -586,6 +595,10 @@ namespace librealsense
                             auto hid_data_size = channel_size - HID_METADATA_SIZE;
 
                             sens_data.fo = {hid_data_size, metadata?HID_METADATA_SIZE: uint8_t(0),  p_raw_data,  metadata?p_raw_data + hid_data_size:nullptr};
+                            std::cout << "Chunk " << i << ": ";
+                            for (int i=0; i<24; i++)
+                                std::cout << std::setw(2) << std::setfill('0') << std::hex << (int)p_raw_data[i] << " ";
+                            std::cout << std::dec << std::endl;
 
                             this->_callback(sens_data);
                         }
@@ -1004,7 +1017,10 @@ namespace librealsense
 
                 for (auto& sensor : _hid_custom_sensors)
                 {
-                    if (sensor->get_sensor_name() == profile.sensor_name)
+                    // EVgeni - custom sensors don't have a public configuration interface, therefore shall be
+                    // implicitely enabled along with iio_hid sensors
+                    if (_streaming_iio_sensors.size())
+                    //if (sensor->get_sensor_name() == profile.sensor_name)
                     {
                         _streaming_custom_sensors.push_back(sensor.get());
                     }

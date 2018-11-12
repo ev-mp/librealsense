@@ -3,6 +3,7 @@
 #include <array>
 #include <set>
 #include <unordered_set>
+#include <cmath>
 
 #include "source.h"
 #include "proc/synthetic-stream.h"
@@ -19,8 +20,8 @@ namespace librealsense
           _is_opened(false),
           _notifications_processor(std::shared_ptr<notifications_processor>(new notifications_processor())),
           _on_before_frame_callback(nullptr),
-          _metadata_parsers(std::make_shared<metadata_parser_map>()),
           _on_open(nullptr),
+          _metadata_parsers(std::make_shared<metadata_parser_map>()),
           _owner(dev),
           _profiles([this]() {
                 auto profiles = this->init_stream_profiles();
@@ -928,6 +929,14 @@ namespace librealsense
             // Determine the timestamp for this HID frame
             auto timestamp = timestamp_reader->get_frame_timestamp(mode, sensor_data.fo);
             auto frame_counter = timestamp_reader->get_frame_counter(mode, sensor_data.fo);
+
+            // Evgeni - abort event
+            if (std::isnan(timestamp))
+            {
+                librealsense::notification n = { RS2_NOTIFICATION_CATEGORY_FRAME_CORRUPTED, 0, RS2_LOG_SEVERITY_WARN, "IMU Timestamps gap"};
+                _notifications_processor->raise_notification(n);
+            }
+
 
             frame_additional_data additional_data{};
 

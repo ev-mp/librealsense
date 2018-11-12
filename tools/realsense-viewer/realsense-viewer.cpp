@@ -219,7 +219,7 @@ void refresh_devices(std::mutex& m,
 
 int main(int argv, const char** argc) try
 {
-    rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
+    rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
 
     ux_window window("Intel RealSense Viewer");
 
@@ -500,7 +500,21 @@ int main(int argv, const char** argc) try
         ImGui::PopStyleColor();
 
         // Fetch and process frames from queue
-        viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);
+        try
+        {
+            viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);
+        }
+        catch(...)
+        {
+            viewer_model.ppf.stop();
+            // Stop all subdevices
+            for (auto&& device_model : *device_models)
+                for (auto&& sub : device_model.subdevices)
+                {
+                    if (sub->streaming)
+                        sub->stop(viewer_model);
+                }
+        }
     }
 
     // Stopping post processing filter rendering thread
