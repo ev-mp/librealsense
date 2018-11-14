@@ -187,43 +187,40 @@ namespace librealsense
                 }
                 else
                 {
-                    auto interval = 1000000000 / type;
-                    uint64_t delta = timestamp - prev_time[type];
-                    if ((deltas.find(type) != deltas.end()) &&  (delta > interval*4) )
-                    {
-                        std::stringstream ss;
-                        ss   << " TS drop for type " << int(type)
-                             << " prev, current :" << prev_time[type] << ", " << timestamp
-                             << ", expected/actual intervals: " << interval << "/" << delta
-                             << " total errors : "  << error_count[type] << std::endl;
-                         std::cout << ss.str().c_str();
+					if (fc[type] > 200)
+					{
+						auto interval = 1000000000 / type;
+						uint64_t delta = timestamp - prev_time[type];
+						if ((deltas.find(type) != deltas.end()) &&  (delta > interval*1.5) )
+						{
+							std::stringstream ss;
+							ss   << std::fixed << std::chrono::duration_cast<std::chrono::duration<double,std::deci>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()
+								 << ": TS drop for type " << int(type) << " frame num: " << fc[type]+1
+								 << " prev, current :" << int(prev_time[type]*0.001) << ", " << int(timestamp*0.001)
+								 << ", expected/actual intervals: " << int(interval*0.001) << "/" << delta*0.001
+								 << " errors for channel: "  << error_count[type] << std::endl;
+							 std::cout << ss.str().c_str();
 
-                        if (fc[type] > 200)
-                        {
-                            error_count[type]++;
-                            if (error_count[type] > 0)
-                            {
-                                return nan("");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        deltas[type] = delta;
-                        // Reset error trigger
-    //                    error_count = 0;
-    //                    if (error_trigger)
-    //                        exit(1);
-                    }
+//							if (fc[type] > 200)
+//							{
+//								error_count[type]++;
+//								if (error_count[type] > 0)
+//								{
+//									return nan("");
+//								}
+//							}
+						}
+						else
+						{
+							deltas[type] = delta;
+						}
+					}
                 }
             }
 
-            std::cout << "TS errors: " << error_count[type] << " frame type: " << type << " ,fc: " << fc[type] << std::endl;
-//                else
-//                    std::cout   << "[Report,State]:" << int(fb[0]) << ", " << int(fb[1]) << ", " << std::endl;
+			//std::cout << "TS errors: " << error_count[type] << " frame type: " << type << " ,fc: " << fc[type] << std::endl;
+			fc[type]++;
             // The FW timestamps for HID are converted to Nanosec in Linux kernel. This may produce conflicts with MS API.
-            //std::cout   << " TS :"  << timestamp << std::endl;
-            fc[type]++;
             prev_time[type] = timestamp;
             return static_cast<rs2_time_t>(timestamp) * TIMESTAMP_NSEC_TO_MSEC;
         }

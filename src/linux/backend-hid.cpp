@@ -302,7 +302,7 @@ namespace librealsense
                         else if (FD_ISSET(_fd, &fds))
                         {
                             read_size = read(_fd, raw_data.data(), raw_data.size());
-                            std::cout << "hid custom_report size: " << read_size << std::endl;
+							//std::cout << "hid custom_report size: " << read_size << std::endl;
                             if (read_size <= 0 )
                                 continue;
                         }
@@ -579,10 +579,10 @@ namespace librealsense
                             continue;
                         }
 
-                        if ((read_size%24))
-                            std::cout << "non standard iio report size: " << read_size << std::endl;
+//                        if ((read_size%24))
+//                            std::cout << "non standard iio report size: " << read_size << std::endl;
 
-                        std::cout << "Parsing chunk of " << read_size / channel_size << " messages " << std::endl;
+//                        std::cout << "Parsing chunk of " << read_size / channel_size << " messages " << std::endl;
 
                         // TODO: code refactoring to reduce latency
                         for (auto i = 0; i < read_size / channel_size; ++i)
@@ -595,10 +595,10 @@ namespace librealsense
                             auto hid_data_size = channel_size - HID_METADATA_SIZE;
 
                             sens_data.fo = {hid_data_size, metadata?HID_METADATA_SIZE: uint8_t(0),  p_raw_data,  metadata?p_raw_data + hid_data_size:nullptr};
-                            std::cout << "Chunk " << i << ": ";
-                            for (int i=0; i<24; i++)
-                                std::cout << std::setw(2) << std::setfill('0') << std::hex << (int)p_raw_data[i] << " ";
-                            std::cout << std::dec << std::endl;
+//                            std::cout << "Chunk " << i << ": ";
+//                            for (int i=0; i<24; i++)
+//                                std::cout << std::setw(2) << std::setfill('0') << std::hex << (int)p_raw_data[i] << " ";
+//                            std::cout << std::dec << std::endl;
 
                             this->_callback(sens_data);
                         }
