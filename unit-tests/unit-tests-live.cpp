@@ -162,8 +162,8 @@ std::vector<profile>  configure_all_supported_streams(rs2::sensor& sensor, int w
         { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 1 },
         { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 2 },
         { RS2_STREAM_FISHEYE, RS2_FORMAT_RAW8, width, height, 0 },
-        //        {RS2_STREAM_GYRO, 0, 0, 0, RS2_FORMAT_MOTION_XYZ32F, 0},
-        //        {RS2_STREAM_ACCEL, 0,  0, 0, RS2_FORMAT_MOTION_XYZ32F, 0}
+        { RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F, 1, 1, RS2_FORMAT_MOTION_XYZ32F, 0},
+        { RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F,  1, 1, RS2_FORMAT_MOTION_XYZ32F, 0}
     };
 
     std::vector<profile> profiles;
@@ -174,19 +174,36 @@ std::vector<profile>  configure_all_supported_streams(rs2::sensor& sensor, int w
     {
         if (std::find_if(all_modes.begin(), all_modes.end(), [&](rs2::stream_profile p)
         {
-            auto  video = p.as<rs2::video_stream_profile>();
-            if (!video) return false;
-
-            if (p.fps() == fps &&
+            if (auto  video = p.as<rs2::video_stream_profile>())
+            {
+                if (p.fps() == fps &&
                 p.stream_index() == profile.index &&
                 p.stream_type() == profile.stream &&
                 p.format() == profile.format &&
                 video.width() == profile.width &&
                 video.height() == profile.height)
-            {
-                modes.push_back(p);
-                return true;
+                {
+                    modes.push_back(p);
+                    return true;
+                }
             }
+            else
+            {
+                if (auto  motion = p.as<rs2::motion_stream_profile>())
+                {
+                    if (p.fps() == fps &&
+                        p.stream_index() == profile.index &&
+                        p.stream_type() == profile.stream &&
+                        p.format() == profile.format)
+                        {
+                            modes.push_back(p);
+                            return true;
+                        }
+                }
+                else
+                    return false;
+            }
+
             return false;
         }) != all_modes.end())
         {
@@ -5322,3 +5339,85 @@ TEST_CASE("Record software-device", "[software-device][record][!mayfail]")
         pose_frame.timestamp == recorded_pose.get_timestamp()));
 }
 
+TEST_CASE("DSO-10777", "[live]") {
+
+    rs2::context ctx;
+    if (make_context(SECTION_FROM_TEST_NAME, &ctx))
+    {
+        auto list = ctx.query_devices();
+        REQUIRE(list.size());
+
+        auto dev = list[0];
+        disable_sensitive_options_for(dev);
+
+        rs2::syncer sync;
+        auto profiles = configure_all_supported_streams(dev,640,480, fps);
+
+        for (auto s : dev.query_sensors())
+        {
+            s.start(sync);
+        }
+
+        std::vector<std::vector<double>> all_timestamps;
+        auto actual_fps = fps;
+        bool hw_timestamp_domain = false;
+        bool system_timestamp_domain = false;
+        for (auto i = 0; i < 200; i++)
+        {
+            auto frames = sync.wait_for_frames(5000);
+            REQUIRE(frames.size() > 0);
+
+            std::vector<double> timestamps;
+            for (auto&& f : frames)
+            {
+                if (f.supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_FPS))
+                {
+                    auto val = static_cast<int>(f.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_FPS));
+                    if (val < actual_fps)
+                        actual_fps = val;
+                }
+                if (f.get_frame_timestamp_domain() == RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK)
+                {
+                    hw_timestamp_domain = true;
+                }
+                if (f.get_frame_timestamp_domain() == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
+                {
+                    system_timestamp_domain = true;
+                }
+                timestamps.push_back(f.get_timestamp());
+            }
+            all_timestamps.push_back(timestamps);
+
+        }
+        for (auto i = 0; i < 30; i++)
+        {
+            auto frames = sync.wait_for_frames(500);
+        }
+
+        CAPTURE(hw_timestamp_domain);
+        CAPTURE(system_timestamp_domain);
+        REQUIRE(hw_timestamp_domain != system_timestamp_domain);
+
+        size_t num_of_partial_sync_sets = 0;
+        for (auto set_timestamps : all_timestamps)
+        {
+            if (set_timestamps.size() < profiles.second.size())
+                num_of_partial_sync_sets++;
+
+            if (set_timestamps.size() <= 1)
+                continue;
+
+            std::sort(set_timestamps.begin(), set_timestamps.end());
+            REQUIRE(set_timestamps[set_timestamps.size() - 1] - set_timestamps[0] <= (float)1000/(float)actual_fps);
+        }
+
+        CAPTURE(num_of_partial_sync_sets);
+        CAPTURE(all_timestamps.size());
+        REQUIRE((float(num_of_partial_sync_sets) / all_timestamps.size()) < 0.9f);
+
+        for (auto s : dev.query_sensors())
+        {
+            s.stop();
+        }
+    }
+}
