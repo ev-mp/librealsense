@@ -126,6 +126,7 @@ struct profile
     int width;
     int height;
     int index;
+    int fps;
 
     bool operator==(const profile& other) const
     {
@@ -157,13 +158,13 @@ std::vector<profile>  configure_all_supported_streams(rs2::sensor& sensor, int w
 {
     std::vector<profile> all_profiles =
     {
-        { RS2_STREAM_DEPTH, RS2_FORMAT_Z16, width, height, 0 },
-        { RS2_STREAM_COLOR, RS2_FORMAT_RGB8, width, height, 0 },
-        { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 1 },
-        { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 2 },
-        { RS2_STREAM_FISHEYE, RS2_FORMAT_RAW8, width, height, 0 },
-        { RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F, 1, 1, RS2_FORMAT_MOTION_XYZ32F, 0},
-        { RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F,  1, 1, RS2_FORMAT_MOTION_XYZ32F, 0}
+        { RS2_STREAM_DEPTH, RS2_FORMAT_Z16, width, height, 0, 30 },
+//        { RS2_STREAM_COLOR, RS2_FORMAT_RGB8, width, height, 0 },
+//        { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 1 },
+//        { RS2_STREAM_INFRARED, RS2_FORMAT_Y8, width, height, 2 },
+//        { RS2_STREAM_FISHEYE, RS2_FORMAT_RAW8, width, height, 0 },
+        { RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F, 1, 1, 0, 200},
+        { RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F,  1, 1, 0, 250}
     };
 
     std::vector<profile> profiles;
@@ -176,7 +177,7 @@ std::vector<profile>  configure_all_supported_streams(rs2::sensor& sensor, int w
         {
             if (auto  video = p.as<rs2::video_stream_profile>())
             {
-                if (p.fps() == fps &&
+                if (p.fps() == profile.fps &&
                 p.stream_index() == profile.index &&
                 p.stream_type() == profile.stream &&
                 p.format() == profile.format &&
@@ -191,7 +192,7 @@ std::vector<profile>  configure_all_supported_streams(rs2::sensor& sensor, int w
             {
                 if (auto  motion = p.as<rs2::motion_stream_profile>())
                 {
-                    if (p.fps() == fps &&
+                    if (p.fps() == profile.fps &&
                         p.stream_index() == profile.index &&
                         p.stream_type() == profile.stream &&
                         p.format() == profile.format)
@@ -5344,80 +5345,43 @@ TEST_CASE("DSO-10777", "[live]") {
     rs2::context ctx;
     if (make_context(SECTION_FROM_TEST_NAME, &ctx))
     {
-        auto list = ctx.query_devices();
-        REQUIRE(list.size());
-
-        auto dev = list[0];
-        disable_sensitive_options_for(dev);
-
-        rs2::syncer sync;
-        auto profiles = configure_all_supported_streams(dev,640,480, fps);
-
-        for (auto s : dev.query_sensors())
+        for (int j=0; j<1000; j++)
         {
-            s.start(sync);
-        }
+            auto list = ctx.query_devices();
+            REQUIRE(list.size());
 
-        std::vector<std::vector<double>> all_timestamps;
-        auto actual_fps = fps;
-        bool hw_timestamp_domain = false;
-        bool system_timestamp_domain = false;
-        for (auto i = 0; i < 200; i++)
-        {
-            auto frames = sync.wait_for_frames(5000);
-            REQUIRE(frames.size() > 0);
+            auto dev = list[0];
+            disable_sensitive_options_for(dev);
 
-            std::vector<double> timestamps;
-            for (auto&& f : frames)
+            std::mutex m;
+            int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+            size_t sec = 2;
+            for (int i=0; i<1; i++)
             {
-                if (f.supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_FPS))
+                std::cout << "Iteration num \n\n" << j*10+i+1 << std::endl;
+                auto profiles = configure_all_supported_streams(dev,640,480, fps);
+                std::cout << "streams opened " << std::endl;
+
+                for (auto s : profiles.first)
                 {
-                    auto val = static_cast<int>(f.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_FPS));
-                    if (val < actual_fps)
-                        actual_fps = val;
+                    s.start([&m](rs2::frame f)
+                    {
+                        std::lock_guard<std::mutex> lock(m);
+                        std::cout << f.get_profile().stream_name() << ", " << f.get_frame_number() << ", " << f.get_timestamp() << std::endl;
+                    });
                 }
-                if (f.get_frame_timestamp_domain() == RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK)
+
+                std::this_thread::sleep_for(std::chrono::seconds(sec));
+                std::cout << sec << " sec passed " << std::endl;
+                // Stop & flush all active sensors
+                for (auto s : profiles.first)
                 {
-                    hw_timestamp_domain = true;
+                    s.stop();
+                    s.close();
                 }
-                if (f.get_frame_timestamp_domain() == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
-                {
-                    system_timestamp_domain = true;
-                }
-                timestamps.push_back(f.get_timestamp());
+                std::cout << "\n\n\nstreams closed \n\n\n" << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-            all_timestamps.push_back(timestamps);
-
-        }
-        for (auto i = 0; i < 30; i++)
-        {
-            auto frames = sync.wait_for_frames(500);
-        }
-
-        CAPTURE(hw_timestamp_domain);
-        CAPTURE(system_timestamp_domain);
-        REQUIRE(hw_timestamp_domain != system_timestamp_domain);
-
-        size_t num_of_partial_sync_sets = 0;
-        for (auto set_timestamps : all_timestamps)
-        {
-            if (set_timestamps.size() < profiles.second.size())
-                num_of_partial_sync_sets++;
-
-            if (set_timestamps.size() <= 1)
-                continue;
-
-            std::sort(set_timestamps.begin(), set_timestamps.end());
-            REQUIRE(set_timestamps[set_timestamps.size() - 1] - set_timestamps[0] <= (float)1000/(float)actual_fps);
-        }
-
-        CAPTURE(num_of_partial_sync_sets);
-        CAPTURE(all_timestamps.size());
-        REQUIRE((float(num_of_partial_sync_sets) / all_timestamps.size()) < 0.9f);
-
-        for (auto s : dev.query_sensors())
-        {
-            s.stop();
         }
     }
 }
