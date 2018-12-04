@@ -84,19 +84,21 @@ if [ $reset_driver -eq 1 ];
 then 
 	echo -e "\e[43mUser requested to rebuild and reinstall ubuntu-${ubuntu_codename} stock drivers\e[0m"
 else
-	# Patching kernel for RealSense devices
-	echo -e "\e[32mApplying realsense-uvc patch\e[0m"
-	patch -p1 < ../scripts/realsense-camera-formats_ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-	echo -e "\e[32mApplying realsense-metadata patch\e[0m"
-	patch -p1 < ../scripts/realsense-metadata-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-	echo -e "\e[32mApplying realsense-hid patch\e[0m"
-	patch -p1 < ../scripts/realsense-hid-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-	echo -e "\e[32mApplying realsense-powerlinefrequency-fix patch\e[0m"
-	patch -p1 < ../scripts/realsense-powerlinefrequency-control-fix.patch
-	# Applying 3rd-party patch that affects USB2 behavior
-	# See reference https://patchwork.kernel.org/patch/9907707/
-	echo -e "\e[32mRetrofit uvc bug fix enabled with 4.18+\e[0m"
-	patch -p1 < ../scripts/v1-media-uvcvideo-mark-buffer-error-where-overflow.patch
+#	# Patching kernel for RealSense devices
+#	echo -e "\e[32mApplying realsense-uvc patch\e[0m"
+#	patch -p1 < ../scripts/realsense-camera-formats_ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+#	echo -e "\e[32mApplying realsense-metadata patch\e[0m"
+#	patch -p1 < ../scripts/realsense-metadata-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+#	echo -e "\e[32mApplying realsense-hid patch\e[0m"
+#	patch -p1 < ../scripts/realsense-hid-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+#	echo -e "\e[32mApplying realsense-powerlinefrequency-fix patch\e[0m"
+#	patch -p1 < ../scripts/realsense-powerlinefrequency-control-fix.patch
+#	# Applying 3rd-party patch that affects USB2 behavior
+#	# See reference https://patchwork.kernel.org/patch/9907707/
+#	echo -e "\e[32mRetrofit uvc bug fix enabled with 4.18+\e[0m"
+#	patch -p1 < ../scripts/v1-media-uvcvideo-mark-buffer-error-where-overflow.patch
+	 echo -e "\e[32mDebugging accelerometer HID\e[0m"
+	patch -p1 < ../scripts/0001-Accel-debug.patch
 fi
 
 # Copy configuration
