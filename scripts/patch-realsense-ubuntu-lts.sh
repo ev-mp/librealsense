@@ -85,20 +85,26 @@ then
 	echo -e "\e[43mUser requested to rebuild and reinstall ubuntu-${ubuntu_codename} stock drivers\e[0m"
 else
 #	# Patching kernel for RealSense devices
-#	echo -e "\e[32mApplying realsense-uvc patch\e[0m"
-#	patch -p1 < ../scripts/realsense-camera-formats_ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-#	echo -e "\e[32mApplying realsense-metadata patch\e[0m"
-#	patch -p1 < ../scripts/realsense-metadata-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-#	echo -e "\e[32mApplying realsense-hid patch\e[0m"
-#	patch -p1 < ../scripts/realsense-hid-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
-#	echo -e "\e[32mApplying realsense-powerlinefrequency-fix patch\e[0m"
-#	patch -p1 < ../scripts/realsense-powerlinefrequency-control-fix.patch
-#	# Applying 3rd-party patch that affects USB2 behavior
-#	# See reference https://patchwork.kernel.org/patch/9907707/
-#	echo -e "\e[32mRetrofit uvc bug fix enabled with 4.18+\e[0m"
-#	patch -p1 < ../scripts/v1-media-uvcvideo-mark-buffer-error-where-overflow.patch
-	 echo -e "\e[32mDebugging accelerometer HID\e[0m"
-	patch -p1 < ../scripts/0001-Accel-debug.patch
+	echo -e "\e[32mApplying realsense-uvc patch\e[0m"
+	patch -p1 < ../scripts/realsense-camera-formats_ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+	echo -e "\e[32mApplying realsense-metadata patch\e[0m"
+	patch -p1 < ../scripts/realsense-metadata-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+	echo -e "\e[32mApplying realsense-hid patch\e[0m"
+	patch -p1 < ../scripts/realsense-hid-ubuntu-${ubuntu_codename}-${kernel_branch}.patch
+	echo -e "\e[32mApplying realsense-powerlinefrequency-fix patch\e[0m"
+	patch -p1 < ../scripts/realsense-powerlinefrequency-control-fix.patch
+	# Applying 3rd-party patch that affects USB2 behavior
+	# See reference https://patchwork.kernel.org/patch/9907707/
+	echo -e "\e[32mRetrofit uvc bug fix enabled with 4.18+\e[0m"
+	patch -p1 < ../scripts/v1-media-uvcvideo-mark-buffer-error-where-overflow.patch
+#	 echo -e "\e[32mDebugging accelerometer HID\e[0m"
+#	patch -p1 < ../scripts/0001-Accel-debug.patch
+	#echo -e "\e[32mAsync HID resume patch https://patchwork.kernel.org/patch/9266253/\e[0m"
+	#patch -p1 < ../scripts/v4-5-7-iio-hid-sensors-use-asynchronous-resume.patch
+	#echo -e "\e[32mHid suspend/resume delay https://git.congatec.com/android/qmx6_kernel/commit/be43d21df90d10f5f10252c114f5fb024b7ba5ae\e[0m"
+	#patch -p1 < ../scripts/hid-sensor_suspend_resume_delay.patch
+	echo -e "\e[32mHid suspend/resume delay Evgeni based on https://git.congatec.com/android/qmx6_kernel/commit/be43d21df90d10f5f10252c114f5fb024b7ba5ae\e[0m"
+	patch -p1 < ../scripts/0001-HID_WIP.patch
 fi
 
 # Copy configuration
@@ -133,6 +139,8 @@ sudo make -j -C $KBASE M=$KBASE/drivers/media/usb/uvc/ modules
 echo -e "\e[32mCompiling accelerometer and gyro modules\e[0m"
 sudo make -j -C $KBASE M=$KBASE/drivers/iio/accel modules
 sudo make -j -C $KBASE M=$KBASE/drivers/iio/gyro modules
+echo -e "\e[32mCompiling hid-sensors modules\e[0m"
+sudo make -j -C $KBASE M=$KBASE/drivers/iio/common/hid-sensors modules
 echo -e "\e[32mCompiling v4l2-core modules\e[0m"
 sudo make -j -C $KBASE M=$KBASE/drivers/media/v4l2-core modules
 
@@ -141,6 +149,8 @@ sudo cp $KBASE/drivers/media/usb/uvc/uvcvideo.ko ~/$LINUX_BRANCH-uvcvideo.ko
 sudo cp $KBASE/drivers/iio/accel/hid-sensor-accel-3d.ko ~/$LINUX_BRANCH-hid-sensor-accel-3d.ko
 sudo cp $KBASE/drivers/iio/gyro/hid-sensor-gyro-3d.ko ~/$LINUX_BRANCH-hid-sensor-gyro-3d.ko
 sudo cp $KBASE/drivers/media/v4l2-core/videodev.ko ~/$LINUX_BRANCH-videodev.ko
+#sudo cp $KBASE/drivers/iio/common/hid-sensors/hid-sensor-iio-common.ko ~/$LINUX_BRANCH-hid-sensor-iio-common.ko
+sudo cp $KBASE/drivers/iio/common/hid-sensors/hid-sensor-trigger.ko ~/$LINUX_BRANCH-hid-sensor-trigger.ko
 
 echo -e "\e[32mPatched kernels modules were created successfully\n\e[0m"
 
@@ -149,5 +159,8 @@ try_module_insert videodev				~/$LINUX_BRANCH-videodev.ko 			/lib/modules/`uname
 try_module_insert uvcvideo				~/$LINUX_BRANCH-uvcvideo.ko 			/lib/modules/`uname -r`/kernel/drivers/media/usb/uvc/uvcvideo.ko
 try_module_insert hid_sensor_accel_3d 	~/$LINUX_BRANCH-hid-sensor-accel-3d.ko 	/lib/modules/`uname -r`/kernel/drivers/iio/accel/hid-sensor-accel-3d.ko
 try_module_insert hid_sensor_gyro_3d	~/$LINUX_BRANCH-hid-sensor-gyro-3d.ko 	/lib/modules/`uname -r`/kernel/drivers/iio/gyro/hid-sensor-gyro-3d.ko
+#try_module_insert hid-sensor-iio-common	~/$LINUX_BRANCH-hid-sensor-iio-common.ko 	/lib/modules/`uname -r`/kernel/drivers/iio/common/hid-sensors/hid-sensor-iio-common.ko
+try_module_insert hid-sensor-trigger	~/$LINUX_BRANCH-hid-sensor-trigger.ko 	/lib/modules/`uname -r`/kernel/drivers/iio/common/hid-sensors/hid-sensor-trigger.ko
+
 
 echo -e "\e[92m\n\e[1mScript has completed. Please consult the installation guide for further instruction.\n\e[0m"

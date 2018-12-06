@@ -1,0 +1,54 @@
+From 5e7c94d152d7b360872e480743c6738fc8f89155 Mon Sep 17 00:00:00 2001
+From: Evgeni Raikhel <evgeni.raikhel@intel.com>
+Date: Thu, 6 Dec 2018 15:24:43 +0200
+Subject: [PATCH] HID_WIP
+
+---
+ drivers/iio/common/hid-sensors/Makefile             | 2 +-
+ drivers/iio/common/hid-sensors/hid-sensor-trigger.c | 8 +++++---
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/iio/common/hid-sensors/Makefile b/drivers/iio/common/hid-sensors/Makefile
+index 22e7c5a..83a145a 100644
+--- a/drivers/iio/common/hid-sensors/Makefile
++++ b/drivers/iio/common/hid-sensors/Makefile
+@@ -1,7 +1,7 @@
+ #
+ # Makefile for the Hid sensor common modules.
+ #
+-
++CFLAGS_hid-sensor-trigger.o := -DDEBUG
+ obj-$(CONFIG_HID_SENSOR_IIO_COMMON) += hid-sensor-iio-common.o
+ obj-$(CONFIG_HID_SENSOR_IIO_TRIGGER) += hid-sensor-trigger.o
+ hid-sensor-iio-common-y := hid-sensor-attributes.o
+diff --git a/drivers/iio/common/hid-sensors/hid-sensor-trigger.c b/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
+index a8db38d..fb318f6 100644
+--- a/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
++++ b/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
+@@ -103,10 +103,12 @@ int hid_sensor_power_state(struct hid_sensor_common *st, bool state)
+ #ifdef CONFIG_PM
+ 	int ret;
+ 
+-	atomic_set(&st->user_requested_state, state);
+ 	if (state)
++	{
++		atomic_inc(&st->user_requested_state);
+ 		ret = pm_runtime_get_sync(&st->pdev->dev);
+-	else {
++	} else {
++		atomic_dec(&st->user_requested_state);
+ 		pm_runtime_mark_last_busy(&st->pdev->dev);
+ 		pm_runtime_use_autosuspend(&st->pdev->dev);
+ 		ret = pm_runtime_put_autosuspend(&st->pdev->dev);
+@@ -176,7 +178,7 @@ int hid_sensor_setup_trigger(struct iio_dev *indio_dev, const char *name,
+ 	pm_runtime_enable(&attrb->pdev->dev);
+ 	/* Default to 3 seconds, but can be changed from sysfs */
+ 	pm_runtime_set_autosuspend_delay(&attrb->pdev->dev,
+-					 3000);
++					 4000);
+ 	return ret;
+ error_unreg_trigger:
+ 	iio_trigger_unregister(trig);
+-- 
+2.7.4
+

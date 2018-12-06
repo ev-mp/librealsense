@@ -1,0 +1,137 @@
+From patchwork Sun Aug  7 09:25:37 2016
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+X-Patchwork-Submitter: Srinivas Pandruvada
+ <srinivas.pandruvada@linux.intel.com>
+X-Patchwork-Id: 9266253
+Return-Path: <linux-input-owner@kernel.org>
+Received: from mail.wl.linuxfoundation.org (pdx-wl-mail.web.codeaurora.org
+	[172.30.200.125])
+	by pdx-korg-patchwork.web.codeaurora.org (Postfix) with ESMTP id
+	02AB96089F for <patchwork-linux-input@patchwork.kernel.org>;
+	Sun,  7 Aug 2016 09:25:56 +0000 (UTC)
+Received: from mail.wl.linuxfoundation.org (localhost [127.0.0.1])
+	by mail.wl.linuxfoundation.org (Postfix) with ESMTP id E803B27FA6
+	for <patchwork-linux-input@patchwork.kernel.org>;
+	Sun,  7 Aug 2016 09:25:55 +0000 (UTC)
+Received: by mail.wl.linuxfoundation.org (Postfix, from userid 486)
+	id DCF112816B; Sun,  7 Aug 2016 09:25:55 +0000 (UTC)
+X-Spam-Checker-Version: SpamAssassin 3.3.1 (2010-03-16) on
+	pdx-wl-mail.web.codeaurora.org
+X-Spam-Level: 
+X-Spam-Status: No, score=-6.9 required=2.0 tests=BAYES_00,RCVD_IN_DNSWL_HI
+	autolearn=ham version=3.3.1
+Received: from vger.kernel.org (vger.kernel.org [209.132.180.67])
+	by mail.wl.linuxfoundation.org (Postfix) with ESMTP id 8694D2808C
+	for <patchwork-linux-input@patchwork.kernel.org>;
+	Sun,  7 Aug 2016 09:25:55 +0000 (UTC)
+Received: (majordomo@vger.kernel.org) by vger.kernel.org via listexpand
+	id S1751633AbcHGJZy (ORCPT
+	<rfc822;patchwork-linux-input@patchwork.kernel.org>);
+	Sun, 7 Aug 2016 05:25:54 -0400
+Received: from mga03.intel.com ([134.134.136.65]:24529 "EHLO mga03.intel.com"
+	rhost-flags-OK-OK-OK-OK) by vger.kernel.org with ESMTP
+	id S1751654AbcHGJZv (ORCPT <rfc822;linux-input@vger.kernel.org>);
+	Sun, 7 Aug 2016 05:25:51 -0400
+Received: from orsmga003.jf.intel.com ([10.7.209.27])
+	by orsmga103.jf.intel.com with ESMTP; 07 Aug 2016 02:25:47 -0700
+X-ExtLoop1: 1
+X-IronPort-AV: E=Sophos;i="5.28,483,1464678000"; d="scan'208";a="861125697"
+Received: from spandruv-mobl.jf.intel.com ([10.255.76.122])
+	by orsmga003.jf.intel.com with ESMTP; 07 Aug 2016 02:25:46 -0700
+From: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+To: jikos@kernel.org, jic23@kernel.org
+Cc: linux-input@vger.kernel.org, linux-iio@vger.kernel.org,
+	srinivas.pandruvada@linux.intel.com
+Subject: [PATCH v4 5/7] iio: hid-sensors: use asynchronous resume
+Date: Sun,  7 Aug 2016 02:25:37 -0700
+Message-Id: 
+ <1470561939-14278-6-git-send-email-srinivas.pandruvada@linux.intel.com>
+X-Mailer: git-send-email 2.7.4
+In-Reply-To: 
+ <1470561939-14278-1-git-send-email-srinivas.pandruvada@linux.intel.com>
+References: 
+ <1470561939-14278-1-git-send-email-srinivas.pandruvada@linux.intel.com>
+Sender: linux-input-owner@vger.kernel.org
+Precedence: bulk
+List-ID: <linux-input.vger.kernel.org>
+X-Mailing-List: linux-input@vger.kernel.org
+X-Virus-Scanned: ClamAV using ClamSMTP
+
+Some platforms power off sensor hubs during S3 suspend, which will require
+longer time to resume. This hurts system resume time, so resume
+asynchronously.
+
+Signed-off-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+---
+ drivers/iio/common/hid-sensors/hid-sensor-trigger.c | 21 ++++++++++++++++++++-
+ include/linux/hid-sensor-hub.h                      |  1 +
+ 2 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/iio/common/hid-sensors/hid-sensor-trigger.c b/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
+index 5b41f9d..9784ae3 100644
+--- a/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
++++ b/drivers/iio/common/hid-sensors/hid-sensor-trigger.c
+@@ -122,6 +122,14 @@ int hid_sensor_power_state(struct hid_sensor_common *st, bool state)
+ #endif
+ }
+ 
++static void hid_sensor_set_power_work(struct work_struct *work)
++{
++	struct hid_sensor_common *attrb = container_of(work,
++						       struct hid_sensor_common,
++						       work);
++	_hid_sensor_power_state(attrb, true);
++}
++
+ static int hid_sensor_data_rdy_trigger_set_state(struct iio_trigger *trig,
+ 						bool state)
+ {
+@@ -170,6 +178,9 @@ int hid_sensor_setup_trigger(struct iio_dev *indio_dev, const char *name,
+ 		goto error_unreg_trigger;
+ 
+ 	iio_device_set_drvdata(indio_dev, attrb);
++
++	INIT_WORK(&attrb->work, hid_sensor_set_power_work);
++
+ 	pm_suspend_ignore_children(&attrb->pdev->dev, true);
+ 	pm_runtime_enable(&attrb->pdev->dev);
+ 	/* Default to 3 seconds, but can be changed from sysfs */
+@@ -202,7 +213,15 @@ static int hid_sensor_resume(struct device *dev)
+ 	struct platform_device *pdev = to_platform_device(dev);
+ 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
+ 	struct hid_sensor_common *attrb = iio_device_get_drvdata(indio_dev);
++	schedule_work(&attrb->work);
++	return 0;
++}
+ 
++static int hid_sensor_runtime_resume(struct device *dev)
++{
++	struct platform_device *pdev = to_platform_device(dev);
++	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
++	struct hid_sensor_common *attrb = iio_device_get_drvdata(indio_dev);
+ 	return _hid_sensor_power_state(attrb, true);
+ }
+ 
+@@ -211,7 +230,7 @@ static int hid_sensor_resume(struct device *dev)
+ const struct dev_pm_ops hid_sensor_pm_ops = {
+ 	SET_SYSTEM_SLEEP_PM_OPS(hid_sensor_suspend, hid_sensor_resume)
+ 	SET_RUNTIME_PM_OPS(hid_sensor_suspend,
+-			   hid_sensor_resume, NULL)
++			   hid_sensor_runtime_resume, NULL)
+ };
+ EXPORT_SYMBOL(hid_sensor_pm_ops);
+ 
+diff --git a/include/linux/hid-sensor-hub.h b/include/linux/hid-sensor-hub.h
+index c02b5ce..dd85f35 100644
+--- a/include/linux/hid-sensor-hub.h
++++ b/include/linux/hid-sensor-hub.h
+@@ -236,6 +236,7 @@ struct hid_sensor_common {
+ 	struct hid_sensor_hub_attribute_info report_state;
+ 	struct hid_sensor_hub_attribute_info power_state;
+ 	struct hid_sensor_hub_attribute_info sensitivity;
++	struct work_struct work;
+ };
+ 
+ /* Convert from hid unit expo to regular exponent */
