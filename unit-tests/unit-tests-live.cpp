@@ -5340,6 +5340,27 @@ TEST_CASE("Record software-device", "[software-device][record][!mayfail]")
         pose_frame.timestamp == recorded_pose.get_timestamp()));
 }
 
+TEST_CASE("DSO-107777", "[live]")
+{
+    std::vector< rs2::context>  ctxs;
+    std::vector< rs2::device_list>  devl;
+    std::vector< rs2::device>  devs;
+
+    for (int j=0; j<2000; j++)
+    {
+        rs2::context ctx;
+        auto dev1 = ctx.query_devices()[0];
+        auto dev2 = ctx.query_devices()[0];
+//        auto dev = devices[0];
+        ctxs.push_back(ctx);
+        //devl.emplace_back(device_list);
+        //devs.push_back(dev);
+        devs.push_back(dev1);
+        devs.push_back(dev2);
+        std::cout << "iteration " << j << " finished " << std::endl;
+    }
+}
+
 TEST_CASE("DSO-10777", "[live]") {
 
     rs2::context ctx;
@@ -5355,19 +5376,20 @@ TEST_CASE("DSO-10777", "[live]") {
 
             std::mutex m;
             int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
-            size_t sec = 2;
+            size_t sec = 1;
+            std::map<std::string,size_t> frames_per_stream;
             for (int i=0; i<1; i++)
             {
-                std::cout << "Iteration num \n\n" << j*10+i+1 << std::endl;
                 auto profiles = configure_all_supported_streams(dev,640,480, fps);
                 std::cout << "streams opened " << std::endl;
 
                 for (auto s : profiles.first)
                 {
-                    s.start([&m](rs2::frame f)
+                    s.start([&m,&frames_per_stream](rs2::frame f)
                     {
                         std::lock_guard<std::mutex> lock(m);
-                        std::cout << f.get_profile().stream_name() << ", " << f.get_frame_number() << ", " << f.get_timestamp() << std::endl;
+                        ++frames_per_stream[f.get_profile().stream_name()];
+                        //std::cout << f.get_profile().stream_name() << ", " << f.get_frame_number() << ", " << f.get_timestamp() << std::endl;
                     });
                 }
 
@@ -5379,8 +5401,13 @@ TEST_CASE("DSO-10777", "[live]") {
                     s.stop();
                     s.close();
                 }
-                std::cout << "\n\n\nstreams closed \n\n\n" << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::cout << "streams closed " << std::endl;
+                std::cout << "Iteration " << j << " ended" << std::endl;
+                for (auto const& kvp : frames_per_stream)
+                {
+                    std::cout << kvp.first << ": " << kvp.second << " frames" << std::endl;
+                }
+                //std::this_thread::sleep_for(std::chrono::seconds(1));
             }
         }
     }
