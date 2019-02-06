@@ -5343,22 +5343,34 @@ TEST_CASE("Record software-device", "[software-device][record][!mayfail]")
 TEST_CASE("DSO-107777", "[live]")
 {
     std::vector< rs2::context>  ctxs;
-    std::vector< rs2::device_list>  devl;
+    //std::vector< rs2::device_list>  devl;
     std::vector< rs2::device>  devs;
 
-    for (int j=0; j<2000; j++)
+    rs2::context ctx;
+    try
     {
-        rs2::context ctx;
-        auto dev1 = ctx.query_devices()[0];
-        auto dev2 = ctx.query_devices()[0];
-//        auto dev = devices[0];
-        ctxs.push_back(ctx);
-        //devl.emplace_back(device_list);
-        //devs.push_back(dev);
-        devs.push_back(dev1);
-        devs.push_back(dev2);
-        std::cout << "iteration " << j << " finished " << std::endl;
+        for (int j=0; j<2000; j++)
+        {
+            auto dev = ctx.query_devices()[0];
+            auto dev2 = ctx.query_devices()[0];
+            //auto dev = devices[0];
+            ctxs.push_back(ctx);
+            //devl.emplace_back(device_list);
+            //devs.push_back(dev);
+            devs.push_back(dev);
+            devs.push_back(dev2);
+            std::cout << "iteration " << j << " finished " << std::endl;
+        }
     }
+    catch(std::exception& exc)
+    {
+        std::cout << exc.what() << std::endl;
+    }
+    catch(...)
+    {
+        std::cout << "Hm..." << std::endl;
+    }
+    std::cout << "Test ended" << std::endl;
 }
 
 TEST_CASE("DSO-10777", "[live]") {
