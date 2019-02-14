@@ -429,8 +429,26 @@ void rs2_register_extrinsics(const rs2_stream_profile* from,
  */
 void rs2_get_video_stream_intrinsics(const rs2_stream_profile* mode, rs2_intrinsics* intrinsics, rs2_error** error);
 
+/**
+* Imports a localization map from file to tm2 tracking device
+* \param[in]  sensor        TM2 position-tracking sensor
+* \param[in]  lmap_blob     Localization map raw buffer, serialized
+* \param[in]  blob_size     The buffer's size in bytes
+* \param[out] error         If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+void rs2_import_localization_map(const rs2_sensor* sensor, const unsigned char* lmap_blob, unsigned int blob_size, rs2_error** error);
+
+/**
+* Extract and store the localization map of tm2 tracking device to file
+* \param[in]  sensor        TM2 position-tracking sensor
+* \param[in]  lmap_fname    The file name of the localization map
+* \param[out] error         If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return                   Device's response in a rs2_raw_data_buffer, which should be released by rs2_delete_raw_data
+*/
+//void rs2_export_localization_map(const rs2_sensor* sensor, const char* lmap_fname, rs2_error** error);
+const rs2_raw_data_buffer* rs2_export_localization_map(const rs2_sensor* sensor, rs2_error** error);
 
 #ifdef __cplusplus
 }
 #endif
-#endif
+#endif  // LIBREALSENSE_RS2_SENSOR_H

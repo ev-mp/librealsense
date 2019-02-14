@@ -284,3 +284,5 @@ EXPORTS
     rs2_loopback_is_enabled
     rs2_connect_tm2_controller
     rs2_disconnect_tm2_controller
+    rs2_import_localization_map
+    rs2_export_localization_map
