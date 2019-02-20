@@ -179,6 +179,7 @@ namespace librealsense
             CASE(TM2)
             CASE(SOFTWARE_DEVICE)
             CASE(SOFTWARE_SENSOR)
+            CASE(POSE_SENSOR)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE
