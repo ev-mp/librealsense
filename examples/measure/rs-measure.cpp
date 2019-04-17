@@ -7,7 +7,7 @@
 
 // This example will require several standard data-structures and algorithms:
 #define _USE_MATH_DEFINES
-#include <math.h>
+#include <cmath>
 #include <queue>
 #include <unordered_set>
 #include <map>
@@ -31,7 +31,7 @@ struct toggle
     {}
 
     // Move from [0,1] space to pixel space of specific frame
-    pixel get_pixel(rs2::depth_frame frm) const
+    pixel get_pixel(const rs2::depth_frame& frm) const
     {
         int px = x * frm.get_width();
         int py = y * frm.get_height();

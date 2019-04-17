@@ -341,7 +341,7 @@ bool filter_slider_ui::is_all_integers(const rs2::option_range& range)
 {
     const auto is_integer = [](float f)
     {
-        return (fabs(fmod(f, 1)) < std::numeric_limits<float>::min());
+        return (fabs(fmod(f, 1)) < std::numeric_limits<double>::min());
     };
 
     return is_integer(range.min) && is_integer(range.max) &&

@@ -1517,7 +1517,7 @@ namespace rs2
             return false;
         // Verify that the number of found matches corrseponds to the number of the requested streams
         // TODO - review whether the comparison can be made strict (==)
-        return results.size() >= size_t(std::count_if(stream_enabled.begin(), stream_enabled.end(), [](const std::pair<int, bool>& kpv)-> bool { return kpv.second == true; }));
+        return results.size() >= size_t(std::count_if(stream_enabled.begin(), stream_enabled.end(), [](const std::pair<int, bool>& kpv){ return kpv.second == true; }));
     }
 
     void subdevice_model::update_ui(std::vector<stream_profile> profiles_vec)
@@ -3060,7 +3060,7 @@ namespace rs2
 
         for (auto&& pose : pose_vector)
         {
-            if ((fullScreen == false) && (pose.showOnNonFullScreen == false))
+            if ((!fullScreen) && (!pose.showOnNonFullScreen))
             {
                 continue;
             }
@@ -3073,7 +3073,7 @@ namespace rs2
                 ImGui::SetTooltip("%s", pose.toolTip.c_str());
             }
 
-            if (pose.fixedColor == false)
+            if (!pose.fixedColor)
             {
                 switch (pose_frame.tracker_confidence) //color the line according to confidence
                 {

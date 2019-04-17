@@ -50,7 +50,7 @@ namespace rs2
         {
             std::stringstream ss;
             ss << str.substr(0, width / 3) << "..." << str.substr(str.length() - width / 3);
-            return ss.str().c_str();
+            return ss.str();
         }
         return str;
     }
@@ -123,7 +123,7 @@ Some auxillary functionalities might be affected. Please report this message if 
         GLFWmonitor** monitors = glfwGetMonitors(&count);
         if (count == 0) return 1; // Not sure if possible, but better be safe
 
-                                    // Find the monitor that covers most of the application pixels:
+        // Find the monitor that covers most of the application pixels:
         GLFWmonitor* best = monitors[0];
         float best_area = 0.f;
         for (int i = 0; i < count; i++)
@@ -236,7 +236,7 @@ Some auxillary functionalities might be affected. Please report this message if 
 
     std::string get_timestamped_file_name()
     {
-        std::time_t now = std::time(NULL);
+        std::time_t now = std::time(nullptr);
         std::tm * ptm = std::localtime(&now);
         char buffer[16];
         // Format: 20170529_205500

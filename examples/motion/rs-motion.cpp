@@ -132,7 +132,7 @@ public:
             return;
         }
         // Holds the change in angle, as calculated from gyro
-        float3 gyro_angle;
+        float3 gyro_angle{};
 
         // Initialize gyro_angle with data from gyro
         gyro_angle.x = gyro_data.x; // Pitch
@@ -154,7 +154,7 @@ public:
     void process_accel(rs2_vector accel_data)
     {
         // Holds the angle as calculated from accelerometer data
-        float3 accel_angle;
+        float3 accel_angle{};
 
         // Calculate rotation angle from accelerometer data
         accel_angle.z = atan2(accel_data.y, accel_data.z);
@@ -201,9 +201,9 @@ bool check_imu_is_supported()
         // The same device should support gyro and accel
         found_gyro = false;
         found_accel = false;
-        for (auto sensor : dev.query_sensors())
+        for (const auto& sensor : dev.query_sensors())
         {
-            for (auto profile : sensor.get_stream_profiles())
+            for (const auto& profile : sensor.get_stream_profiles())
             {
                 if (profile.stream_type() == RS2_STREAM_GYRO)
                     found_gyro = true;

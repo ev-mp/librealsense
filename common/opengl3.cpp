@@ -4,7 +4,7 @@
 #include "opengl3.h"
 
 #include <glad/glad.h>
-#include <assert.h>
+#include <cassert>
 
 using namespace rs2;
 
@@ -18,7 +18,7 @@ int vbo::convert_type(vbo_type type)
 }
 
 vbo::vbo(vbo_type type)
-    : _type(type)
+    : _id(0), _type(type)
 {
     glGenBuffers(1, &_id);
 }
@@ -39,7 +39,7 @@ void vbo::upload(int attribute, const float* xyz, int size, int count, bool dyna
     bind();
     glBufferData(convert_type(_type), count * size * sizeof(float), xyz, 
         dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-    glVertexAttribPointer(attribute, size, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(attribute, size, GL_FLOAT, GL_FALSE, 0, nullptr);
     _size = count;
     check_gl_error();
     unbind();
@@ -75,7 +75,7 @@ void vbo::draw_triangles()
 void vbo::draw_indexed_triangles()
 {
     assert(_type == vbo_type::element_array_buffer);
-    glDrawElements(GL_TRIANGLES, _size * (sizeof(int3) / sizeof(int)), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, _size * (sizeof(int3) / sizeof(int)), GL_UNSIGNED_INT, nullptr);
     check_gl_error();
 }
 
@@ -479,7 +479,7 @@ shader::shader(const std::string& shader_code, shader_type type)
     glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
     if ((result == GL_FALSE) && (log_length > 0)) {
         std::vector<char> error_message(log_length + 1);
-        glGetShaderInfoLog(shader_id, log_length, NULL, &error_message[0]);
+        glGetShaderInfoLog(shader_id, log_length, nullptr, &error_message[0]);
         std::string error(&error_message[0]);
         std::cerr << error;
         glDeleteShader(shader_id);
@@ -528,7 +528,7 @@ void shader_program::link()
     glGetProgramiv(_id, GL_INFO_LOG_LENGTH, &log_length);
     if ((result == GL_FALSE) && (log_length > 0)) {
         std::vector<char> error_message(log_length + 1);
-        glGetProgramInfoLog(_id, log_length, NULL, &error_message[0]);
+        glGetProgramInfoLog(_id, log_length, nullptr, &error_message[0]);
         std::string error(&error_message[0]);
         std::cerr << error;
         for (auto ps : _shaders)
@@ -544,7 +544,7 @@ void shader_program::link()
     glGetProgramiv(_id, GL_INFO_LOG_LENGTH, &log_length);
     if ((result == GL_FALSE) && (log_length > 0)) {
         std::vector<char> error_message(log_length + 1);
-        glGetProgramInfoLog(_id, log_length, NULL, &error_message[0]);
+        glGetProgramInfoLog(_id, log_length, nullptr, &error_message[0]);
         std::string error(&error_message[0]);
         std::cerr << error;
         for (auto ps : _shaders)

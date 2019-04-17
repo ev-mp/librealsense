@@ -144,8 +144,8 @@ namespace librealsense
         }
 
         hid_custom_sensor::hid_custom_sensor(const std::string& device_path, const std::string& sensor_name)
-            : _fd(0),
-              _stop_pipe_fd{},
+            : _stop_pipe_fd{},
+              _fd(0),
               _custom_device_path(device_path),
               _custom_sensor_name(sensor_name),
               _custom_device_name(""),
@@ -249,7 +249,7 @@ namespace librealsense
                     FD_SET(_stop_pipe_fd[0], &fds);
 
                     int max_fd = std::max(_stop_pipe_fd[0], _fd);
-                    size_t read_size = 0;
+                    ssize_t read_size = 0;
 
                     struct timeval tv = {5,0};
                     auto val = select(max_fd + 1, &fds, nullptr, nullptr, &tv);
@@ -288,7 +288,7 @@ namespace librealsense
                             sensor_data sens_data{};
                             sens_data.sensor = hid_sensor{get_sensor_name()};
 
-                            sens_data.fo = {channel_size, channel_size, p_raw_data, p_raw_data};
+                            sens_data.fo = {channel_size, channel_size, p_raw_data, p_raw_data, 0.0};
                             this->_callback(sens_data);
                         }
                     }

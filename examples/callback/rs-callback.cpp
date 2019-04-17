@@ -46,7 +46,7 @@ int main(int argc, char * argv[]) try
     rs2::pipeline_profile profiles = pipe.start(callback);
 
     // Collect the enabled streams names
-    for (auto p : profiles.get_streams())
+    for (auto&& p : profiles.get_streams())
         stream_names[p.unique_id()] = p.stream_name();
 
     std::cout << "RealSense callback sample" << std::endl << std::endl;
