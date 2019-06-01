@@ -39,23 +39,23 @@ namespace librealsense
 
     void CLinearCoefficients::add_value(CSample val)
     {
-        LOG_DEBUG("CLinearCoefficients::add_value - in");
+        //LOG_DEBUG("CLinearCoefficients::add_value - in");
         std::lock_guard<std::recursive_mutex> lock(_add_mtx);   // Redandent as only being read from update_diff_time() and there is a lock there.
-        LOG_DEBUG("CLinearCoefficients::add_value - lock");
+        //LOG_DEBUG("CLinearCoefficients::add_value - lock");
         while (_last_values.size() > _buffer_size)
         {
             _last_values.pop_back();
         }
         _last_values.push_front(val);
         calc_linear_coefs();
-        LOG_DEBUG("CLinearCoefficients::add_value - unlock");
+        //LOG_DEBUG("CLinearCoefficients::add_value - unlock");
     }
 
     void CLinearCoefficients::calc_linear_coefs()
     {
         // Calculate linear coefficients, based on calculus described in: https://www.statisticshowto.datasciencecentral.com/probability-and-statistics/regression-analysis/find-a-linear-regression-equation/
         // Calculate Std 
-        LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - in");
+        //LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - in");
         double sum_x(0);
         double sum_y(0);
         double sum_xy(0);
@@ -79,20 +79,20 @@ namespace librealsense
             a = (n*sum_xy - sum_x * sum_y) / (n*sum_x2 - sum_x * sum_x);
         }
         std::lock_guard<std::recursive_mutex> lock(_stat_mtx);
-        LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - lock");
+        //LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - lock");
         _base_sample = base_sample;
         _a = a;
         _b = b;
-        LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - unlock");
+        //LOG_DEBUG("CLinearCoefficients::calc_linear_coefs - unlock");
     }
 
     double CLinearCoefficients::calc_value(double x) const
     {
-        LOG_DEBUG("CLinearCoefficients::calc_value - in");
+        //LOG_DEBUG("CLinearCoefficients::calc_value - in");
         std::lock_guard<std::recursive_mutex> lock(_stat_mtx);
-        LOG_DEBUG("CLinearCoefficients::calc_value - lock");
+        //LOG_DEBUG("CLinearCoefficients::calc_value - lock");
         double y(_a * (x - _base_sample._x) + _b + _base_sample._y);
-        LOG_DEBUG("CLinearCoefficients::calc_value - unlock");
+        //LOG_DEBUG("CLinearCoefficients::calc_value - unlock");
         return y;
     }
 
@@ -124,9 +124,9 @@ namespace librealsense
         using namespace std::chrono;
         try
         {
-            LOG_DEBUG("time_diff_keeper::update_diff_time - in");
+            //LOG_DEBUG("time_diff_keeper::update_diff_time - in");
             std::lock_guard<std::recursive_mutex> lock(_mtx);
-            LOG_DEBUG("time_diff_keeper::update_diff_time - lock");
+            //LOG_DEBUG("time_diff_keeper::update_diff_time - lock");
             double system_time_start = duration<double, std::milli>(system_clock::now().time_since_epoch()).count();
             double sample_hw_time = _device->get_device_time();
             double system_time_finish = duration<double, std::milli>(system_clock::now().time_since_epoch()).count();
@@ -140,7 +140,7 @@ namespace librealsense
             _last_sample_hw_time = sample_hw_time;
             CSample crnt_sample(_last_sample_hw_time, system_time);
             _coefs.add_value(crnt_sample);
-            LOG_DEBUG("time_diff_keeper::update_diff_time - unlock");
+            //LOG_DEBUG("time_diff_keeper::update_diff_time - unlock");
             return true;
         }
         catch (const wrong_api_call_sequence_exception& ex)
@@ -175,14 +175,14 @@ namespace librealsense
     {
         static const double possible_loop_time(3000);
         {
-            LOG_DEBUG("time_diff_keeper::get_system_hw_time - in");
+            //LOG_DEBUG("time_diff_keeper::get_system_hw_time - in");
             std::lock_guard<std::recursive_mutex> lock(_read_mtx);
-            LOG_DEBUG("time_diff_keeper::get_system_hw_time - lock");
+            //LOG_DEBUG("time_diff_keeper::get_system_hw_time - lock");
             if ((_last_sample_hw_time - crnt_hw_time) > possible_loop_time)
             {
                 update_diff_time();
             }
-            LOG_DEBUG("time_diff_keeper::get_system_hw_time - unlock");
+            //LOG_DEBUG("time_diff_keeper::get_system_hw_time - unlock");
         }
         return _coefs.calc_value(crnt_hw_time);
     }
