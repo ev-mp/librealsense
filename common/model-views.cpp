@@ -2722,6 +2722,7 @@ namespace rs2
             if (ImGui::Button(label.c_str(), { 24, top_bar_height }))
             {
                 show_stream_details = false;
+                metadata_displayed = false;
             }
             if (ImGui::IsItemHovered())
             {
@@ -2735,6 +2736,7 @@ namespace rs2
             if (ImGui::Button(label.c_str(), { 24, top_bar_height }))
             {
                 show_stream_details = true;
+                metadata_displayed = true;
             }
             if (ImGui::IsItemHovered())
             {
