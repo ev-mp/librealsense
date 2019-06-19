@@ -19,7 +19,7 @@ namespace librealsense
                     { }
 
             virtual uint8_t get_address() const override { return _desc.bEndpointAddress; }
-            virtual endpoint_type get_type() const override { return (endpoint_type)_desc.bmAttributes; }
+            virtual endpoint_type get_type() const override { return static_cast<endpoint_type>(_desc.bmAttributes); }
             virtual uint8_t get_interface_number() const override { return _interface_number; }
 
             virtual endpoint_direction get_direction() const override
@@ -28,7 +28,7 @@ namespace librealsense
                      RS2_USB_ENDPOINT_DIRECTION_READ : RS2_USB_ENDPOINT_DIRECTION_WRITE;
             }
 
-            libusb_endpoint_descriptor get_descriptor(){ return _desc; }
+            libusb_endpoint_descriptor get_descriptor() const { return _desc; }
         private:
             libusb_endpoint_descriptor _desc;
             uint8_t _interface_number;

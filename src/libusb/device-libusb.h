@@ -13,7 +13,7 @@ namespace librealsense
         {
         public:
             usb_device_libusb(libusb_device* device, const libusb_device_descriptor& desc, const usb_device_info& info, std::shared_ptr<usb_context> context);
-            virtual ~usb_device_libusb();
+            virtual ~usb_device_libusb() override;
 
             virtual const usb_device_info get_info() const override { return _info; }
             virtual const std::vector<rs_usb_interface> get_interfaces() const override { return _interfaces; }

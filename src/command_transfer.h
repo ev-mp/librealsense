@@ -18,7 +18,7 @@ namespace librealsense
         public:
             virtual std::vector<uint8_t> send_receive(
                 const std::vector<uint8_t>& data,
-                int timeout_ms = 5000,
+                uint32_t timeout_ms = 5000,
                 bool require_response = true) = 0;
 
             virtual ~command_transfer() = default;
@@ -28,12 +28,11 @@ namespace librealsense
         {
         public:
             command_transfer_usb(const rs_usb_device& device) : _device(device) {}
-            ~command_transfer_usb(){}
+            ~command_transfer_usb() override {}
 
             std::vector<uint8_t> send_receive(
                 const std::vector<uint8_t>& data,
-                int timeout_ms,
-                bool) override
+                uint32_t timeout_ms, bool ) override
             { 
                 auto intfs = _device->get_interfaces();
                 auto it = std::find_if(intfs.begin(), intfs.end(),
