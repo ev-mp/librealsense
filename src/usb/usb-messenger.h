@@ -15,8 +15,8 @@ namespace librealsense
         public:
             virtual ~usb_messenger() = default;
 
-            virtual usb_status control_transfer(int request_type, int request, int value, int index, uint8_t* buffer, uint32_t length, uint32_t& transferred, uint32_t timeout_ms) = 0;
-            virtual usb_status bulk_transfer(const rs_usb_endpoint& endpoint, uint8_t* buffer, uint32_t length, uint32_t& transferred, uint32_t timeout_ms) = 0;
+            virtual usb_status control_transfer(uint8_t request_type, uint8_t request, uint16_t value, uint16_t index, uint8_t* buffer, uint16_t length, uint32_t& transferred, uint32_t timeout_ms) = 0;
+            virtual usb_status bulk_transfer(const rs_usb_endpoint&  endpoint, uint8_t* buffer, uint32_t length, uint32_t& transferred, uint32_t timeout_ms) = 0;
             virtual usb_status reset_endpoint(const rs_usb_endpoint& endpoint, uint32_t timeout_ms) = 0;
             virtual usb_status submit_request(const rs_usb_request& request) = 0;
             virtual usb_status cancel_request(const rs_usb_request& request) = 0;

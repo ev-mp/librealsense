@@ -63,7 +63,7 @@ namespace librealsense
                     auto str = std::wstring((device_list.data() + offset));
                     if(!str.empty())
                         rv.push_back(str);
-                    offset += str.size() + 1;
+                    offset += ULONG(str.size() + 1);
                 }
             } while (cr == CR_BUFFER_SMALL);
 

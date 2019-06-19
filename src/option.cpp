@@ -107,7 +107,7 @@ const char* librealsense::uvc_pu_option::get_description() const
     }
 }
 
-std::vector<uint8_t> librealsense::command_transfer_over_xu::send_receive(const std::vector<uint8_t>& data, int, bool require_response)
+std::vector<uint8_t> librealsense::command_transfer_over_xu::send_receive(const std::vector<uint8_t>& data, uint32_t, bool require_response)
 {
     return _uvc.invoke_powered([this, &data, require_response]
         (platform::uvc_device& dev)

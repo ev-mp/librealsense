@@ -625,7 +625,7 @@ namespace librealsense
 
         void record_device_watcher::start(device_changed_callback callback)
         {
-            _owner->try_record([=](recording* rec1, lookup_key key1)
+            _owner->try_record([=](recording* , lookup_key)
             {
                 _source_watcher->start([=](backend_device_group old, backend_device_group curr)
                 {
@@ -642,7 +642,7 @@ namespace librealsense
 
         void record_device_watcher::stop()
         {
-            _owner->try_record([&](recording* rec1, lookup_key key1)
+            _owner->try_record([&](recording* , lookup_key)
             {
                 _source_watcher->stop();
 
@@ -650,7 +650,7 @@ namespace librealsense
         }
 
 
-        void record_uvc_device::probe_and_commit(stream_profile profile, frame_callback callback, int buffers)
+        void record_uvc_device::probe_and_commit(stream_profile profile, frame_callback callback, int)
         {
             _owner->try_record([this, callback, profile](recording* rec, lookup_key k)
             {
@@ -663,7 +663,7 @@ namespace librealsense
 
                         if (_owner->get_mode() == RS2_RECORDING_MODE_BEST_QUALITY)
                         {
-                            c.param2 = rec1->save_blob(f.pixels, static_cast<int>(f.frame_size));
+                            c.param2 = rec1->save_blob(f.pixels, f.frame_size);
                             c.param4 = static_cast<int>(f.frame_size);
                             c.param3 = 1;
                         }
@@ -929,7 +929,7 @@ namespace librealsense
             {
                 _source->start_capture([this, callback](const sensor_data& sd)
                 {
-                    _owner->try_record([this, callback, &sd](recording* rec1, lookup_key key1)
+                    _owner->try_record([callback, &sd](recording* rec1, lookup_key key1)
                     {
                         auto&& c = rec1->add_call(key1);
                         c.param1 = rec1->save_blob(sd.fo.pixels, sd.fo.frame_size);
@@ -999,16 +999,16 @@ namespace librealsense
             }, _entity_id, call_type::uvc_get_usb_specification);
         }
 
-        vector<uint8_t> record_usb_device::send_receive(const vector<uint8_t>& data, int timeout_ms, bool require_response)
+        vector<uint8_t> record_usb_device::send_receive(const vector<uint8_t>& data, uint32_t timeout_ms, bool require_response)
         {
             return _owner->try_record([&](recording* rec, lookup_key k)
             {
                 auto result = _source->send_receive(data, timeout_ms, require_response);
 
                 auto&& c = rec->add_call(k);
-                c.param1 = rec->save_blob((void*)data.data(), static_cast<int>(data.size()));
-                c.param2 = rec->save_blob((void*)result.data(), static_cast<int>(result.size()));
-                c.param3 = timeout_ms;
+                c.param1 = rec->save_blob((void*)data.data(), data.size());
+                c.param2 = rec->save_blob((void*)result.data(), result.size());
+                c.param3 = static_cast<int>(timeout_ms);
                 c.param4 = require_response;
 
                 return result;
@@ -1504,11 +1504,11 @@ namespace librealsense
 
         }
 
-        vector<uint8_t> playback_usb_device::send_receive(const vector<uint8_t>& data, int timeout_ms, bool require_response)
+        vector<uint8_t> playback_usb_device::send_receive(const vector<uint8_t>& data, uint32_t timeout_ms, bool require_response)
         {
             auto&& c = _rec->find_call(call_type::send_command, _entity_id, [&](const call& call_found)
             {
-                return call_found.param3 == timeout_ms && (call_found.param4 > 0) == require_response && _rec->load_blob(call_found.param1) == data;
+                return uint32_t(call_found.param3) == timeout_ms && (call_found.param4 > 0) == require_response && _rec->load_blob(call_found.param1) == data;
             });
 
             return _rec->load_blob(c.param2);

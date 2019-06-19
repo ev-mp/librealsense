@@ -75,8 +75,8 @@ namespace librealsense
 
         struct call
         {
-            call_type type = call_type::none;
             double timestamp = 0;
+            call_type type = call_type::none;
             int entity_id = 0;
             std::string inline_string;
 
@@ -86,9 +86,6 @@ namespace librealsense
             int param4 = 0;
             int param5 = 0;
             int param6 = 0;
-
-            bool had_error = false;
-
             int param7 = 0;
             int param8 = 0;
             int param9 = 0;
@@ -96,6 +93,7 @@ namespace librealsense
             int param11 = 0;
             int param12 = 0;
 
+            bool had_error = false;
 
         };
 
@@ -162,7 +160,7 @@ namespace librealsense
                 std::lock_guard<std::recursive_mutex> lock(_mutex);
                 for (auto i = c.param1; i < c.param2; i++)
                 {
-                    results.push_back(source[i]);
+                    results.push_back(source[size_t(i)]);
                 }
                 return results;
             }
@@ -174,7 +172,7 @@ namespace librealsense
                 std::lock_guard<std::recursive_mutex> lock(_mutex);
                 for (auto i = range_start; i < range_end; i++)
                 {
-                    results.push_back(source[i]);
+                    results.push_back(source[size_t(i)]);
                 }
                 return results;
             }
@@ -387,7 +385,7 @@ namespace librealsense
         class record_usb_device : public command_transfer
         {
         public:
-            std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, int timeout_ms, bool require_response) override;
+            std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, uint32_t timeout_ms, bool require_response) override;
 
             record_usb_device(std::shared_ptr<command_transfer> source,
                 int id, const record_backend* owner)
@@ -404,9 +402,9 @@ namespace librealsense
         {
         public:
             record_device_watcher(const record_backend* owner, std::shared_ptr<device_watcher> source_watcher, int id) :
-                _source_watcher(source_watcher), _owner(owner), _entity_id(id) {}
+                _owner(owner), _source_watcher(source_watcher),  _entity_id(id) {}
 
-            ~record_device_watcher()
+            ~record_device_watcher() override
             {
                 stop();
             }
@@ -437,7 +435,7 @@ namespace librealsense
                 const char* filename,
                 const char* section,
                 rs2_recording_mode mode);
-            ~record_backend();
+            ~record_backend() override;
 
             rs2_recording_mode get_mode() const { return _mode; }
 
@@ -489,7 +487,7 @@ namespace librealsense
 
         public:
             playback_device_watcher(int id);
-            ~playback_device_watcher();
+            ~playback_device_watcher() override;
             void start(device_changed_callback callback) override;
             void stop() override;
 
@@ -507,8 +505,11 @@ namespace librealsense
         class playback_uvc_device : public uvc_device
         {
         public:
+            explicit playback_uvc_device(std::shared_ptr<recording> rec, int id);
+            ~playback_uvc_device() override;
+
             void probe_and_commit(stream_profile profile, frame_callback callback, int buffers) override;
-            void stream_on(std::function<void(const notification& n)> error_handler = [](const notification& n) {}) override;
+            void stream_on(std::function<void(const notification& n)> error_handler = [](const notification& ) {}) override;
             void start_callbacks() override;
             void stop_callbacks() override;
             void close(stream_profile profile) override;
@@ -527,10 +528,7 @@ namespace librealsense
             std::string get_device_location() const override;
             usb_spec get_usb_specification() const override;
 
-            explicit playback_uvc_device(std::shared_ptr<recording> rec, int id);
-
             void callback_thread();
-            ~playback_uvc_device();
 
         private:
              stream_profile get_profile(call* frame) const;
@@ -549,7 +547,7 @@ namespace librealsense
         class playback_usb_device : public command_transfer
         {
         public:
-            std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, int timeout_ms, bool require_response) override;
+            std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, uint32_t timeout_ms, bool require_response) override;
 
             explicit playback_usb_device(std::shared_ptr<recording> rec,
                 int id) : _rec(rec), _entity_id(id) 
@@ -564,6 +562,9 @@ namespace librealsense
         {
         public:
             void register_profiles(const std::vector<hid_profile>& hid_profiles) override;
+            explicit playback_hid_device(std::shared_ptr<recording> rec, int id);
+            ~playback_hid_device() override;
+
             void open(const std::vector<hid_profile>& hid_profiles) override;
             void close() override;
             void stop_capture() override;
@@ -573,9 +574,6 @@ namespace librealsense
                 const std::string& report_name,
                 custom_sensor_report_field report_field) override;
             void callback_thread();
-            ~playback_hid_device();
-
-            explicit playback_hid_device(std::shared_ptr<recording> rec, int id);
 
         private:
             std::shared_ptr<recording> _rec;

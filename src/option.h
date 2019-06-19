@@ -48,7 +48,7 @@ namespace librealsense
             throw not_implemented_exception("This option is read-only!");
         }
 
-        void enable_recording(std::function<void(const option &)> record_action) override
+        void enable_recording(std::function<void(const option &)> ) override
         {
             //empty
         }
@@ -157,7 +157,7 @@ namespace librealsense
             _min(min), _max(max), _step(step), _def(def), _value(value), _desc(desc)
         {
             static_assert((std::is_arithmetic<T>::value), "ptr_option class supports arithmetic built-in types only");
-            _on_set = [](float x) {};
+            _on_set = [](float) {};
         }
 
         void set(float value) override
@@ -434,7 +434,7 @@ namespace librealsense
     class command_transfer_over_xu : public platform::command_transfer
     {
     public:
-        std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, int, bool require_response) override;
+        std::vector<uint8_t> send_receive(const std::vector<uint8_t>& data, uint32_t timeout, bool require_response) override;
 
         command_transfer_over_xu(uvc_sensor& uvc,
                                  platform::extension_unit xu, uint8_t ctrl)

@@ -196,7 +196,7 @@ namespace librealsense
         {
             command cmdFES(ds::FES);
             cmdFES.require_response = false;
-            cmdFES.param1 = sector_index;
+            cmdFES.param1 = int(sector_index);
             cmdFES.param2 = 1;
             auto res = hwm->send(cmdFES);
 
@@ -208,7 +208,7 @@ namespace librealsense
                 int packet_size = std::min((int)(HW_MONITOR_COMMAND_SIZE - (i % HW_MONITOR_COMMAND_SIZE)), (int)(ds::FLASH_SECTOR_SIZE - i));
                 command cmdFWB(ds::FWB);
                 cmdFWB.require_response = false;
-                cmdFWB.param1 = index;
+                cmdFWB.param1 = int(index);
                 cmdFWB.param2 = packet_size;
                 cmdFWB.data.assign(image.data() + index, image.data() + index + packet_size);
                 res = hwm->send(cmdFWB);
@@ -224,10 +224,10 @@ namespace librealsense
         update_progress_callback_ptr callback, float continue_from, float ratio)
     {
         auto first_table_offset = fs.tables.front().offset;
-        float total_size = float(fs.app_size + tables_size);
+        auto total_size = fs.app_size + tables_size;
 
-        float app_ratio = fs.app_size / total_size * ratio;
-        float tables_ratio = tables_size / total_size * ratio;
+        auto app_ratio = fs.app_size / ( total_size * ratio );
+        auto tables_ratio = tables_size / ( total_size * ratio );
 
         update_flash_section(hwm, merged_image, fs.offset, fs.app_size, callback, continue_from, app_ratio);
         update_flash_section(hwm, merged_image, first_table_offset, tables_size, callback, app_ratio, tables_ratio);
@@ -242,14 +242,14 @@ namespace librealsense
         // update read-write section
         auto first_table_offset = flash_image_info.read_write_section.tables.front().offset;
         auto tables_size = flash_image_info.header.read_write_start_address + flash_image_info.header.read_write_size - first_table_offset;
-        update_section(hwm, merged_image, flash_image_info.read_write_section, tables_size, callback, 0, update_mode == RS2_UNSIGNED_UPDATE_MODE_READ_ONLY ? 0.5f : 1.0f);
+        update_section(hwm, merged_image, flash_image_info.read_write_section, tables_size, callback, 0.f, update_mode == RS2_UNSIGNED_UPDATE_MODE_READ_ONLY ? 0.5f : 1.f);
 
         if (update_mode == RS2_UNSIGNED_UPDATE_MODE_READ_ONLY)
         {
             // update read-only section
             auto first_table_offset = flash_image_info.read_only_section.tables.front().offset;
             auto tables_size = flash_image_info.header.read_only_start_address + flash_image_info.header.read_only_size - first_table_offset;
-            update_section(hwm, merged_image, flash_image_info.read_only_section, tables_size, callback, 0.5, 0.5);
+            update_section(hwm, merged_image, flash_image_info.read_only_section, tables_size, callback, 0.5f, 0.5f);
         }
     }
 

@@ -40,7 +40,7 @@ namespace librealsense
             }
         }
 
-        usb_status usb_messenger_winusb::control_transfer(int request_type, int request, int value, int index, uint8_t* buffer, uint32_t length, uint32_t& transferred, uint32_t timeout_ms)
+        usb_status usb_messenger_winusb::control_transfer(uint8_t request_type, uint8_t request, uint16_t value, uint16_t index, uint8_t* buffer, uint16_t length, uint32_t& transferred, uint32_t timeout_ms)
         {
             WINUSB_SETUP_PACKET setupPacket;
             ULONG length_transferred;

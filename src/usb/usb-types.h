@@ -68,7 +68,7 @@ namespace librealsense
             RS2_USB_ENDPOINT_DIRECTION_READ = 0x80
         } endpoint_direction;
 
-        typedef enum _endpoint_type
+        typedef enum _endpoint_type : uint8_t
         {
             RS2_USB_ENDPOINT_CONTROL,
             RS2_USB_ENDPOINT_ISOCHRONOUS,
