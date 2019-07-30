@@ -80,7 +80,17 @@ namespace librealsense
         auto z_pixels = reinterpret_cast<const uint16_t*>(depth.get_data());
         auto out_z = (uint16_t *)(aligned_data);
 
-        align_images(z_intrin, z_to_other, other_intrin,
+        auto other_intrin_dev = other_intrin;
+        static int i = 0;
+        static bool ff = false;
+        if (0 == ((++i) % 20))
+        {
+            ff = !ff;
+            std::cout << "Other->Depth: distortion coefficients are " << (ff ? "on" : "off") << std::endl;
+        }
+        if (!ff)
+            memset(&other_intrin_dev.coeffs[0], 0, sizeof(float) * 5);
+        align_images(z_intrin, z_to_other, other_intrin_dev,
             [z_pixels, z_scale](int z_pixel_index) { return z_scale * z_pixels[z_pixel_index]; },
             [out_z, z_pixels](int z_pixel_index, int other_pixel_index)
         {
@@ -95,7 +105,17 @@ namespace librealsense
     {
         auto in_other = (const bytes<N> *)(other_pixels);
         auto out_other = (bytes<N> *)(other_aligned_to_depth);
-        align_images(depth_intrin, depth_to_other, other_intrin, get_depth,
+        auto other_intrin_dev = other_intrin;
+        static int i = 0;
+        static bool ff = false;
+        if (0 == ((++i) % 20))
+        {
+            ff = !ff;
+            std::cout << "RGB Distortion coefficients are " << (ff ? "on" : "off") << std::endl;
+        }
+        if (!ff)
+            memset(&other_intrin_dev.coeffs[0], 0, sizeof(float) * 5);
+        align_images(depth_intrin, depth_to_other, other_intrin_dev, get_depth,
             [out_other, in_other](int depth_pixel_index, int other_pixel_index) { out_other[depth_pixel_index] = in_other[other_pixel_index]; });
     }
 

@@ -45,7 +45,7 @@ int main(int argc, char * argv[]) try
     rs2::pipeline pipe;
     rs2::config cfg;
     cfg.enable_stream(RS2_STREAM_DEPTH);
-    cfg.enable_stream(RS2_STREAM_COLOR);
+    cfg.enable_stream(RS2_STREAM_COLOR,2000,1500);
     pipe.start(cfg);
 
     // Define two align objects. One will be used to align
