@@ -145,13 +145,23 @@ public:
 
     void set_intrinsics(int idx, const rs2_intrinsics& intr)
     {
+        auto other_intrin_dev = intr;
+        static int i = 0;
+        static bool ff = false;
+        if (0 == ((++i) % 50))
+        {
+            ff = !ff;
+            std::cout << "Other->Depth: distortion coefficients are " << (ff ? "on" : "off") << std::endl;
+        }
+        if (!ff)
+            memset(&other_intrin_dev.coeffs[0], 0, sizeof(float) * 5);
         rs2::float2 focal{ intr.fx, intr.fy };
         rs2::float2 principal{ intr.ppx, intr.ppy };
-        float is_bc = (intr.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY ? 1.f : 0.f);
+        float is_bc = (intr.model == RS2_DISTORTION_BROWN_CONRADY ? 1.f : 0.f);
         _shader->load_uniform(_focal_location[idx], focal);
         _shader->load_uniform(_principal_location[idx], principal);
         _shader->load_uniform(_is_bc_location[idx], is_bc);
-        glUniform1fv(_coeffs_location[idx], 5, intr.coeffs);
+        glUniform1fv(_coeffs_location[idx], 5, other_intrin_dev.coeffs);
     }
 
     void set_depth_scale(float depth_scale)

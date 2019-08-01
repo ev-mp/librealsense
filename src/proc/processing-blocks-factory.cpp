@@ -13,7 +13,7 @@ namespace librealsense
         return std::make_shared<librealsense::align_cuda>(align_to);
     }
 #else
-#ifdef __SSSE3__
+#ifdef __SSSE3_EV__
     std::shared_ptr<librealsense::align> create_align(rs2_stream align_to)
     {
         return std::make_shared<librealsense::align_sse>(align_to);

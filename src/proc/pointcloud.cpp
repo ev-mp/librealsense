@@ -141,7 +141,16 @@ namespace librealsense
         float2* pixels_ptr)
     {
         auto tex_ptr = (float2*)output.get_texture_coordinates();
-
+        auto other_intrin_dev = other_intrinsics;
+        static int i = 0;
+        static bool ff = false;
+        if (0 == ((++i) % 20))
+        {
+            ff = !ff;
+            std::cout << "PC: distortion coefficients are " << (ff ? "on" : "off") << std::endl;
+        }
+        if (!ff)
+            memset(&other_intrin_dev.coeffs[0], 0, sizeof(float) * 5);
         for (unsigned int y = 0; y < height; ++y)
         {
             for (unsigned int x = 0; x < width; ++x)
@@ -151,8 +160,8 @@ namespace librealsense
                     auto trans = transform(&extr, *points);
                     //auto tex_xy = project_to_texcoord(&mapped_intr, trans);
                     // Store intermediate results for poincloud filters
-                    *pixels_ptr = project(&other_intrinsics, trans);
-                    auto tex_xy = pixel_to_texcoord(&other_intrinsics, *pixels_ptr);
+                    *pixels_ptr = project(&other_intrin_dev, trans);
+                    auto tex_xy = pixel_to_texcoord(&other_intrin_dev, *pixels_ptr);
 
                     *tex_ptr = tex_xy;
                 }

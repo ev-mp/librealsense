@@ -24,9 +24,13 @@ int main(int argc, char * argv[]) try
     rs2::points points;
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
+    rs2::config cfg;
+    cfg.enable_stream(RS2_STREAM_DEPTH);
+    cfg.enable_stream(RS2_STREAM_COLOR, 1280, 720);
+
     rs2::pipeline pipe;
     // Start streaming with default recommended configuration
-    pipe.start();
+    pipe.start(cfg);
 
     while (app) // Application still alive?
     {

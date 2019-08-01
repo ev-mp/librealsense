@@ -147,6 +147,17 @@ namespace librealsense
         const rs2_extrinsics& extr,
         float2* pixels_ptr)
     {
+        auto other_intrin_dev = other_intrinsics;
+        static int i = 0;
+        static bool ff = false;
+        if (0 == ((++i) % 20))
+        {
+            ff = !ff;
+            std::cout << "PC: distortion coefficients are " << (ff ? "on" : "off") << std::endl;
+        }
+        if (!ff)
+            memset(&other_intrin_dev.coeffs[0], 0, sizeof(float) * 5);
+
         auto tex_ptr = (float2*)output.get_texture_coordinates();
 
 #ifdef __SSSE3__
@@ -168,16 +179,16 @@ namespace librealsense
         }
         for (int i = 0; i < 5; ++i)
         {
-            c[i] = _mm_set_ps1(other_intrinsics.coeffs[i]);
+            c[i] = _mm_set_ps1(other_intrin_dev.coeffs[i]);
         }
 
-        auto fx = _mm_set_ps1(other_intrinsics.fx);
-        auto fy = _mm_set_ps1(other_intrinsics.fy);
-        auto ppx = _mm_set_ps1(other_intrinsics.ppx);
-        auto ppy = _mm_set_ps1(other_intrinsics.ppy);
-        auto w = _mm_set_ps1(other_intrinsics.width);
-        auto h = _mm_set_ps1(other_intrinsics.height);
-        auto mask_inv_brown_conrady = _mm_set_ps1(RS2_DISTORTION_INVERSE_BROWN_CONRADY);
+        auto fx = _mm_set_ps1(other_intrin_dev.fx);
+        auto fy = _mm_set_ps1(other_intrin_dev.fy);
+        auto ppx = _mm_set_ps1(other_intrin_dev.ppx);
+        auto ppy = _mm_set_ps1(other_intrin_dev.ppy);
+        auto w = _mm_set_ps1(other_intrin_dev.width);
+        auto h = _mm_set_ps1(other_intrin_dev.height);
+        auto mask_brown_conrady = _mm_set_ps1(RS2_DISTORTION_BROWN_CONRADY);
         auto zero = _mm_set_ps1(0);
         auto one = _mm_set_ps1(1);
         auto two = _mm_set_ps1(2);
@@ -206,7 +217,7 @@ namespace librealsense
             p_y = _mm_div_ps(p_y, p_z);
 
             // if(model == RS2_DISTORTION_MODIFIED_BROWN_CONRADY)
-            auto dist = _mm_set_ps1(other_intrinsics.model);
+            auto dist = _mm_set_ps1(other_intrin_dev.model);
 
             auto r2 = _mm_add_ps(_mm_mul_ps(p_x, p_x), _mm_mul_ps(p_y, p_y));
             auto r3 = _mm_add_ps(_mm_mul_ps(c[1], _mm_mul_ps(r2, r2)), _mm_mul_ps(c[4], _mm_mul_ps(r2, _mm_mul_ps(r2, r2))));
@@ -221,7 +232,7 @@ namespace librealsense
             auto r5 = _mm_mul_ps(c[2], _mm_add_ps(r2, _mm_mul_ps(two, _mm_mul_ps(y_f, y_f))));
             auto d_y = _mm_add_ps(y_f, _mm_add_ps(_mm_mul_ps(two, _mm_mul_ps(c[3], _mm_mul_ps(x_f, y_f))), r4));
 
-            auto cmp = _mm_cmpeq_ps(mask_inv_brown_conrady, dist);
+            auto cmp = _mm_cmpeq_ps(mask_brown_conrady, dist);
 
             p_x = _mm_or_ps(_mm_and_ps(cmp, d_x), _mm_andnot_ps(cmp, p_x));
             p_y = _mm_or_ps(_mm_and_ps(cmp, d_y), _mm_andnot_ps(cmp, p_y));
