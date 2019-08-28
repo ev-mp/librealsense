@@ -133,3 +133,9 @@ target_sources(${LRS_TARGET}
         "${CMAKE_CURRENT_LIST_DIR}/serializable-interface.h"
         "${CMAKE_CURRENT_LIST_DIR}/depth-to-rgb-calibration.h"
 )
+
+#Continuous code improvement by compilation warnings mitigation
+target_compile_options(${LRS_TARGET} PRIVATE
+                       $<$<CXX_COMPILER_ID:Clang>:-Wall>
+                       $<$<CXX_COMPILER_ID:MSVC>:/we4244 /we4267 /we4305 /we4018>
+                       $<$<CXX_COMPILER_ID:GNU>:-Wall>)
