@@ -2472,11 +2472,13 @@ TEST_CASE("Connect Disconnect events while streaming", "[live]") {
         for (auto&& s : dev_strong->query_sensors())
             auto func = check_stream_sanity(ctx, s, 1, true);
 
-        for (auto i = 0; i < 3; i++)
+        for (auto i = 0; i < 5000; i++)
         {
+            std::cout << "iteration " << i << "/5000 started at " << datetime_string() << std::endl;
             //forcing hardware reset to simulate device disconnection
             dev_strong = do_with_waiting_for_camera_connection(ctx, dev_strong, serial, [&]()
             {
+                std::cout << "HW reset at " << datetime_string() << std::endl;
                 dev_strong->hardware_reset();
             });
 

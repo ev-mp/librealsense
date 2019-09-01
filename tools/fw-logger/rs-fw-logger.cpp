@@ -51,7 +51,8 @@ int main(int argc, char* argv[])
     cmd.add(xml_arg);
     cmd.parse(argc, argv);
 
-    log_to_file(RS2_LOG_SEVERITY_WARN, "librealsense.log");
+    log_to_console(RS2_LOG_SEVERITY_DEBUG);
+    //log_to_file(RS2_LOG_SEVERITY_WARN, "librealsense.log");
     // Obtain a list of devices currently present on the system
 
     unique_ptr<fw_logs_parser> fw_log_parser;

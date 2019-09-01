@@ -828,6 +828,22 @@ namespace librealsense
         auto valid_pid = filter_by_product(group.uvc_devices, ds::rs400_sku_pid);
         auto group_devices = group_devices_and_hids_by_unique_id(group_devices_by_unique_id(valid_pid), group.hid_devices);
 
+        if (group_devices.size())
+        {
+            auto& dd = group_devices.at(0);
+            std::string uid = dd.first.front().unique_id;
+            auto usb_dev = std::find_if(group.usb_devices.begin(), group.usb_devices.end(),
+                [uid](const platform::usb_device_info& info) { return info.unique_id == uid; });
+            if (usb_dev != group.usb_devices.end())
+            {
+                LOG_INFO("UVC Device for this group was present, serial = " << usb_dev->serial);
+            }
+            else
+            {
+                LOG_INFO("!!!!!!! UVC Device for this group was not present !!!");
+            }
+        }
+
         for (auto& g : group_devices)
         {
             auto& devices = g.first;
@@ -888,7 +904,8 @@ namespace librealsense
             }
             else
             {
-                LOG_WARNING("DS5 group_devices is empty.");
+                LOG_WARNING("DS5 group_devices is not ready - d400 devices: " << devices.size()
+                            << ", all sensor present = " << all_sensors_present);
             }
         }
 

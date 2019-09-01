@@ -63,7 +63,10 @@ namespace librealsense
     device_hub::~device_hub()
     {
         if (_device_changes_callback_id)
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
             _ctx->unregister_internal_device_callback(_device_changes_callback_id);
+        }
 
         _ctx->stop();
     }
@@ -113,6 +116,7 @@ namespace librealsense
 
         // check if there is at least one device connected
         _device_list = filter_by_vid(_ctx->query_devices(RS2_PRODUCT_LINE_ANY), _vid);
+        LOG_INFO(__FUNCTION__ << " devices found = " << _device_list.size());
         if (_device_list.size() > 0)
         {
             res = create_device(serial, loop_through_devices);

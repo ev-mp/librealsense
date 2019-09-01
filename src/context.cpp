@@ -412,10 +412,12 @@ namespace librealsense
                 devices_changed_callbacks = _devices_changed_callbacks;
             }
 
+            LOG_INFO("Number of registered callbacks kvp.second->on_devices_changed = " << devices_changed_callbacks.size());
             for (auto& kvp : devices_changed_callbacks)
             {
                 try
                 {
+                    LOG_INFO("Actual num of registered callbacks = " << devices_changed_callbacks.size());
                     kvp.second->on_devices_changed(new rs2_device_list({ shared_from_this(), rs2_devices_info_removed }),
                                                    new rs2_device_list({ shared_from_this(), rs2_devices_info_added }));
                 }

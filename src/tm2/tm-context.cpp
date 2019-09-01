@@ -64,7 +64,8 @@ namespace librealsense
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started);
         }
-        LOG_DEBUG("T265 query acomplished after " << std::dec << elapsed.count() << " ms]");
+        if (elapsed.count())
+            LOG_DEBUG("T265 query acomplished after " << std::dec << elapsed.count() << " ms]");
         return _devices;
     }
 
