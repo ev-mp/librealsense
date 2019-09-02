@@ -1120,7 +1120,8 @@ namespace librealsense
             }
             else
             {
-                LOG_WARNING("DS5 group_devices is empty.");
+                LOG_WARNING("DS5 group_devices is not ready - d400 devices: " << devices.size()
+                            << ", all sensor present = " << all_sensors_present);
             }
         }
 

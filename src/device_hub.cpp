@@ -68,7 +68,10 @@ namespace librealsense
     device_hub::~device_hub()
     {
         if (_device_changes_callback_id)
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
             _ctx->unregister_internal_device_callback(_device_changes_callback_id);
+        }
 
         _ctx->stop();
     }
