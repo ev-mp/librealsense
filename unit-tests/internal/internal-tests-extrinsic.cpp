@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <librealsense2/rs.hpp>
 #include <librealsense2/hpp/rs_sensor.hpp>
+#include "./../unit-tests-common.h"
 #include "../../common/tiny-profiler.h"
 #include "./../src/environment.h"
 

@@ -10,6 +10,7 @@ set (INTERNAL_TESTS_SOURCES
     internal-tests-usb.cpp
     internal-tests-extrinsic.cpp
     internal-tests-types.cpp
+    internal-tests-imu.cpp
     internal-tests-uv-map.cpp
     internal-tests-class-logic.cpp
     internal-tests-linux.cpp
