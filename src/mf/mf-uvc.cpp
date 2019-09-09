@@ -27,6 +27,7 @@ The library will be compiled without the metadata support!\n")
 #include "mf-uvc.h"
 #include "../types.h"
 #include "uvc/uvc-types.h"
+#include "../common/tiny-profiler.h"
 
 #include "Shlwapi.h"
 #include <Windows.h>
@@ -764,7 +765,11 @@ namespace librealsense
             std::shared_ptr<const wmf_backend> backend)
             : _streamIndex(MAX_PINS), _info(info), _is_flushed(), _has_started(), _backend(std::move(backend)),
             _systemwide_lock(info.unique_id.c_str(), WAIT_FOR_MUTEX_TIME_OUT),
-            _location(""), _device_usb_spec(usb3_type)
+            _location(""), _device_usb_spec(usb3_type),
+            _power_deactivator([this](dispatcher::cancellable_timer cancellable_timer)
+            {
+                switch_to_idle(cancellable_timer);
+            })
         {
             if (!is_connected(info))
             {
@@ -839,34 +844,77 @@ namespace librealsense
 
         void wmf_uvc_device::set_d0()
         {
-            if (!_device_attrs)
-                _device_attrs = create_device_attrs();
+            {
+                scoped_timer t("_power_deactivator.stop");
+                _power_deactivator.stop();
+            }
 
-            if (!_reader_attrs)
-                _reader_attrs = create_reader_attrs();
-            _streams.resize(_streamIndex);
+            if (D3 == _power_state) // TODO check if it is possible to perform via _power_deactivator
+            {
+                if (!_device_attrs)
+                    _device_attrs = create_device_attrs();
 
-            //enable source
-            CHECK_HR(MFCreateDeviceSource(_device_attrs, &_source));
-            LOG_HR(_source->QueryInterface(__uuidof(IAMCameraControl), reinterpret_cast<void **>(&_camera_control)));
-            LOG_HR(_source->QueryInterface(__uuidof(IAMVideoProcAmp), reinterpret_cast<void **>(&_video_proc)));
+                if (!_reader_attrs)
+                    _reader_attrs = create_reader_attrs();
+                _streams.resize(_streamIndex);
 
-            //enable reader
-            CHECK_HR(MFCreateSourceReaderFromMediaSource(_source, _reader_attrs, &_reader));
-            CHECK_HR(_reader->SetStreamSelection(static_cast<DWORD>(MF_SOURCE_READER_ALL_STREAMS), TRUE));
-            _power_state = D0;
+                //enable source
+                CHECK_HR(MFCreateDeviceSource(_device_attrs, &_source));
+                LOG_HR(_source->QueryInterface(__uuidof(IAMCameraControl), reinterpret_cast<void **>(&_camera_control)));
+                LOG_HR(_source->QueryInterface(__uuidof(IAMVideoProcAmp), reinterpret_cast<void **>(&_video_proc)));
+
+                //enable reader
+                CHECK_HR(MFCreateSourceReaderFromMediaSource(_source, _reader_attrs, &_reader));
+                CHECK_HR(_reader->SetStreamSelection(static_cast<DWORD>(MF_SOURCE_READER_ALL_STREAMS), TRUE));
+                _power_state = D0;
+            }
         }
 
         void wmf_uvc_device::set_d3()
         {
-            safe_release(_camera_control);
-            safe_release(_video_proc);
-            safe_release(_reader);
-            _source->Shutdown(); //Failure to call Shutdown can result in memory leak
-            safe_release(_source);
-            for (auto& elem : _streams)
-                elem.callback = nullptr;
-            _power_state = D3;
+            _power_deactivator.start();
+            //safe_release(_camera_control);
+            //safe_release(_video_proc);
+            //safe_release(_reader);
+            //_source->Shutdown(); //Failure to call Shutdown can result in memory leak
+            //safe_release(_source);
+            //for (auto& elem : _streams)
+            //    elem.callback = nullptr;
+            //_power_state = D3;
+        }
+
+        void wmf_uvc_device::switch_to_idle(dispatcher::cancellable_timer cancellable_timer)
+        {
+            try
+            {
+                LOG_INFO("Enter switch_to_idle");
+                //scoped_timer t("switch_to_idle");
+                if (cancellable_timer.try_sleep(5000))
+                {
+                    // Go to D3
+                    safe_release(_camera_control);
+                    safe_release(_video_proc);
+                    safe_release(_reader);
+                    _source->Shutdown(); //Failure to call Shutdown can result in memory leak
+                    safe_release(_source);
+                    for (auto& elem : _streams)
+                        elem.callback = nullptr;
+                    _power_state = D3;
+                    LOG_INFO("Device switched to idle power");
+                }
+                else
+                {
+                    LOG_INFO("Abort switch to idle");
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                LOG_ERROR("Error during switch_to_idle: " << ex.what());
+            }
+            catch (...)
+            {
+                LOG_ERROR("Unknown error during switch_to_idle!");
+            }
         }
 
         void wmf_uvc_device::foreach_profile(std::function<void(const mf_profile& profile, CComPtr<IMFMediaType> media_type, bool& quit)> action) const

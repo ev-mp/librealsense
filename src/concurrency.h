@@ -371,7 +371,7 @@ template<class T = std::function<void(dispatcher::cancellable_timer)>>
 class active_object
 {
 public:
-    active_object(T operation)
+    active_object(T operation, bool loop=true)
         : _operation(std::move(operation)), _dispatcher(1), _stopped(true)
     {
     }
@@ -404,7 +404,7 @@ private:
             _operation(ct);
             if (!_stopped)
             {
-                do_loop();
+                if (_loop) do_loop();
             }
         });
     }
@@ -412,6 +412,7 @@ private:
     T _operation;
     dispatcher _dispatcher;
     std::atomic<bool> _stopped;
+    bool _loop;
 };
 
 class watchdog

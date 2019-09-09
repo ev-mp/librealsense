@@ -4,6 +4,7 @@
 
 #include "../backend.h"
 #include "win/win-helpers.h"
+#include "../concurrency.h"
 
 #include <mfidl.h>
 #include <mfreadwrite.h>
@@ -118,6 +119,7 @@ namespace librealsense
 
             void set_d0();
             void set_d3();
+            void switch_to_idle(dispatcher::cancellable_timer cancellable_timer);
 
             // Don't move the position of wmf_backend member. This object must be destroyed only after COM objects.
             std::shared_ptr<const wmf_backend>      _backend;
@@ -151,6 +153,7 @@ namespace librealsense
             bool                                    _streaming = false;
             std::atomic<bool>                       _is_started = false;
             std::wstring                            _device_id;
+            active_object<>                         _power_deactivator;
         };
 
         class source_reader_callback : public IMFSourceReaderCallback

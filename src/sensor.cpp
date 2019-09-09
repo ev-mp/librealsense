@@ -16,6 +16,7 @@
 #include "proc/decimation-filter.h"
 #include "proc/depth-decompress.h"
 #include "global_timestamp_reader.h"
+#include "../common/tiny-profiler.h"
 
 namespace librealsense
 {
@@ -497,6 +498,7 @@ namespace librealsense
 
     void uvc_sensor::acquire_power()
     {
+        scoped_timer t(__FUNCTION__);
         std::lock_guard<std::mutex> lock(_power_lock);
         if (_user_count.fetch_add(1) == 0)
         {
@@ -507,6 +509,7 @@ namespace librealsense
 
     void uvc_sensor::release_power()
     {
+        scoped_timer t(__FUNCTION__);
         std::lock_guard<std::mutex> lock(_power_lock);
         if (_user_count.fetch_add(-1) == 1)
         {
