@@ -595,10 +595,10 @@ namespace librealsense
             _is_opened = false;
             throw;
         }
-        if (Is<librealsense::global_time_interface>(_owner))
-        {
-            As<librealsense::global_time_interface>(_owner)->enable_time_diff_keeper(true);
-        }
+        //if (Is<librealsense::global_time_interface>(_owner))
+        //{
+        //    As<librealsense::global_time_interface>(_owner)->enable_time_diff_keeper(true);
+        //}
         set_active_streams(requests);
     }
 
