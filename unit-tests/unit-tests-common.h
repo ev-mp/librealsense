@@ -225,12 +225,24 @@ inline void disable_sensitive_options_for(rs2::device& dev)
         disable_sensitive_options_for(s);
 }
 
+inline std::string datetime_string()
+{
+    auto t = time(nullptr);
+    char buffer[20] = {};
+    const tm* time = localtime(&t);
+    if (nullptr != time)
+        strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", time);
+
+    return std::string(buffer);
+}
+
+
 inline bool wait_for_reset(std::function<bool(void)> func, std::shared_ptr<rs2::device> dev)
 {
     if (func())
         return true;
 
-    WARN("Reset workaround");
+    WARN("Reset workaround occurred at " << datetime_string());
 
     try {
         dev->hardware_reset();
