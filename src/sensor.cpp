@@ -425,10 +425,10 @@ namespace librealsense
 
             throw std::runtime_error(error_msg.str());
         }
-        if (Is<librealsense::global_time_interface>(_owner))
-        {
-            As<librealsense::global_time_interface>(_owner)->enable_time_diff_keeper(true);
-        }
+        //if (Is<librealsense::global_time_interface>(_owner))
+        //{
+        //    As<librealsense::global_time_interface>(_owner)->enable_time_diff_keeper(true);
+        //}
         set_active_streams(requests);
     }
 
