@@ -1,6 +1,7 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2015 Intel Corporation. All Rights Reserved.
 
+#include <future>
 #include "environment.h"
 #include "core/video.h"
 #include "core/motion.h"
@@ -133,23 +134,35 @@ device::device(std::shared_ptr<context> ctx,
 
     if (_device_changed_notifications)
     {
-        std::weak_ptr<device> wp = std::dynamic_pointer_cast<device>(this->shared_from_this());
-
-        auto cb = new devices_changed_callback_internal([wp](rs2_device_list* removed, rs2_device_list* added)
+        std::shared_future<lazy<std::weak_ptr<device>>> swpd = std::async(std::launch::deferred,[this]
         {
-            auto sp = wp.lock();
-            if (sp)
+            //return std::weak_ptr<device>(std::dynamic_pointer_cast<device>(this->shared_from_this()));
+            return lazy<std::weak_ptr<device>>([this]() { return std::dynamic_pointer_cast<device>(this->shared_from_this()); });
+        });
+
+        auto cb = new devices_changed_callback_internal([swpd](rs2_device_list* removed, rs2_device_list* added)
+        {
+            if (swpd.valid())
             {
-                // Update is_valid variable when device is invalid
-                std::lock_guard<std::mutex> lock(sp->_device_changed_mtx);
-                for (auto& dev_info : removed->list)
+                auto wp = *(swpd.get());
+                auto sp = wp.lock();
+                if (sp)
                 {
-                    if (dev_info.info->get_device_data() == sp->_group)
+                    // Update is_valid variable when device is invalid
+                    std::lock_guard<std::mutex> lock(sp->_device_changed_mtx);
+                    for (auto& dev_info : removed->list)
                     {
-                        sp->_is_valid = false;
-                        return;
+                        if (dev_info.info->get_device_data() == sp->_group)
+                        {
+                            sp->_is_valid = false;
+                            return;
+                        }
                     }
                 }
+            }
+            else
+            {
+                LOG_WARNING("new devices_changed_callback_internal is invalid");
             }
         });
 
