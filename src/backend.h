@@ -528,7 +528,7 @@ namespace librealsense
             std::vector<playback_device_info> playback_devices;
             std::vector<tm2_device_info> tm2_devices;
 
-            bool operator == (const backend_device_group& other)
+            bool operator == (const backend_device_group& other) const
             {
                 return !list_changed(uvc_devices, other.uvc_devices) &&
                     !list_changed(hid_devices, other.hid_devices) &&
@@ -536,7 +536,7 @@ namespace librealsense
                     !list_changed(tm2_devices, other.tm2_devices);
             }
 
-            operator std::string()
+            operator std::string() const
             {
                 std::string s;
                 s = uvc_devices.size()>0 ? "uvc devices:\n" : "";
