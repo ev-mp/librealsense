@@ -609,11 +609,7 @@ const uint32_t max_frames_to_receive = 50;     // Max frames to capture per stre
 //}
 
 
-static std::mutex m;
-static std::mutex cb_mtx;
-static std::condition_variable cv;
-static std::atomic<bool> stop_streaming;
-static int done;
+
 struct user_data {
     std::map<rs2_stream, test_duration> duration_per_stream;
     std::map<rs2_stream, unsigned> number_of_frames_per_stream;
@@ -622,6 +618,10 @@ struct user_data {
 
 inline void frame_callback(rs2::device &dev, rs2::frame frame, void * user)
 {
+    static std::mutex cb_mtx;
+    static std::mutex m;
+    static std::atomic<bool> stop_streaming;
+    static int done;
     std::lock_guard<std::mutex> lock(cb_mtx);
 
     if (stop_streaming || (frame.get_timestamp() == 0)) return;
@@ -640,7 +640,6 @@ inline void frame_callback(rs2::device &dev, rs2::frame frame, void * user)
         }
     }
 
-
     if (stop)
     {
         stop_streaming = true;
@@ -648,7 +647,7 @@ inline void frame_callback(rs2::device &dev, rs2::frame frame, void * user)
             std::lock_guard<std::mutex> lk(m);
             done = true;
         }
-        cv.notify_one();
+        //cv.notify_one();
         return;
     }
 

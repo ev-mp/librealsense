@@ -883,12 +883,16 @@ namespace librealsense
 
                 auto info = std::make_shared<ds5_info>(ctx, devices, hwm_devices, hids);
                 chosen.insert(chosen.end(), devices.begin(), devices.end());
+                LOG_DEBUG("New D400 device is registered: [uvc/usb/hid]=["
+                    << info->get_device_data().uvc_devices.size() << "/"
+                    << info->get_device_data().usb_devices.size() << "/"
+                    << info->get_device_data().hid_devices.size() << "]");
                 results.push_back(info);
 
             }
             else
             {
-                LOG_WARNING("DS5 group_devices is not ready - d400 devices: " << devices.size()
+                LOG_DEBUG("DS5 group_devices is not ready - d400 devices: " << devices.size()
                             << ", all sensor present = " << all_sensors_present);
             }
         }

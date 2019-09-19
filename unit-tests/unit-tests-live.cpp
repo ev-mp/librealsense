@@ -726,9 +726,9 @@ std::shared_ptr<device> do_with_waiting_for_camera_connection(rs2::context ctx, 
 
     std::unique_lock<std::mutex> lock(m);
     REQUIRE(wait_for_reset([&]() {
-        return cv.wait_for(lock, std::chrono::seconds(20), [&]() { return disconnected; });
+        return cv.wait_for(lock, std::chrono::seconds(10), [&]() { return disconnected; });
     }, dev));
-    REQUIRE(cv.wait_for(lock, std::chrono::seconds(20), [&]() { return connected; }));
+    REQUIRE(cv.wait_for(lock, std::chrono::seconds(10), [&]() { return connected; }));
     REQUIRE(result);
     return result;
 }
@@ -2422,9 +2422,7 @@ TEST_CASE("Connect Disconnect events while streaming", "[live]") {
         auto dev_strong = dev.first;
         auto dev_weak = dev.second;
 
-
         REQUIRE_NOTHROW(serial = dev_strong->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
-
 
         auto disconnected = false;
         auto connected = false;
@@ -2442,9 +2440,9 @@ TEST_CASE("Connect Disconnect events while streaming", "[live]") {
                     {
                         std::unique_lock<std::mutex> lock(m);
                         disconnected = true;
+                        std::cout << "User callback - device disconnected event" << std::endl;
                         cv.notify_one();
                     }
-
 
                     for (auto d : info.get_new_devices())
                     {
@@ -2455,7 +2453,7 @@ TEST_CASE("Connect Disconnect events while streaming", "[live]") {
                                 std::unique_lock<std::mutex> lock(m);
 
                                 reset_device(dev_strong, dev_weak, list, d);
-
+                                std::cout << "User callback - new device is ready" << std::endl;
                                 connected = true;
                                 cv.notify_one();
                                 break;
@@ -2524,10 +2522,9 @@ TEST_CASE("Connect Disconnect events while controls", "[live]")
 
         REQUIRE_NOTHROW(serial = dev_strong->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
 
-
         auto disconnected = false;
         auto connected = false;
-        std::condition_variable cv;
+        //std::condition_variable cv;
         std::mutex m;
 
         //Setting up devices change callback to notify the test about device disconnection and connection
@@ -2541,7 +2538,8 @@ TEST_CASE("Connect Disconnect events while controls", "[live]")
                     {
                         std::unique_lock<std::mutex> lock(m);
                         disconnected = true;
-                        cv.notify_one();
+                        std::cout << "User callback - was device remove" << std::endl;
+                        //cv.notify_one();
                     }
 
                     for (auto d : info.get_new_devices())
@@ -2553,8 +2551,9 @@ TEST_CASE("Connect Disconnect events while controls", "[live]")
                                 std::unique_lock<std::mutex> lock(m);
 
                                 reset_device(dev_strong, dev_weak, list, d);
+                                std::cout << "User callback - new device is connected" << std::endl;
                                 connected = true;
-                                cv.notify_one();
+                                //cv.notify_one();
                                 break;
                             }
                             catch (...)

@@ -144,18 +144,36 @@ device::device(std::shared_ptr<context> ctx,
         {
             if (swpd.valid())
             {
-                auto wp = *(swpd.get());
-                auto sp = wp.lock();
-                if (sp)
+                //std::future_status status;
+                //do
+                //{
+                //    status = swpd.wait_for(std::chrono::milliseconds(10));
+                //    if (status == std::future_status::deferred) {
+                //        std::cout << "!!!!!!!!!!!!!deferred\n";
+                //    }
+                //    else if (status == std::future_status::timeout) {
+                //        std::cout << "!!!!!!!!!!!!!timeout\n";
+                //    }
+                //    else if (status == std::future_status::ready) {
+                //        std::cout << "!!!!!!!!!!!!!ready!\n";
+                //    }
+                //} while (status != std::future_status::ready);
+
+                if (std::future_status::ready == swpd.wait_for(std::chrono::milliseconds(100)))
                 {
-                    // Update is_valid variable when device is invalid
-                    std::lock_guard<std::mutex> lock(sp->_device_changed_mtx);
-                    for (auto& dev_info : removed->list)
+                    auto wp = *(swpd.get());
+                    auto sp = wp.lock();
+                    if (sp)
                     {
-                        if (dev_info.info->get_device_data() == sp->_group)
+                        // Update is_valid variable when device is invalid
+                        std::lock_guard<std::mutex> lock(sp->_device_changed_mtx);
+                        for (auto& dev_info : removed->list)
                         {
-                            sp->_is_valid = false;
-                            return;
+                            if (dev_info.info->get_device_data() == sp->_group)
+                            {
+                                sp->_is_valid = false;
+                                return;
+                            }
                         }
                     }
                 }

@@ -434,6 +434,7 @@ namespace librealsense
         {
             try
             {
+                LOG_INFO(__FUNCTION__);
                 _devices_changed_callback->on_devices_changed(new rs2_device_list({ shared_from_this(), removed }),
                     new rs2_device_list({ shared_from_this(), added }));
             }

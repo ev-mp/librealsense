@@ -1,7 +1,7 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2015 Intel Corporation. All Rights Reserved.
 #if (_MSC_FULL_VER < 180031101)
-    #error At least Visual Studio 2013 Update 4 is required to compile this backend
+#error At least Visual Studio 2013 Update 4 is required to compile this backend
 #endif
 
 #include "mf-backend.h"
@@ -32,7 +32,7 @@ namespace librealsense
                 MFShutdown();
                 CoUninitialize();
             }
-            catch(...)
+            catch (...)
             {
                 // TODO: Write to log
             }
@@ -41,7 +41,7 @@ namespace librealsense
         std::shared_ptr<uvc_device> wmf_backend::create_uvc_device(uvc_device_info info) const
         {
             return std::make_shared<retry_controls_work_around>(
-                            std::make_shared<wmf_uvc_device>(info, shared_from_this()));
+                std::make_shared<wmf_uvc_device>(info, shared_from_this()));
         }
 
         std::shared_ptr<backend> create_backend()
@@ -68,7 +68,7 @@ namespace librealsense
         std::shared_ptr<command_transfer> wmf_backend::create_usb_device(usb_device_info info) const
         {
             auto dev = usb_enumerator::create_usb_device(info);
-            if(dev)
+            if (dev)
                 return std::make_shared<platform::command_transfer_usb>(dev);
             return nullptr;
         }
@@ -184,8 +184,8 @@ namespace librealsense
                 {
                     if (PeekMessage(&msg, _data.hWnd, 0, 0, PM_REMOVE))
                     {
-                            TranslateMessage(&msg);
-                            DispatchMessage(&msg);
+                        TranslateMessage(&msg);
+                        DispatchMessage(&msg);
                     }
                     else  // Yield CPU resources, as this is required for connect/disconnect events only
                         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -207,11 +207,11 @@ namespace librealsense
                     SetWindowLongPtr(hWnd, GWLP_USERDATA, LONG_PTR(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams));
                     if (!DoRegisterDeviceInterfaceToHwnd(hWnd))
                 case WM_QUIT:
-                {
-                    auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
-                    data->_stopped = true;
-                    break;
-                }
+                    {
+                        auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+                        data->_stopped = true;
+                        break;
+                    }
                 case WM_DEVICECHANGE:
                 {
                     //PDEV_BROADCAST_DEVICEINTERFACE b = (PDEV_BROADCAST_DEVICEINTERFACE)lParam;
@@ -220,28 +220,30 @@ namespace librealsense
                     {
                     case DBT_DEVICEARRIVAL:
                     {
-						LOG_WARNING("DBT_DEVICEARRIVAL");
                         auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
                         backend_device_group next(data->_backend->query_uvc_devices(), data->_backend->query_usb_devices(), data->_backend->query_hid_devices());
-						LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = ["
-							<< data->_last.uvc_devices.size() << "."
-							<< data->_last.usb_devices.size() << "."
-							<< data->_last.hid_devices.size() << "."
-							<< data->_last.tm2_devices.size() << "."
-							<< data->_last.playback_devices.size() << "] New: ["
-							<< next.uvc_devices.size() << "."
-							<< next.usb_devices.size() << "."
-							<< next.hid_devices.size() << "."
-							<< next.tm2_devices.size() << "."
-							<< next.playback_devices.size() << "]");
-						/*if (data->_last != next)*/ data->_callback(data->_last, next);
-                        data->_last = next;
+                        LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = ["
+                            << data->_last.uvc_devices.size() << "."
+                            << data->_last.usb_devices.size() << "."
+                            << data->_last.hid_devices.size() << "."
+                            << data->_last.tm2_devices.size() << "."
+                            << data->_last.playback_devices.size() << "] New: ["
+                            << next.uvc_devices.size() << "."
+                            << next.usb_devices.size() << "."
+                            << next.hid_devices.size() << "."
+                            << next.tm2_devices.size() << "."
+                            << next.playback_devices.size() << "]");
+                        //LOG_WARNING("DBT_DEVICEARRIVAL Old : " << std::string(data->_last) << " New : " << std::string(next));
+                        if  (!(data->_last == next))
+                        {
+                            data->_callback(data->_last, next);
+                            data->_last = next;
+                        }
                     }
-                        break;
+                    break;
 
                     case DBT_DEVICEREMOVECOMPLETE:
                     {
-						LOG_WARNING("DBT_DEVICEREMOVECOMPLETE");
                         auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
                         auto next = data->_last;
                         std::wstring temp = reinterpret_cast<DEV_BROADCAST_DEVICEINTERFACE*>(lParam)->dbcc_name;
@@ -262,24 +264,32 @@ namespace librealsense
                             auto sub = info.device_path.substr(0, info.device_path.find_first_of("{"));
                             std::transform(sub.begin(), sub.end(), sub.begin(), ::tolower);
                             return sub == path;
-                            
+
                         }), next.hid_devices.end());
 
-						LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = [" 
-							<< data->_last.uvc_devices.size() << "."
-							<< data->_last.usb_devices.size() << "."
-							<< data->_last.hid_devices.size() << "."
-							<< data->_last.tm2_devices.size() << "."
-							<< data->_last.playback_devices.size() << "] New: ["
-							<< next.uvc_devices.size() << "."
-							<< next.usb_devices.size() << "."
-							<< next.hid_devices.size() << "."
-							<< next.tm2_devices.size() << "."
-							<< next.playback_devices.size() << "]");
+                        LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = ["
+                            << data->_last.uvc_devices.size() << "."
+                            << data->_last.usb_devices.size() << "."
+                            << data->_last.hid_devices.size() << "."
+                            << data->_last.tm2_devices.size() << "."
+                            << data->_last.playback_devices.size() << "] New: ["
+                            << next.uvc_devices.size() << "."
+                            << next.usb_devices.size() << "."
+                            << next.hid_devices.size() << "."
+                            << next.tm2_devices.size() << "."
+                            << next.playback_devices.size() << "]");
+                        //LOG_WARNING("DBT_DEVICEREMOVECOMPLETE Old : " << std::string(data->_last) << " New : " << std::string(next));
 
-                        /*if (data->_last != next)*/ data->_callback(data->_last, next);
-                        data->_last = next;
+                        // Evgeni
+                        if (!(data->_last == next))
+                        {
+                            data->_callback(data->_last, next);
+                            data->_last = next;
+                        }
                     }
+                    break;
+                    default:
+                        //LOG_WARNING("Unhandled WM_DEVICECHANGE event " << (int)wParam);
                         break;
                     }
                     break;
