@@ -881,7 +881,7 @@ namespace librealsense
                     if (FAILED(hr) || pMediaType == nullptr)
                     {
                         safe_release(pMediaType);
-                        if (hr != MF_E_NO_MORE_TYPES) // An object ran out of media types to suggest therefore the requested chain of streaming objects cannot be completed
+                        if ((hr != MF_E_NO_MORE_TYPES) && (hr != MF_E_INVALIDSTREAMNUMBER)) // An object ran out of media types to suggest therefore the requested chain of streaming objects cannot be completed
                             check("_reader->GetNativeMediaType(sIndex, k, &pMediaType.p)", hr, false);
 
                         break;

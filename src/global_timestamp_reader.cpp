@@ -215,6 +215,7 @@ namespace librealsense
     double global_timestamp_reader::get_frame_timestamp(const request_mapping& mode, const platform::frame_object& fo)
     {
         double frame_time = _device_timestamp_reader->get_frame_timestamp(mode, fo);
+		return frame_time; // Evgeni
         rs2_timestamp_domain ts_domain = _device_timestamp_reader->get_frame_timestamp_domain(mode, fo);
         if (_option_is_enabled->is_true() && ts_domain == RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK)
         {
