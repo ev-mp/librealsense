@@ -232,15 +232,28 @@ namespace librealsense
                     {
                     case DBT_DEVICEARRIVAL:
                     {
+						LOG_WARNING("DBT_DEVICEARRIVAL");
                         auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
                         backend_device_group next(data->_backend->query_uvc_devices(), data->_backend->query_usb_devices(), data->_backend->query_hid_devices());
-                        /*if (data->_last != next)*/ data->_callback(data->_last, next);
+						LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = ["
+							<< data->_last.uvc_devices.size() << "."
+							<< data->_last.usb_devices.size() << "."
+							<< data->_last.hid_devices.size() << "."
+							<< data->_last.tm2_devices.size() << "."
+							<< data->_last.playback_devices.size() << "] New: ["
+							<< next.uvc_devices.size() << "."
+							<< next.usb_devices.size() << "."
+							<< next.hid_devices.size() << "."
+							<< next.tm2_devices.size() << "."
+							<< next.playback_devices.size() << "]");
+						/*if (data->_last != next)*/ data->_callback(data->_last, next);
                         data->_last = next;
                     }
                         break;
 
                     case DBT_DEVICEREMOVECOMPLETE:
                     {
+						LOG_WARNING("DBT_DEVICEREMOVECOMPLETE");
                         auto data = reinterpret_cast<extra_data*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
                         auto next = data->_last;
                         std::wstring temp = reinterpret_cast<DEV_BROADCAST_DEVICEINTERFACE*>(lParam)->dbcc_name;
@@ -263,6 +276,18 @@ namespace librealsense
                             return sub == path;
 
                         }), next.hid_devices.end());
+
+						LOG_WARNING("Old [uvc.usb.hid.tm2.pb] = [" 
+							<< data->_last.uvc_devices.size() << "."
+							<< data->_last.usb_devices.size() << "."
+							<< data->_last.hid_devices.size() << "."
+							<< data->_last.tm2_devices.size() << "."
+							<< data->_last.playback_devices.size() << "] New: ["
+							<< next.uvc_devices.size() << "."
+							<< next.usb_devices.size() << "."
+							<< next.hid_devices.size() << "."
+							<< next.tm2_devices.size() << "."
+							<< next.playback_devices.size() << "]");
 
                         /*if (data->_last != next)*/ data->_callback(data->_last, next);
                         data->_last = next;
