@@ -157,6 +157,14 @@ rs2_processing_block* rs2_gl_create_colorizer(int api_version, rs2_error** error
 */
 rs2_processing_block* rs2_gl_create_align(int api_version, rs2_stream to, rs2_error** error);
 
+/**
+* Creates Decimation processing block
+* This block provides an optional GLSL-based implementation of the filter to provide performance enhancement
+* \param[in] api_version Users are expected to pass their version of \c RS2_API_VERSION to make sure they are running the correct librealsense version.
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+rs2_processing_block* rs2_gl_create_decimation_filter(int api_version, rs2_error** error);
+
 /** 
  * Initialize rendering pipeline. This function must be called before executing
  * any of the rendering blocks.

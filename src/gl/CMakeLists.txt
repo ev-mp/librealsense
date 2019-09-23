@@ -29,6 +29,8 @@ set(REALSENSE_GL_CPP
     colorizer-gl.cpp
     align-gl.h
     align-gl.cpp
+    decimation-gl.h
+    decimation-gl.cpp
     ${LZ4_DIR}/lz4.h
     ${LZ4_DIR}/lz4.c
 )

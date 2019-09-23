@@ -155,6 +155,18 @@ rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** erro
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
+rs2_processing_block* rs2_gl_create_decimation_filter(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    auto block = std::make_shared<librealsense::gl::decima>();
+    auto backup = pointcloud::create();
+    auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
+    dual->add(block);
+    dual->add(backup);
+    return new rs2_processing_block{ dual };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
+
 void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error) BEGIN_API_CALL
 {
     auto ptr = dynamic_cast<librealsense::gl::matrix_container*>(block->block.get());

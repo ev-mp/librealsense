@@ -9,8 +9,7 @@
 
 namespace librealsense
 {
-
-    class decimation_filter : public stream_filter_processing_block
+    class LRS_EXTENSION_API decimation_filter : public stream_filter_processing_block
     {
     public:
         decimation_filter();
