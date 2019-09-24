@@ -500,19 +500,19 @@ namespace librealsense
             uint8_t* q = (uint8_t*)frame_data_out;
 
             auto w_2 = width_in >> 1;
-            auto rw_2 = _real_width >> 1;
-            auto pw_2 = _padded_width >> 1;
+            auto rw_2 = uint16_t(_real_width >> 1);
+            auto pw_2 = uint16_t(_padded_width >> 1);
             auto s2 = scale >> 1;
             bool odd = (scale & 1);
-            for (int j = 0; j < _real_height; ++j)
+            for (size_t j = 0; j < _real_height; ++j)
             {
-                for (int i = 0; i < rw_2; ++i)
+                for (size_t i = 0; i < rw_2; ++i)
                 {
                     p = from + scale * (j * w_2 + i) * 4;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m * 2];
 
                         p += w_2 * 4;
@@ -521,9 +521,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + 1;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < s2; ++m)
+                        for (size_t m = 0; m < s2; ++m)
                             sum += 2 * p[m * 4];
 
                         if (odd)
@@ -535,9 +535,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + s2 * 4 + (odd ? 2 : 0);
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m * 2];
 
                         p += w_2 * 4;
@@ -546,9 +546,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + 3;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < s2; ++m)
+                        for (size_t m = 0; m < s2; ++m)
                             sum += 2 * p[m * 4];
 
                         if (odd)
@@ -586,19 +586,19 @@ namespace librealsense
             uint8_t* q = (uint8_t*)frame_data_out;
 
             auto w_2 = width_in >> 1;
-            auto rw_2 = _real_width >> 1;
-            auto pw_2 = _padded_width >> 1;
+            auto rw_2 = uint16_t(_real_width >> 1);
+            auto pw_2 = uint16_t(_padded_width >> 1);
             auto s2 = scale >> 1;
             bool odd = (scale & 1);
-            for (int j = 0; j < _real_height; ++j)
+            for (uint16_t j = 0; j < _real_height; ++j)
             {
-                for (int i = 0; i < rw_2; ++i)
+                for (uint16_t i = 0; i < rw_2; ++i)
                 {
                     p = from + scale * (j * w_2 + i) * 4;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < s2; ++m)
+                        for (size_t m = 0; m < s2; ++m)
                             sum += 2 * p[m * 4];
 
                         if (odd)
@@ -610,9 +610,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + 1;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m * 2];
 
                         p += w_2 * 4;
@@ -621,9 +621,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + 2;
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < s2; ++m)
+                        for (size_t m = 0; m < s2; ++m)
                             sum += 2 * p[m * 4];
 
                         if (odd)
@@ -635,9 +635,9 @@ namespace librealsense
 
                     p = from + scale * (j * w_2 + i) * 4 + s2 * 4 + (odd ? 3 : 1);
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m * 2];
 
                         p += w_2 * 4;
@@ -680,9 +680,9 @@ namespace librealsense
                     {
                         p = from + scale * (j * width_in + i) * 3 + k;
                         sum = 0;
-                        for (int n = 0; n < scale; ++n)
+                        for (size_t n = 0; n < scale; ++n)
                         {
-                            for (int m = 0; m < scale; ++m)
+                            for (size_t m = 0; m < scale; ++m)
                                 sum += p[m * 3];
 
                             p += width_in * 3;
@@ -719,17 +719,17 @@ namespace librealsense
             uint8_t* p = nullptr;
             uint8_t* q = (uint8_t*)frame_data_out;
 
-            for (int j = 0; j < _real_height; ++j)
+            for (size_t j = 0; j < _real_height; ++j)
             {
-                for (int i = 0; i < _real_width; ++i)
+                for (size_t i = 0; i < _real_width; ++i)
                 {
-                    for (int k = 0; k < 4; ++k)
+                    for (size_t k = 0; k < 4; ++k)
                     {
                         p = from + scale * (j * width_in + i) * 4 + k;
                         sum = 0;
-                        for (int n = 0; n < scale; ++n)
+                        for (size_t n = 0; n < scale; ++n)
                         {
-                            for (int m = 0; m < scale; ++m)
+                            for (size_t m = 0; m < scale; ++m)
                                 sum += p[m * 4];
 
                             p += width_in * 4;
@@ -767,15 +767,15 @@ namespace librealsense
             uint8_t* p = nullptr;
             uint8_t* q = (uint8_t*)frame_data_out;
 
-            for (int j = 0; j < _real_height; ++j)
+            for (uint16_t j = 0; j < _real_height; ++j)
             {
-                for (int i = 0; i < _real_width; ++i)
+                for (uint16_t i = 0; i < _real_width; ++i)
                 {
                     p = from + scale * (j * width_in + i);
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m];
 
                         p += width_in;
@@ -802,15 +802,15 @@ namespace librealsense
             uint16_t* p = nullptr;
             uint16_t* q = (uint16_t*)frame_data_out;
 
-            for (int j = 0; j < _real_height; ++j)
+            for (uint16_t j = 0; j < _real_height; ++j)
             {
-                for (int i = 0; i < _real_width; ++i)
+                for (uint16_t i = 0; i < _real_width; ++i)
                 {
                     p = from + scale * (j * width_in + i);
                     sum = 0;
-                    for (int n = 0; n < scale; ++n)
+                    for (size_t n = 0; n < scale; ++n)
                     {
-                        for (int m = 0; m < scale; ++m)
+                        for (size_t m = 0; m < scale; ++m)
                             sum += p[m];
 
                         p += width_in;
@@ -819,13 +819,13 @@ namespace librealsense
                     *q++ = (uint16_t)(sum / patch_size);
                 }
 
-                for (int i = _real_width; i < _padded_width; ++i)
+                for (uint16_t i = _real_width; i < _padded_width; ++i)
                     *q++ = 0;
             }
 
-            for (int j = _real_height; j < _padded_height; ++j)
+            for (uint16_t j = _real_height; j < _padded_height; ++j)
             {
-                for (int i = 0; i < _padded_width; ++i)
+                for (uint16_t i = 0; i < _padded_width; ++i)
                     *q++ = 0;
             }
         }
@@ -835,5 +835,6 @@ namespace librealsense
             break;
         }
     }
+
 }
 
