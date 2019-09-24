@@ -41,13 +41,9 @@ namespace librealsense
 
         enum frame_type
         {
-            RS2_EXTENSION_VIDEO_FRAME_GL = RS2_EXTENSION_COUNT,
+            RS2_EXTENSION_VIDEO_FRAME_GL    = RS2_EXTENSION_COUNT,
             RS2_EXTENSION_DEPTH_FRAME_GL,
             RS2_EXTENSION_DISPARITY_FRAME_GL,
-            //#define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT)
-            //#define RS2_EXTENSION_DEPTH_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + 1)
-            //#define RS2_EXTENSION_DISPARITY_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + 2)
-            //#define MAX_TEXTURES 2
         };
         const size_t MAX_TEXTURES = 3; // number of entrances in frame_type above
 

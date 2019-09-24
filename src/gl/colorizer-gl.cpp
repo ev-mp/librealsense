@@ -164,7 +164,7 @@ namespace librealsense
         {
             _fhist = std::vector<float>(MAX_DEPTH, 0);
             _fhist_data = _fhist.data();
-            _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+            _source.add_extension<gpu_video_frame>(rs2_extension(RS2_EXTENSION_VIDEO_FRAME_GL));
 
             auto opt = std::make_shared<librealsense::ptr_option<int>>(
                 0, 1, 0, 1, &_enabled, "GLSL enabled"); 
@@ -229,8 +229,8 @@ namespace librealsense
                     _last_selected_cm = _map_index;
                 }
 
-                res = src.allocate_video_frame(_target_stream_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
-                
+                res = src.allocate_video_frame(_target_stream_profile, f, 3, _width, _height, _width * 3, rs2_extension(RS2_EXTENSION_VIDEO_FRAME_GL));
+
                 if (!res) return;
 
                 auto fi = (frame_interface*)f.get();

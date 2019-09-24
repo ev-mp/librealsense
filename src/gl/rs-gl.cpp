@@ -83,8 +83,8 @@ NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* frame_ref, unsigned int id, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(frame_ref);
-    VALIDATE_RANGE(id, 0, MAX_TEXTURES - 1);
-    
+    VALIDATE_RANGE(id, 0, gl::MAX_TEXTURES - 1);
+
     auto gpu = dynamic_cast<gl::gpu_addon_interface*>((frame_interface*)frame_ref);
     if (!gpu) throw std::runtime_error("Expected GPU frame!");
 

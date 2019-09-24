@@ -28,7 +28,7 @@ using namespace librealsense::gl;
 rs2_extension align_gl::select_extension(const rs2::frame& input)
 {
     auto ext = input.is<rs2::depth_frame>() ? RS2_EXTENSION_DEPTH_FRAME_GL : RS2_EXTENSION_VIDEO_FRAME_GL;
-    return ext;
+    return static_cast<rs2_extension>(ext);
 }
 
 void align_gl::cleanup_gpu_resources()
@@ -251,8 +251,8 @@ void align_gl::align_other_to_z(rs2::video_frame& aligned,
 
 align_gl::align_gl(rs2_stream to_stream) : align(to_stream, "Align (GLSL)")
 {
-    _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
-    _source.add_extension<gpu_depth_frame>(RS2_EXTENSION_DEPTH_FRAME_GL);
+    _source.add_extension<gpu_video_frame>(static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
+    _source.add_extension<gpu_depth_frame>(static_cast<rs2_extension>(RS2_EXTENSION_DEPTH_FRAME_GL));
 
     auto opt = std::make_shared<librealsense::ptr_option<int>>(
         0, 1, 0, 1, &_enabled, "GLSL enabled"); 

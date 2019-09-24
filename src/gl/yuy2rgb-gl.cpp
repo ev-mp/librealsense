@@ -106,7 +106,7 @@ void yuy2rgb::create_gpu_resources()
 yuy2rgb::yuy2rgb()
     : stream_filter_processing_block("YUY Converter (GLSL)")
 {
-    _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+    _source.add_extension<gpu_video_frame>(rs2_extension(RS2_EXTENSION_VIDEO_FRAME_GL));
 
     auto opt = std::make_shared<librealsense::ptr_option<int>>(
         0, 1, 0, 1, &_enabled, "GLSL enabled"); 
@@ -150,7 +150,7 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
     {
         //scoped_timer t("yuy2rgb.gl");
 
-        res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
+        res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, rs2_extension(RS2_EXTENSION_VIDEO_FRAME_GL));
         if (!res) return;
         
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());

@@ -37,8 +37,8 @@ namespace librealsense
             _hist_data = _hist.data();
             _fhist_data = _fhist.data();
 
-            _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
-            _source.add_extension<gpu_depth_frame>(RS2_EXTENSION_DEPTH_FRAME_GL);
+            _source.add_extension<gpu_video_frame>(static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
+            _source.add_extension<gpu_depth_frame>(static_cast<rs2_extension>(RS2_EXTENSION_DEPTH_FRAME_GL));
 
             initialize();
         }
@@ -72,7 +72,7 @@ namespace librealsense
                     auto width = vf.get_width();
                     auto height = vf.get_height();
                     auto new_f = source.allocate_video_frame(f.get_profile(), f,
-                        vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), RS2_EXTENSION_VIDEO_FRAME_GL);
+                        vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
 
                     if (new_f) perform_gl_action([&]()
                     {
@@ -99,7 +99,7 @@ namespace librealsense
                     auto width = vf.get_width();
                     auto height = vf.get_height();
                     auto new_f = source.allocate_video_frame(f.get_profile(), f,
-                        vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), RS2_EXTENSION_DEPTH_FRAME_GL);
+                        vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), static_cast<rs2_extension>(RS2_EXTENSION_DEPTH_FRAME_GL));
 
                     if (new_f)
                     {

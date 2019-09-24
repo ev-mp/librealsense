@@ -96,7 +96,7 @@ void decimation_filter_gl::create_gpu_resources()
 
 decimation_filter_gl::decimation_filter_gl() : decimation_filter()
 {
-    _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+    _source.add_extension<gpu_video_frame>(static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
 
     auto opt = std::make_shared<librealsense::ptr_option<int>>(0, 1, 0, 1, &_enabled, "GLSL enabled");
     register_option(RS2_OPTION_COUNT, opt);
@@ -128,64 +128,99 @@ rs2::frame decimation_filter_gl::process_frame(const rs2::frame_source& src, con
     }
 
     rs2::frame res  = f;
+    rs2::stream_profile profile = f.get_profile();
+    rs2_format format = profile.format();
+    rs2_stream type = profile.stream_type();
 
     perform_gl_action([&]()
     {
         scoped_timer t(__FUNCTION__);
 
-        res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
-        if (!res) return;
-        
-        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
-        
-        uint32_t yuy_texture;
-        
-        if (auto input_frame = f.as<rs2::gl::gpu_frame>())
+        frame_type tgt_type{};
+        uint16_t gl_internal_type{};
+        uint16_t gl_internal_format{};
+        switch (type)
         {
-            yuy_texture = input_frame.get_texture_id(0);
+            case RS2_STREAM_COLOR:
+            {
+                tgt_type = RS2_EXTENSION_VIDEO_FRAME_GL;
+                bool rgb_cs = val_in_range(format, { RS2_FORMAT_RGB8, RS2_FORMAT_BGR8 });
+                gl_internal_format = rgb_cs ? GL_RGB : GL_RG;
+                gl_internal_type = rgb_cs ? GL_RGB8 : GL_RG8;
+                break;
+            }
+            case RS2_STREAM_INFRARED:
+            case RS2_STREAM_FISHEYE:
+                tgt_type            = RS2_EXTENSION_VIDEO_FRAME_GL;
+                gl_internal_format  = GL_RED;
+                gl_internal_type = val_in_range(format, { RS2_FORMAT_RGB8, RS2_FORMAT_BGR8 }) ? GL_BYTE : GL_UNSIGNED_SHORT;
+                break;
+            case RS2_STREAM_DEPTH:
+            {
+                // TODO Decimation of disparity format to be evaluated
+                auto disp = f.is<rs2::disparity_frame>();
+                tgt_type = disp ? RS2_EXTENSION_DISPARITY_FRAME_GL : RS2_EXTENSION_DEPTH_FRAME_GL;
+                gl_internal_format = GL_RED;
+                gl_internal_type = disp ? GL_FLOAT : GL_UNSIGNED_SHORT;
+            }
+            break;
+            default:
+                LOG_WARNING("Unsupported format type " << format << " for GLSL Decimation");
         }
-        else
+
+        if (auto tgt = prepare_target_frame(f, src, static_cast<rs2_extension>(tgt_type)))
         {
-            glGenTextures(1, &yuy_texture);
-            glBindTexture(GL_TEXTURE_2D, yuy_texture);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        }
+            auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
 
-        uint32_t output_rgb;
-        gf->get_gpu_section().output_texture(0, &output_rgb, TEXTYPE_RGB);
-        glBindTexture(GL_TEXTURE_2D, output_rgb);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            uint32_t work_texture;
 
-        gf->get_gpu_section().set_size(_width, _height);
+            if (auto input_frame = f.as<rs2::gl::gpu_frame>())
+            {
+                work_texture = input_frame.get_texture_id(0);
+            }
+            else
+            {
+                glGenTextures(1, &work_texture);
+                glBindTexture(GL_TEXTURE_2D, work_texture);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, _fbo->get());
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+            uint32_t output_decimated;
+            gf->get_gpu_section().output_texture(0, &output_decimated, TEXTYPE_RGB);
+            glBindTexture(GL_TEXTURE_2D, output_decimated);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-        glBindTexture(GL_TEXTURE_2D, output_rgb);
-        _fbo->createTextureAttachment(output_rgb);
+            gf->get_gpu_section().set_size(_width, _height);
 
-        _fbo->bind();
-        glClearColor(1, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
+            glBindFramebuffer(GL_FRAMEBUFFER, _fbo->get());
+            glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
-        auto& shader = (decimation_shader&)_viz->get_shader();
-        shader.begin();
-        shader.set_size(_width, _height);
-        shader.end();
-        
-        _viz->draw_texture(yuy_texture);
+            glBindTexture(GL_TEXTURE_2D, output_decimated);
+            _fbo->createTextureAttachment(output_decimated);
 
-        _fbo->unbind();
+            _fbo->bind();
+            glClearColor(1, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-        glBindTexture(GL_TEXTURE_2D, 0);
+            auto& shader = (decimation_shader&)_viz->get_shader();
+            shader.begin();
+            shader.set_size(_width, _height);
+            shader.end();
 
-        if (!f.is<rs2::gl::gpu_frame>())
-        {
-            glDeleteTextures(1, &yuy_texture);
+            _viz->draw_texture(work_texture);
+
+            _fbo->unbind();
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            if (!f.is<rs2::gl::gpu_frame>())
+            {
+                glDeleteTextures(1, &work_texture);
+            }
         }
     }, 
     [this]{

@@ -368,7 +368,7 @@ pointcloud_gl::~pointcloud_gl()
 pointcloud_gl::pointcloud_gl()
     : pointcloud("Pointcloud (GLSL)"), _depth_data(rs2::frame{})
 {
-    _source.add_extension<gl::gpu_points_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+    _source.add_extension<gl::gpu_points_frame>(static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
 
     auto opt = std::make_shared<librealsense::ptr_option<int>>(
         0, 1, 0, 1, &_enabled, "GLSL enabled"); 
@@ -581,7 +581,7 @@ rs2::points pointcloud_gl::allocate_points(
     auto prof = std::dynamic_pointer_cast<librealsense::stream_profile_interface>(
         _output_stream.get()->profile->shared_from_this());
     auto frame_ref = _source_wrapper.allocate_points(prof, (frame_interface*)f.get(),
-        RS2_EXTENSION_VIDEO_FRAME_GL);
+        static_cast<rs2_extension>(RS2_EXTENSION_VIDEO_FRAME_GL));
     rs2::frame res { (rs2_frame*)frame_ref };
     return res.as<rs2::points>();
 }
