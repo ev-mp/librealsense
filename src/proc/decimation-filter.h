@@ -24,8 +24,7 @@ namespace librealsense
             size_t width_in, size_t height_in, size_t scale);
         rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
 
-    private:
-        void    update_output_profile(const rs2::frame& f);
+        bool    update_output_profile(const rs2::frame& f);
 
         uint8_t                 _decimation_factor;
         uint8_t                 _control_val;

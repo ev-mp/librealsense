@@ -275,8 +275,10 @@ namespace librealsense
         return f;
     }
 
-    void  decimation_filter::update_output_profile(const rs2::frame& f)
+    bool  decimation_filter::update_output_profile(const rs2::frame& f)
     {
+        bool updated = false;
+
         if (_options_changed || f.get_profile().get() != _source_stream_profile.get())
         {
             _options_changed = false;
@@ -297,7 +299,7 @@ namespace librealsense
             }
             else
             {
-                _recalc_profile = true;
+                _recalc_profile = updated = true;
             }
         }
 
@@ -339,6 +341,8 @@ namespace librealsense
 
             _recalc_profile = false;
         }
+
+        return updated;
     }
 
     rs2::frame decimation_filter::prepare_target_frame(const rs2::frame& f, const rs2::frame_source& source, rs2_extension tgt_type)

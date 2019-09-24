@@ -6,6 +6,7 @@
 #include "yuy2rgb-gl.h"
 #include "align-gl.h"
 #include "pointcloud-gl.h"
+#include "decimation-gl.h"
 #include "../include/librealsense2/h/rs_types.h"
 #include "../include/librealsense2-gl/rs_processing_gl.h"
 #include "camera-shader.h"
@@ -147,7 +148,7 @@ rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** erro
 {
     verify_version_compatibility(api_version);
     auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
-    auto backup = pointcloud::create();
+    auto backup = std::make_shared<librealsense::decimation_filter>();
     auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
     dual->add(block);
     dual->add(backup);
@@ -158,11 +159,11 @@ NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 rs2_processing_block* rs2_gl_create_decimation_filter(int api_version, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
-    auto block = std::make_shared<librealsense::gl::decima>();
-    auto backup = pointcloud::create();
+    auto pb_glsl = std::make_shared<librealsense::gl::decimation_filter_gl>();
+    auto pb_native = pointcloud::create();
     auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
-    dual->add(block);
-    dual->add(backup);
+    dual->add(pb_glsl);
+    dual->add(pb_native);
     return new rs2_processing_block{ dual };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)

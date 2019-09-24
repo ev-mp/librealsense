@@ -114,17 +114,11 @@ decimation_filter_gl::~decimation_filter_gl()
 
 rs2::frame decimation_filter_gl::process_frame(const rs2::frame_source& src, const rs2::frame& f)
 {
-    //scoped_timer t("yuy2rgb");
+    scoped_timer t(__FUNCTION__);
 
-    if (f.get_profile().get() != _input_profile.get())
+    // Update input/output profiles
+    if (update_output_profile(f))
     {
-        _input_profile = f.get_profile();
-        _output_profile = _input_profile.clone(_input_profile.stream_type(), 
-                                            _input_profile.stream_index(), 
-                                            RS2_FORMAT_RGB8);
-        auto vp = _input_profile.as<rs2::video_stream_profile>();
-        _width = vp.width(); _height = vp.height();
-
         perform_gl_action([&]()
         {
             _fbo = std::make_shared<fbo>(_width, _height);
@@ -133,11 +127,11 @@ rs2::frame decimation_filter_gl::process_frame(const rs2::frame_source& src, con
         });
     }
 
-    rs2::frame res = f;
+    rs2::frame res  = f;
 
     perform_gl_action([&]()
     {
-        //scoped_timer t("yuy2rgb.gl");
+        scoped_timer t(__FUNCTION__);
 
         res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
         if (!res) return;

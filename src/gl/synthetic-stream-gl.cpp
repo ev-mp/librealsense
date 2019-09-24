@@ -174,7 +174,7 @@ namespace librealsense
                 backup = std::unique_ptr<uint8_t[]>(new uint8_t[get_frame_size()]);
                 fetch_frame(backup.get());
             }
-            for (int i = 0; i < MAX_TEXTURES; i++)
+            for (size_t i = 0; i < MAX_TEXTURES; i++)
             {
                 if (textures[i])
                 {
