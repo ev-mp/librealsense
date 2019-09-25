@@ -779,6 +779,12 @@ namespace rs2
             set_option(RS2_OPTION_FILTER_MAGNITUDE, magnitude);
         }
 
+        /**
+        * Create decimation filter with externally-injected implementation PB
+        * \param[in] magnitude - number of filter iterations.
+        */
+        decimation_filter(std::shared_ptr<rs2_processing_block> pb) : filter(pb, 1) {}
+
         decimation_filter(filter f) : filter(f)
         {
              rs2_error* e = nullptr;

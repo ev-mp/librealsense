@@ -326,6 +326,32 @@ namespace rs2
                 return block;
             }
         };
+
+        /*
+        * GLSL implementation of the decimation filter. Can be utilized as an alternative to c++ code
+        */
+        class decimation_filter : public rs2::decimation_filter
+        {
+        public:
+            decimation_filter() : rs2::decimation_filter(init()){}
+
+            decimation_filter(float magnitude) : rs2::decimation_filter(init())
+            {
+                set_option(RS2_OPTION_FILTER_MAGNITUDE, magnitude);
+            }
+
+        private:
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_decimation_filter(RS2_API_VERSION, &e),
+                    rs2_delete_processing_block);
+                error::handle(e);
+
+                return block;
+            }
+        };
     }
 }
 #endif // LIBREALSENSE_RS2_PROCESSING_GL_HPP

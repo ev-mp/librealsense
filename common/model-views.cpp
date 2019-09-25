@@ -1019,6 +1019,21 @@ namespace rs2
         for (auto&& f : s->get_recommended_filters())
         {
             auto shared_filter = std::make_shared<filter>(f);
+            //Evgeni - override c++ implementation with GLSL-augmented
+            if (f.is<decimation_filter>())
+            {
+                auto gf = rs2::gl::decimation_filter();
+                for (auto&& i : gf.get_supported_options())
+                    if (f.supports(i) && !f.is_option_read_only(i))
+                        gf.set_option(i, f.get_option(i));
+
+                shared_filter = std::make_shared<rs2::gl::decimation_filter>(gf);
+            }
+
+            //Evgeni - replace c++ implementation with GLSL-augmented
+            /*if (shared_filter->is<decimation_filter>())
+                shared_filter = std::make_shared<rs2::gl::decimation_filter>();*/
+
             auto model = std::make_shared<processing_block_model>(
                 this, shared_filter->get_info(RS2_CAMERA_INFO_NAME), shared_filter,
                 [=](rs2::frame f) { return shared_filter->process(f); }, error_message);

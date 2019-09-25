@@ -148,7 +148,7 @@ rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** erro
 {
     verify_version_compatibility(api_version);
     auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
-    auto backup = std::make_shared<librealsense::decimation_filter>();
+    auto backup = pointcloud::create();
     auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
     dual->add(block);
     dual->add(backup);
@@ -160,7 +160,7 @@ rs2_processing_block* rs2_gl_create_decimation_filter(int api_version, rs2_error
 {
     verify_version_compatibility(api_version);
     auto pb_glsl = std::make_shared<librealsense::gl::decimation_filter_gl>();
-    auto pb_native = pointcloud::create();
+    auto pb_native = std::make_shared<librealsense::decimation_filter>();
     auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
     dual->add(pb_glsl);
     dual->add(pb_native);
