@@ -5466,71 +5466,79 @@ void compare(std::vector<filter> first, std::vector<std::shared_ptr<filter>> sec
     }
 }
 
-TEST_CASE("Sensor get recommended filters", "[live][!mayfail]") {
+TEST_CASE("Sensor get recommended filters", "[live]") {
     //Require at least one device to be plugged in
     rs2::context ctx;
-
-    enum sensors
-    {
-        depth,
-        depth_stereo,
-        color
-    };
-
-    std::map<sensors, std::vector<std::shared_ptr<filter>>> sensors_to_filters;
-
-    auto dec_color = std::make_shared<decimation_filter>();
-    dec_color->set_option(RS2_OPTION_STREAM_FILTER, RS2_STREAM_COLOR);
-    dec_color->set_option(RS2_OPTION_STREAM_FORMAT_FILTER, RS2_FORMAT_ANY);
-
-    sensors_to_filters[color] = {
-        dec_color
-    };
-
-    auto huff_decoder = std::make_shared<depth_huffman_decoder>();
-    auto dec_depth = std::make_shared<decimation_filter>();
-    dec_depth->set_option(RS2_OPTION_STREAM_FILTER, RS2_STREAM_DEPTH);
-    dec_depth->set_option(RS2_OPTION_STREAM_FORMAT_FILTER, RS2_FORMAT_Z16);
-
-    auto threshold = std::make_shared<threshold_filter>(0.1f, 4.f);
-    auto spatial = std::make_shared<spatial_filter>();
-    auto temporal = std::make_shared<temporal_filter>();
-    auto hole_filling = std::make_shared<hole_filling_filter>();
-
-    sensors_to_filters[depth] = {
-        dec_depth,
-        threshold,
-        spatial,
-        temporal,
-        hole_filling
-    };
-
-    auto depth2disparity = std::make_shared<disparity_transform>(true);
-    auto disparity2depth = std::make_shared<disparity_transform>(false);
-
-    sensors_to_filters[depth_stereo] = {
-        huff_decoder,
-        dec_depth,
-        threshold,
-        depth2disparity,
-        spatial,
-        temporal,
-        hole_filling,
-        disparity2depth
-    };
-
     if (make_context(SECTION_FROM_TEST_NAME, &ctx))
     {
+        rs2_error* e = nullptr;
+        auto api_ver = 0;
+        REQUIRE_NOTHROW(api_ver = rs2_get_api_version(&e));
+
+        enum sensors
+        {
+            depth,
+            depth_stereo,
+            color
+        };
+
+        std::map<sensors, std::vector<std::shared_ptr<filter>>> sensors_to_filters;
+
+        auto dec_color = std::make_shared<decimation_filter>();
+        dec_color->set_option(RS2_OPTION_STREAM_FILTER, RS2_STREAM_COLOR);
+        dec_color->set_option(RS2_OPTION_STREAM_FORMAT_FILTER, RS2_FORMAT_ANY);
+
+        sensors_to_filters[color] = {
+            dec_color
+        };
+
+        auto huff_decoder = std::make_shared<depth_huffman_decoder>();
+        auto dec_depth = std::make_shared<decimation_filter>();
+        dec_depth->set_option(RS2_OPTION_STREAM_FILTER, RS2_STREAM_DEPTH);
+        dec_depth->set_option(RS2_OPTION_STREAM_FORMAT_FILTER, RS2_FORMAT_Z16);
+
+        auto threshold = std::make_shared<threshold_filter>(0.1f, 4.f);
+        auto spatial = std::make_shared<spatial_filter>();
+        auto temporal = std::make_shared<temporal_filter>();
+        auto hole_filling = std::make_shared<hole_filling_filter>();
+
+        sensors_to_filters[depth] = {
+            dec_depth,
+            threshold,
+            spatial,
+            temporal,
+            hole_filling
+        };
+
+        auto depth2disparity = std::make_shared<disparity_transform>(true);
+        auto disparity2depth = std::make_shared<disparity_transform>(false);
+
+        sensors_to_filters[depth_stereo] = {
+            dec_depth,
+            threshold,
+            depth2disparity,
+            spatial,
+            temporal,
+            hole_filling,
+            disparity2depth
+        };
+
         std::vector<sensor> sensors;
         REQUIRE_NOTHROW(sensors = ctx.query_all_sensors());
         REQUIRE(sensors.size() > 0);
 
-        for (auto sensor : sensors)
+        for (auto& sensor : sensors)
         {
             auto processing_blocks = sensor.get_recommended_filters();
             auto stream_profiles = sensor.get_stream_profiles();
             if (sensor.is<depth_stereo_sensor>())
             {
+                std::string PID;
+                REQUIRE_NOTHROW(PID = sensor.get_info(RS2_CAMERA_INFO_PRODUCT_ID));
+
+                // Applies to stereo, except for D465
+                if ((api_ver >=23200) && ("0B4D" != PID))
+                    sensors_to_filters[depth_stereo].insert(sensors_to_filters[depth_stereo].begin(),huff_decoder);
                 compare(processing_blocks, sensors_to_filters[depth_stereo]);
             }
             else if (sensor.is<depth_sensor>())
