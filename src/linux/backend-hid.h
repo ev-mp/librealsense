@@ -42,24 +42,31 @@ namespace librealsense
                 "write_fs_attribute supports arithmetic and std::string types only");
 
             bool res = false;
+            std::cout << pthread_self() << "\t" << __LINE__ << " val: " << val << " path " << path << std::endl;
             std::fstream fs_handle(path);
+            std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
             if (!fs_handle.good())
             {
                 LOG_WARNING(__FUNCTION__ <<" with " << val << " failed. The specified path "  << path << " is not valid");
                 return res;
             }
 
+            std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
             try // Read/Modify/Confirm
             {
                 T cval{};
+                std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
                 fs_handle >> cval;
 
+                std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
                 if (cval!=val)
                 {
+                    std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
                     fs_handle.close();
                     fs_handle.open(path);
                     fs_handle << val;
                     fs_handle.flush();
+                    std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
                     std::ifstream vnv_handle(path);
                     vnv_handle >> cval;
                     fs_handle >> cval;
@@ -70,9 +77,12 @@ namespace librealsense
             }
             catch (const std::exception& exc)
             {
+                std::cout << pthread_self() << "\t" << __LINE__ << std::endl;
                 LOG_WARNING(__FUNCTION__ << " with  " << path << " failed: " << exc.what());
             }
 
+            std::cout << pthread_self() << "\t" << __LINE__ << " res = " << int(res)
+                      <<std::endl;
             return res;
         }
 

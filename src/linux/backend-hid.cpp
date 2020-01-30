@@ -468,15 +468,15 @@ namespace librealsense
             iio_read_device_path << "/dev/" << IIO_DEVICE_PREFIX << _iio_device_number;
 
             auto iio_read_device_path_str = iio_read_device_path.str();
-            std::ifstream iio_device_file(iio_read_device_path_str);
-
-            // find iio_device in file system.
-            if (!iio_device_file.good())
             {
-                throw linux_backend_exception("iio hid device is busy or not found!");
-            }
+                std::ifstream iio_device_file(iio_read_device_path_str);
 
-            iio_device_file.close();
+                // find iio_device in file system.
+                if (!iio_device_file.good())
+                {
+                    throw linux_backend_exception("iio hid device is busy or not found!");
+                }
+            }
 
             // count number of enabled count elements and sort by their index.
             create_channel_array();
@@ -753,7 +753,6 @@ namespace librealsense
             }
 
             _pm_dispatcher.start();
-
             // HID iio kernel driver async initialization may fail to map the kernel objects hierarchy (iio triggers) properly
             // The patch will rectify this behaviour
             std::string current_trigger = _sensor_name + "-dev" + _iio_device_path.back();
