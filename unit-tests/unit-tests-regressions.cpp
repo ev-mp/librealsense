@@ -22,7 +22,6 @@ TEST_CASE("DSO-14512", "[live]")
 {
     {
         rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG,"lrs_log.txt");
-        //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
         rs2::context ctx;
         if (make_context(SECTION_FROM_TEST_NAME, &ctx))
         {
@@ -342,6 +341,119 @@ TEST_CASE("Frame Drops", "[live]"){
                     if(!is_l500_device)
                         FAIL("Device doesn't support AdvancedMode API");
                 }
+            }
+        }
+    }
+}
+
+
+TEST_CASE("DSO-15050", "[live]")
+{
+    {
+        rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG, "lrs_log.txt");
+        //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
+        rs2::context ctx;
+        if (make_context(SECTION_FROM_TEST_NAME, &ctx))
+        {
+            for (size_t iter = 0; iter < 10000; iter++)
+            {
+                std::vector<rs2::device> list;
+                REQUIRE_NOTHROW(list = ctx.query_devices());
+                REQUIRE(list.size());
+
+                auto dev = std::make_shared<device>(list.front());
+
+                disable_sensitive_options_for(*dev);
+                CAPTURE(dev->get_info(RS2_CAMERA_INFO_NAME));
+                std::string serial;
+                REQUIRE_NOTHROW(serial = dev->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
+
+                // Precausion
+                for (auto&& sensor : dev->query_sensors())
+                {
+                    if (sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+                        sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 0.f);
+                }
+
+                std::mutex m;
+                int fps = is_usb3(*dev) ? 30 : 6; // In USB2 Mode the devices will switch to lower FPS rates
+
+                for (auto i = 0; i < 1; i++)
+                {
+                    std::map<std::string, size_t> frames_per_stream{};
+                    std::map<std::string, size_t> frames_indx_per_stream{};
+                    std::vector<std::string> drop_descriptions;
+
+                    auto profiles = configure_all_supported_streams(*dev, 1280, 720, fps);
+                    size_t drops_count = 0;
+
+                    for (auto s : profiles.first)
+                    {
+                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream, &frames_indx_per_stream, &drops_count, &drop_descriptions](rs2::frame f)
+                            {
+                                std::lock_guard<std::mutex> lock(m);
+                                auto stream_name = f.get_profile().stream_name();
+                                auto fn = f.get_frame_number();
+
+                                if (frames_per_stream[stream_name])
+                                {
+                                    auto prev_fn = frames_indx_per_stream[stream_name];
+                                    if ((fn = prev_fn) != 1)
+                                    {
+                                        drops_count++;
+                                        std::stringstream s;
+                                        s << "Frame drop was recognized for " << stream_name << " jumped from " << prev_fn << " to " << fn;
+                                        drop_descriptions.emplace_back(s.str().c_str());
+                                    }
+                                }
+                                ++frames_per_stream[stream_name];
+                                frames_indx_per_stream[stream_name] = fn;
+                            }));
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::seconds(2));
+                    // Stop & flush all active sensors. The separation is intended to semi-confirm the FPS
+                    for (auto s : profiles.first)
+                        REQUIRE_NOTHROW(s.stop());
+                    for (auto s : profiles.first)
+                        REQUIRE_NOTHROW(s.close());
+
+                    // Verify frames arrived for all the profiles specified
+                    std::stringstream active_profiles, streams_arrived;
+                    active_profiles << "Profiles requested : " << profiles.second.size() << std::endl;
+                    for (auto& pf : profiles.second)
+                        active_profiles << pf << std::endl;
+                    streams_arrived << "Streams recorded : " << frames_per_stream.size() << std::endl;
+                    for (auto& frec : frames_per_stream)
+                        streams_arrived << frec.first << ": frames = " << frec.second << std::endl;
+
+                    CAPTURE(active_profiles.str().c_str());
+                    CAPTURE(streams_arrived.str().c_str());
+                    REQUIRE(profiles.second.size() == frames_per_stream.size());
+                    std::stringstream s;
+                    s << "Streaming cycle " << i << " iteration " << iter << " completed,\n"
+                        << active_profiles.str() << std::endl << streams_arrived.str() << std::endl;
+                    WARN(s.str().c_str());
+
+                    if (drops_count)
+                    {
+                        std::stringstream s;
+                        for (auto& str : drop_descriptions)
+                        {
+                            s << str << std::endl;
+                        }
+                        WARN("\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!! " << drops_count << " Drop were identified !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
+                        WARN(s.str().c_str());
+                        //REQUIRE(false);
+                    }
+                }
+
+                //forcing hardware reset to simulate device disconnection
+                do_with_waiting_for_camera_connection(ctx, dev, serial, [&]()
+                {
+                    dev->hardware_reset();
+                    std::cout << "Iteration " << iter << " ended, resetting device..." << std::endl;
+                });
             }
         }
     }
