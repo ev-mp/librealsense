@@ -24,6 +24,7 @@ endif()
 
 set (unit_tests_sources
     unit-tests-live.cpp
+    unit-tests-regressions.cpp
     unit-tests-post-processing.cpp
     unit-tests-post-processing.h
     unit-tests-main.cpp
