@@ -49,7 +49,7 @@ const size_t MAX_DEV_PARENT_DIR = 10;
 
 #include "../tm2/tm-boot.h"
 
-//#define DEBUG_V4L
+#define DEBUG_V4L
 #ifdef DEBUG_V4L
 #define LOG_DEBUG_V4L(...)   do { CLOG(DEBUG   ,"librealsense") << __VA_ARGS__; } while(false)
 #else
