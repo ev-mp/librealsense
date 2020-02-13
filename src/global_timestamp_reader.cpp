@@ -229,7 +229,7 @@ namespace librealsense
 
     double time_diff_keeper::get_system_hw_time(double crnt_hw_time, bool& is_ready)
     {
-        static const double possible_loop_time(3000);
+        static const double possible_loop_time(100);
         {
             std::lock_guard<std::recursive_mutex> lock(_read_mtx);
             if ((_last_sample_hw_time - crnt_hw_time) > possible_loop_time)
