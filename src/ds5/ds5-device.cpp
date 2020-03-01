@@ -724,6 +724,21 @@ namespace librealsense
                     enable_auto_exposure));
         }
 
+        if (_fw_version == firmware_version("5.12.2.54"))
+        {
+            auto right_exposure_option = std::make_shared<uvc_xu_option<uint32_t>>(raw_depth_sensor,
+                depth_xu,
+                DS5_EXPOSURE_RIGHT,
+                "Right IR Exposure (usec)");
+            depth_sensor.register_option(RS2_OPTION_EXPOSURE_RIGHT, right_exposure_option);
+
+            auto right_gain_option = std::make_shared<uvc_xu_option<uint16_t>>(raw_depth_sensor,
+                depth_xu,
+                DS5_GAIN_RIGHT,
+                "Right IR Gain");
+            depth_sensor.register_option(RS2_OPTION_GAIN_RIGHT, right_gain_option);
+        }
+
         if (_fw_version >= firmware_version("5.5.8.0"))
         {
             depth_sensor.register_option(RS2_OPTION_OUTPUT_TRIGGER_ENABLED,

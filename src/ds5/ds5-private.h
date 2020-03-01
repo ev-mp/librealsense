@@ -52,6 +52,8 @@ namespace librealsense
         const uint8_t DS5_ENABLE_AUTO_WHITE_BALANCE       = 0xA;
         const uint8_t DS5_ENABLE_AUTO_EXPOSURE            = 0xB;
         const uint8_t DS5_LED_PWR                         = 0xE;
+        const uint8_t DS5_EXPOSURE_RIGHT                  = 0xF; // F416-specific
+        const uint8_t DS5_GAIN_RIGHT                      = 0x10; // F416-specific
 
         // Devices supported by the current version
         static const std::set<std::uint16_t> rs400_sku_pid = {
