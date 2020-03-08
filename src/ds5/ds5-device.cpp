@@ -724,7 +724,7 @@ namespace librealsense
                     enable_auto_exposure));
         }
 
-        if (_fw_version == firmware_version("5.12.2.54"))
+        if (_fw_version >= firmware_version("5.12.2.54"))
         {
             auto right_exposure_option = std::make_shared<uvc_xu_option<uint32_t>>(raw_depth_sensor,
                 depth_xu,
