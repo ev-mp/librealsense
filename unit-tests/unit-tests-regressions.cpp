@@ -17,6 +17,8 @@
 #include <librealsense2/rsutil.h>
 
 using namespace rs2;
+using namespace std::chrono;
+
 TEST_CASE("DSO-14512", "[live]"){
     {
         rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG,"lrs_log.txt");
@@ -70,7 +72,7 @@ TEST_CASE("DSO-14512", "[live]"){
                             }));
                     }
 
-                    std::this_thread::sleep_for(std::chrono::seconds(60));
+                    std::this_thread::sleep_for(seconds(60));
                     // Stop & flush all active sensors. The separation is intended to semi-confirm the FPS
                     for (auto s : profiles.first)
                         REQUIRE_NOTHROW(s.stop());
@@ -114,7 +116,7 @@ TEST_CASE("DSO-14512", "[live]"){
                     {
                         std::cout << "Iteration " << iter << " ended, resetting device..." << std::endl;
                         advanced.hardware_reset();
-                        std::this_thread::sleep_for(std::chrono::seconds(3));
+                        std::this_thread::sleep_for(seconds(3));
                     }
                 }
                 else
@@ -167,6 +169,7 @@ TEST_CASE("Frame Drops", "[live]"){
                 size_t drops_count=0;
                 bool all_streams = true;
                 int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+                const long iter_period = 10000; // msec
 
                 for (auto i = 0; i < 10; i++)
                 {
@@ -178,12 +181,41 @@ TEST_CASE("Frame Drops", "[live]"){
                     auto profiles = configure_all_supported_streams(dev, 640, 480, fps);
                     drops_count=0;
 
-                    auto start_time = std::chrono::high_resolution_clock::now();
+                    std::thread white_noise([&dev]()
+                    {
+                        std::cout << "Controls polling started" << std::endl;
+                        auto start = high_resolution_clock::now();
+                        rs2::sensor dpt_snr;
+                        float val{};
+                        for (auto& s : dev.query_sensors())
+                            if (auto d = s.as<depth_sensor>())
+                                dpt_snr = s;
+
+                        while ((duration_cast<milliseconds>(high_resolution_clock::now() - start).count() < iter_period ))
+                        {
+                            //std::this_thread::sleep_for(milliseconds(20));
+                            for (auto& opt : { RS2_OPTION_GAIN, RS2_OPTION_EXPOSURE})
+                            {
+                                if (dpt_snr.supports(opt))
+                                {
+                                    val = dpt_snr.get_option(opt);
+                                    std::this_thread::sleep_for(milliseconds(10));
+                                    dpt_snr.set_option(opt,val);
+                                    std::this_thread::sleep_for(milliseconds(10));
+                                }
+                            }
+                        }
+                        std::cout << "Controls polling ended" << std::endl;
+                    });
+                    white_noise.detach();
+
+                    auto start_time = high_resolution_clock::now();
                     for (auto s : profiles.first)
                     {
-                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&drops_count,&drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles](rs2::frame f)
+                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&drops_count,&drop_descriptions,
+                                                 &cv,&all_streams,&iter_finished,start_time,profiles](rs2::frame f)
                             {
-                                static auto time_elapsed = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
+                                static auto time_elapsed = duration<double, std::milli>(high_resolution_clock::now() - start_time);
                                 auto stream_name = f.get_profile().stream_name();
                                 auto fn = f.get_frame_number();
 
@@ -191,7 +223,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                 {
 
                                     auto prev_fn = last_frame_per_stream[stream_name];
-                                    auto arrival_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
+                                    auto arrival_time = duration<double, std::milli>(high_resolution_clock::now() - start_time);
                                     // Skip events during the very first second
                                     if (arrival_time.count() > 1000)
                                     {
@@ -231,7 +263,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                     }
 
                                     // Stop test iteration after 2 min
-                                    if (arrival_time.count() > 120000)
+                                    if (arrival_time.count() > iter_period)
                                     {
                                         std::lock_guard<std::mutex> lock(m);
                                         iter_finished = true;
@@ -253,7 +285,7 @@ TEST_CASE("Frame Drops", "[live]"){
                     {
                         std::unique_lock<std::mutex> lk(m);
                         cv.wait(lk, [&drops_count,&all_streams,&iter_finished]{return (drops_count>0 || (!all_streams) || iter_finished);});
-                        //std::this_thread::sleep_for(std::chrono::milliseconds(200)); // add some sleep to record additional errors, if any
+                        //std::this_thread::sleep_for(milliseconds(200)); // add some sleep to record additional errors, if any
                     }
                     std::cout << "Drops = " << drops_count << ", All streams valid = " << int(all_streams) << " iter completed = " << int(iter_finished) << iter_finished << std::endl;
                     // Stop & flush all active sensors. The separation is intended to semi-confirm the FPS
@@ -301,7 +333,7 @@ TEST_CASE("Frame Drops", "[live]"){
                     {
                         std::cout << "Iteration " << iter << " ended, resetting device..." << std::endl;
                         advanced.hardware_reset();
-                        std::this_thread::sleep_for(std::chrono::seconds(3));
+                        std::this_thread::sleep_for(seconds(3));
                     }
                 }
                 else
