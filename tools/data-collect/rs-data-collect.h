@@ -191,12 +191,13 @@ namespace rs_data_collect
 
         struct frame_record
         {
-            frame_record(unsigned long long frame_number, double frame_ts, double host_ts,
+            frame_record(unsigned long long frame_number, long long hw_ts, double frame_ts, double host_ts,
                        rs2_timestamp_domain domain, rs2_stream stream_type,int stream_index,
                        double _p1=0., double _p2=0., double _p3=0.,
                        double _p4=0., double _p5=0., double _p6=0., double _p7=0.):
             _frame_number(frame_number),
             _ts(frame_ts),
+            _hw_ts(hw_ts),
             _arrival_time(host_ts),
             _domain(domain),
             _stream_type(stream_type),
@@ -210,7 +211,7 @@ namespace rs_data_collect
                 ss  << std::endl
                     <<  rs2_stream_to_string(_stream_type) << ","
                     << _stream_idx << "," << _frame_number << ","
-                    << std::fixed << std::setprecision(3) << _ts
+                    << std::fixed << std::setprecision(3) << _hw_ts << "," << _ts
                     << "," << _domain << "," << _arrival_time;
 
                 // IMU and Pose frame hold the sample data in addition to the frame's header attributes
@@ -227,7 +228,8 @@ namespace rs_data_collect
             }
 
             unsigned long long      _frame_number;
-            double                  _ts;                // Device-based timestamp. (msec).
+            double                  _ts;                // Frame timestamp. (msec). Can be globa/hw/system
+            long long               _hw_ts;             // Device-based timestamp metadata/unmodified.
             double                  _arrival_time;      // Host arrival timestamp, relative to start streaming (msec)
             rs2_timestamp_domain    _domain;            // The origin of device-based timestamp. Note that Device timestamps may require kernel patches
             rs2_stream              _stream_type;

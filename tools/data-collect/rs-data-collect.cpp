@@ -124,7 +124,7 @@ void data_collector::save_data_to_file(const string& out_filename)
 
     for (const auto& elem : data_collection)
     {
-        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Time Domain,Host Timestamp(ms)"
+        csv << "\n\nStream Type,Index,F#,HW Timestamp,Frame Timestamp (ms),Time Domain,Host Timestamp(ms)"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
             << std::endl;
@@ -141,7 +141,9 @@ void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_po
 
     if (data_collection[stream_uid].size() < _max_frames)
     {
+        auto hw_ts = f.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) ? f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) : 0;
         frame_record rec{ f.get_frame_number(),
+            hw_ts,
             f.get_timestamp(),
             arrival_time.count(),
             f.get_frame_timestamp_domain(),
