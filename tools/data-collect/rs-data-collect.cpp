@@ -341,7 +341,7 @@ int main(int argc, char** argv) try
         for (auto&& sensor : dc.selected_sensors())
         {
             if (sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
-                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,0.f);
+                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,1.f);
         }
         //data_collection buffer;
         auto start_time = chrono::high_resolution_clock::now();
