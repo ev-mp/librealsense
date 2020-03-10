@@ -67,7 +67,7 @@ void data_collector::parse_and_configure(ValueArg<string>& config_file)
         std::sort(user_requests.begin(), user_requests.end(),
             [](const stream_request& l, const stream_request& r) { return l._stream_type < r._stream_type; });
 
-        for (auto i = 0; i < user_requests.size() - 1; i++)
+        for (size_t i = 0; i < user_requests.size() - 1; i++)
         {
             if ((user_requests[i]._stream_type == user_requests[i + 1]._stream_type) && ((user_requests[i]._stream_idx == user_requests[i + 1]._stream_idx)))
                 throw runtime_error(stringify() << "Invalid configuration file - multiple requests for the same sensor:\n"
@@ -124,12 +124,12 @@ void data_collector::save_data_to_file(const string& out_filename)
 
     for (const auto& elem : data_collection)
     {
-        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms)"
+        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Time Domain,Host Timestamp(ms)"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
             << std::endl;
 
-        for (auto i = 0; i < elem.second.size(); i++)
+        for (size_t i = 0; i < elem.second.size(); i++)
             csv << elem.second[i].to_string();
     }
 }
@@ -231,8 +231,14 @@ bool data_collector::configure_sensors()
     requests_to_go = user_requests;
     std::vector<rs2::stream_profile> matches;
 
-    // Configure and starts streaming
+    std::list<rs2::sensor> sensors;
     for (auto&& sensor : _dev->query_sensors())
+    {
+        sensors.push_front(sensor);
+     }
+    // Configure and starts streaming
+    //for (auto&& sensor : _dev->query_sensors())
+    for (auto&& sensor : sensors)
     {
         for (auto& profile : sensor.get_stream_profiles())
         {
@@ -283,7 +289,7 @@ bool data_collector::configure_sensors()
 
 int main(int argc, char** argv) try
 {
-    rs2::log_to_file(RS2_LOG_SEVERITY_WARN);
+    rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG);
 
     // Parse command line arguments
     CmdLine cmd("librealsense rs-data-collect example tool", ' ');

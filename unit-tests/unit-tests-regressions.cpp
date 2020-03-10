@@ -191,21 +191,25 @@ TEST_CASE("Frame Drops", "[live]"){
                             if (auto d = s.as<depth_sensor>())
                                 dpt_snr = s;
 
+                        int controls_iter = 0;
                         while ((duration_cast<milliseconds>(high_resolution_clock::now() - start).count() < iter_period ))
                         {
                             //std::this_thread::sleep_for(milliseconds(20));
-                            for (auto& opt : { RS2_OPTION_GAIN, RS2_OPTION_EXPOSURE})
+                            //for (auto& opt : { RS2_OPTION_GAIN, RS2_OPTION_EXPOSURE})
+                            for (size_t opt = RS2_OPTION_BACKLIGHT_COMPENSATION; opt < RS2_OPTION_COUNT; opt++)
                             {
-                                if (dpt_snr.supports(opt))
+                                if (dpt_snr.supports(static_cast<rs2_option>(opt)))
                                 {
-                                    val = dpt_snr.get_option(opt);
+                                    //REQUIRE_NOTHROW(val = dpt_snr.get_option(static_cast<rs2_option>(opt)));
+                                    val = dpt_snr.get_option(static_cast<rs2_option>(opt));
                                     std::this_thread::sleep_for(milliseconds(10));
-                                    dpt_snr.set_option(opt,val);
-                                    std::this_thread::sleep_for(milliseconds(10));
+                                    //REQUIRE_NOTHROW(dpt_snr.set_option(opt,val));
+                                    //std::this_thread::sleep_for(milliseconds(10));
                                 }
                             }
+                            controls_iter++;
                         }
-                        std::cout << "Controls polling ended" << std::endl;
+                        std::cout << "Controls polling ended with " << controls_iter << " passes performed" << std::endl;
                     });
                     white_noise.detach();
 
@@ -225,19 +229,19 @@ TEST_CASE("Frame Drops", "[live]"){
                                     auto prev_fn = last_frame_per_stream[stream_name];
                                     auto arrival_time = duration<double, std::milli>(high_resolution_clock::now() - start_time);
                                     // Skip events during the very first second
-                                    if (arrival_time.count() > 1000)
+                                    if (arrival_time.count() > 3000)
                                     {
                                         if (RS2_FORMAT_MOTION_XYZ32F != f.get_profile().format())
                                         {
                                             if ((fn - prev_fn) != 1)
                                             {
                                                 drops_count++;
-                                                std::stringstream s;
+                                             std::stringstream s;
                                                 s << "Frame drop was recognized for " << stream_name<< " jumped from " << prev_fn << " to "
                                                   << fn << std::fixed << std::setprecision(3) << ", ts " << f.get_timestamp() << " domain " << f.get_frame_timestamp_domain();
                                                 if (f.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
                                                     s << " hw ts: " << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << " = 0x"
-                                                      <<std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
+                                                      <<std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
                                                 drop_descriptions.emplace_back(s.str().c_str());
                                             }
                                         }
@@ -252,7 +256,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                     if (sec_now && (sec_now != (int(time_elapsed.count())/ 1000)) )
                                         std::cout << "Test runs for " << int(arrival_time.count()) / 1000 << " seconds" << std::endl;
                                     // Every 10th second print number of frames arrived
-                                    if ((int(arrival_time.count()) / 10000) != (int(time_elapsed.count())/ 10000) )
+                                    if (sec_now && ((int(arrival_time.count()) / 10000) != (int(time_elapsed.count())/ 10000) ))
                                     {
                                         std::stringstream s;
                                         s << "Frames arrived: ";
@@ -267,6 +271,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                     {
                                         std::lock_guard<std::mutex> lock(m);
                                         iter_finished = true;
+                                        std::cout << "Iteration period lapsed: = " << iter_period << std::endl;
                                         cv.notify_all();
                                     }
                                     time_elapsed = arrival_time;

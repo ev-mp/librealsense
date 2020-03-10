@@ -179,7 +179,7 @@ namespace rs_data_collect
     public:
         data_collector(std::shared_ptr<rs2::device> dev,
             ValueArg<int>& timeout, ValueArg<int>& max_frames);
-        ~data_collector(){};
+        ~data_collector(){}
         data_collector(const data_collector&);
 
         void parse_and_configure(ValueArg<string>& config_file);
@@ -187,7 +187,7 @@ namespace rs_data_collect
         void collect_frame_attributes(rs2::frame f, std::chrono::time_point<std::chrono::high_resolution_clock> start_time);
         bool collecting(std::chrono::time_point<std::chrono::high_resolution_clock> start_time);
 
-        const std::vector<rs2::sensor>& selected_sensors() const { return active_sensors; };
+        const std::vector<rs2::sensor>& selected_sensors() const { return active_sensors; }
 
         struct frame_record
         {
@@ -202,7 +202,7 @@ namespace rs_data_collect
             _stream_type(stream_type),
             _stream_idx(stream_index),
             _params({_p1,_p2,_p3,_p4,_p5,_p6,_p7})
-            {};
+            {}
 
             std::string to_string() const
             {
@@ -210,7 +210,8 @@ namespace rs_data_collect
                 ss  << std::endl
                     <<  rs2_stream_to_string(_stream_type) << ","
                     << _stream_idx << "," << _frame_number << ","
-                    << std::fixed << std::setprecision(3) << _ts << "," << _arrival_time;
+                    << std::fixed << std::setprecision(3) << _ts
+                    << "," << _domain << "," << _arrival_time;
 
                 // IMU and Pose frame hold the sample data in addition to the frame's header attributes
                 size_t specific_attributes = 0;
@@ -219,7 +220,7 @@ namespace rs_data_collect
                 if (val_in_range(_stream_type,{RS2_STREAM_POSE}))
                     specific_attributes = 7;
 
-                for (auto i=0; i<specific_attributes; i++)
+                for (size_t i=0; i<specific_attributes; i++)
                     ss << "," << _params[i];
 
                 return ss.str().c_str();
