@@ -170,7 +170,7 @@ TEST_CASE("Frame Drops", "[live]"){
                 bool all_streams = true;
                 int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
 
-                for (auto i = 0; i < 10; i++)
+                for (auto i = 0; i < 10000; i++)
                 {
                     std::map<std::string, size_t> frames_per_stream{};
                     std::map<std::string, size_t> last_frame_per_stream{};
@@ -181,11 +181,12 @@ TEST_CASE("Frame Drops", "[live]"){
                     drops_count=0;
 
                     auto start_time = std::chrono::high_resolution_clock::now();
+                    std::cout << "Iteration " << i << " started, time =  " << std::dec << start_time.time_since_epoch().count() << std::endl;
                     for (auto s : profiles.first)
                     {
                         REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&drops_count,&drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles](rs2::frame f)
                             {
-                                static auto time_elapsed = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
+                                auto time_elapsed = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
                                 auto stream_name = f.get_profile().stream_name();
                                 auto fn = f.get_frame_number();
 
@@ -195,16 +196,20 @@ TEST_CASE("Frame Drops", "[live]"){
                                     auto prev_fn = last_frame_per_stream[stream_name];
                                     auto arrival_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
                                     // Skip events during the very first second
-                                    if (arrival_time.count() > 1000)
+                                    if (time_elapsed.count() > 1000)
                                     {
                                         if (RS2_FORMAT_MOTION_XYZ32F != f.get_profile().format())
                                         {
-                                            if ((fn - prev_fn) != 1)
+                                            if (fn && (fn > prev_fn) &&((fn - prev_fn) > 1))
                                             {
-                                                drops_count++;
+                                                if ((fn - prev_fn) > 1)
+                                                    drops_count++;
                                                 std::stringstream s;
                                                 s << "Frame drop was recognized for " << stream_name<< " jumped from " << prev_fn << " to "
-                                                  << fn << std::fixed << std::setprecision(3) << ", ts " << f.get_timestamp() << " domain " << f.get_frame_timestamp_domain();
+                                                  << fn << "step fn-prev= " << (fn-prev_fn)
+                                                  << std::fixed << std::setprecision(3) << ", ts " << f.get_timestamp()
+                                                  << " domain " << f.get_frame_timestamp_domain()
+                                                  << " time elapsed: " << time_elapsed.count()/1000.f << " sec";
                                                 if (f.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
                                                     s << " hw ts: " << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << " = 0x"
                                                       <<std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
@@ -232,8 +237,8 @@ TEST_CASE("Frame Drops", "[live]"){
                                         std::cout << s.str().c_str();
                                     }
 
-                                    // Stop test iteration after 10 sec
-                                    if (arrival_time.count() > 10000)
+                                    // Stop test iteration after 20 sec
+                                    if (arrival_time.count() > 20000)
                                     {
                                         std::lock_guard<std::mutex> lock(m);
                                         iter_finished = true;
@@ -245,7 +250,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                 last_frame_per_stream[stream_name] = fn;
                                 {
                                     std::lock_guard<std::mutex> lock(m);
-                                    if (drops_count || (!all_streams))
+                                    if (drops_count /*|| (!all_streams)*/)
                                         cv.notify_all();
                                 }
                             }));
@@ -257,7 +262,7 @@ TEST_CASE("Frame Drops", "[live]"){
                         cv.wait(lk, [&drops_count,&all_streams,&iter_finished]{return (drops_count>0 || (!all_streams) || iter_finished);});
                         //std::this_thread::sleep_for(std::chrono::milliseconds(200)); // add some sleep to record additional errors, if any
                     }
-                    std::cout << "Drops = " << drops_count << ", All streams valid = " << int(all_streams) << " iter completed = " << int(iter_finished) << iter_finished << std::endl;
+                    std::cout << "Drops = " << drops_count << ", All streams valid = " << int(all_streams) << " iter completed = " << int(iter_finished) << std::endl;
                     // Stop & flush all active sensors. The separation is intended to semi-confirm the FPS
                     for (auto s : profiles.first)
                         REQUIRE_NOTHROW(s.stop());
@@ -288,7 +293,7 @@ TEST_CASE("Frame Drops", "[live]"){
                         {
                             s << str << std::endl;
                         }
-                        WARN("\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!! " << drops_count << " Drop were identified !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
+                        WARN("\n!!! " << drops_count << " Drop were identified !!!\n");
                         WARN(s.str().c_str());
                     }
 
