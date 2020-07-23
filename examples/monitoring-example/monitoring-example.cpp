@@ -13,9 +13,10 @@ void sigintHook(int signum)
 }
 
 std::string ExePath() {
-    char buffer[MAX_PATH];
+    wchar_t  buffer[MAX_PATH];
     GetModuleFileName(NULL, buffer, MAX_PATH);
-    std::string f = std::string(buffer);
+    std::wstring wbuf(buffer);
+    std::string f(wbuf.begin(), wbuf.end());
     return f.substr(0, f.find_last_of("\\/"));
 }
 
@@ -27,7 +28,7 @@ int main(int argc, char* argv[]) try
 
     const auto RS_UPDATE_INTERVAL = std::chrono::seconds(10);
     auto last_check = std::chrono::steady_clock::now() - RS_UPDATE_INTERVAL - std::chrono::seconds(1); // ensure at least 1 run
-	auto loop_count = 0;
+    auto loop_count = 0;
 
     while(!stop)
     {
@@ -44,8 +45,9 @@ int main(int argc, char* argv[]) try
             std::cout << "-> Try pipe start" << std::endl;
             pipe.start(cfg);
 
-			std::cout << "Capture 15 frames" << std::endl;
-			for (auto i = 0; i < 15; ++i) pipe.wait_for_frames();
+            std::cout << "Capture 15 frames" << std::endl;
+            for (auto i = 0; i < 15; ++i)
+                pipe.wait_for_frames();
 
             std::cout << "-> Collect info" << std::endl;
 
