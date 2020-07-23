@@ -10,12 +10,23 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <map>
 
 static const std::vector<std::string> device_guids =
 {
     "{08090549-CE78-41DC-A0FB-1BD66694BB0C}",
     "{E659C3EC-BF3C-48A5-8192-3073E822D7CD}", // Intel(R) RealSense(TM) 415 Depth - MI 0: [Interface 0 video control] [Interface 1 video stream] [Interface 2 video stream]
     "{50537BC3-2919-452D-88A9-B13BBF7D2459}"  // Intel(R) RealSense(TM) 415 RGB - MI 3: [Interface 3 video control] [Interface 4 video stream]
+};
+
+// convert to standard fourcc codes
+const std::unordered_map<uint32_t, uint32_t> fourcc_map = {
+    { 0x59382020, 0x47524559 },    /* 'GREY' from 'Y8  ' */
+    { 0x52573130, 0x70524141 },    /* 'pRAA' from 'RW10'.*/
+    { 0x32000000, 0x47524559 },    /* 'GREY' from 'L8  ' */
+    { 0x50000000, 0x5a313620 },    /* 'Z16'  from 'D16 ' */
+    { 0x52415738, 0x47524559 },    /* 'GREY' from 'RAW8' */
+    { 0x52573136, 0x42595232 }     /* 'RW16' from 'BYR2' */
 };
 
 #define UVC_AE_MODE_D0_MANUAL   ( 1 << 0 )
