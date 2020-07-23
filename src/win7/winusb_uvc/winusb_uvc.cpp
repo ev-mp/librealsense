@@ -852,7 +852,7 @@ void winusb_uvc_process_payload(winusb_uvc_stream_handle_t *strmh,
 	/* ignore empty payload transfers */
 	if (payload_len == 0)
 	{
-		LOG_ERROR("Zero-size packet arrived, header size =" << header_len);
+		LOG_ERROR("Zero-size packet arrived, header size =" << (int)header_len);
 		return;
 	}
 
@@ -1133,6 +1133,7 @@ uvc_error_t winusb_start_streaming(winusb_uvc_device *devh, uvc_stream_ctrl_t *c
 		return ret;
 	}
 
+    std::cout << "usr callback: " << user_ptr << std::endl;
 	ret = winusb_uvc_stream_start(strmh, cb, user_ptr, flags);
 	if (ret != UVC_SUCCESS)
 	{

@@ -503,7 +503,11 @@ namespace librealsense
                 sp.width = curFormat->width;
                 sp.height = curFormat->height;
                 sp.fps = curFormat->fps;
-                sp.format = curFormat->fourcc;
+                // Reassign incoming formats to acknowledged formats
+                auto canonical_format = curFormat->fourcc;
+                if (fourcc_map.count(canonical_format))
+                    canonical_format = fourcc_map.at(canonical_format);
+                sp.format = canonical_format;
                 results.push_back(sp);
                 curFormat = curFormat->next;
             }
@@ -570,9 +574,11 @@ namespace librealsense
         // receive the original callback and pass it to the right device. this is registered by libUVC.
         static void internal_winusb_uvc_callback(frame_object *frame, void *ptr)
         {
+            std::cout << 1 << std::endl;
             callback_context *context = (callback_context *)ptr;
-            win7_uvc_device *device = context->_this;
+            //win7_uvc_device *device = context->_this;
             context->_callback(context->_profile, *frame, []() mutable {});
+            std::cout << 2 << std::endl;
         }
 
         void win7_uvc_device::play_profile(stream_profile profile, frame_callback callback)
@@ -588,7 +594,7 @@ namespace librealsense
             while (curFormat != NULL)
             {
                 char *fourcc = (char *)&curFormat->fourcc;
-                //printf("Format %d: Interface %d - FourCC = %c%c%c%c, width = %04d, height = %04d, fps = %03d\n", i, curFormat->interfaceNumber, fourcc[3], fourcc[2], fourcc[1], fourcc[0], curFormat->width, curFormat->height, curFormat->fps);
+                printf("Format %d: Interface %d - FourCC = %c%c%c%c, width = %04d, height = %04d, fps = %03d\n", i, curFormat->interfaceNumber, fourcc[3], fourcc[2], fourcc[1], fourcc[0], curFormat->width, curFormat->height, curFormat->fps);
                 curFormat = curFormat->next;
                 i++;
             }
@@ -596,7 +602,12 @@ namespace librealsense
             /* Choose the first supported format for a given interface */
             DL_FOREACH(formats, curFormat)
             {
-                if ((profile.format == curFormat->fourcc) &&
+                // Reassign incoming formats to acknowledged formats
+                auto canonical_format = curFormat->fourcc;
+                if (fourcc_map.count(canonical_format))
+                    canonical_format = fourcc_map.at(canonical_format);
+
+                if ((profile.format == canonical_format) &&
                     (profile.fps == curFormat->fps) &&
                     (profile.height == curFormat->height) &&
                     (profile.width == curFormat->width))
