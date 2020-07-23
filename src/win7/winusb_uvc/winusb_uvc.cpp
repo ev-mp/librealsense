@@ -852,7 +852,7 @@ void winusb_uvc_process_payload(winusb_uvc_stream_handle_t *strmh,
 	/* ignore empty payload transfers */
 	if (payload_len == 0)
 	{
-		LOG_ERROR("Zero-size packet arrived, header size =" << (int)header_len);
+		LOG_ERROR("Zero-size packet arrived");
 		return;
 	}
 
@@ -1115,6 +1115,7 @@ void winusb_uvc_stream_close(winusb_uvc_stream_handle_t *strmh)
 
 	DL_DELETE(strmh->devh->streams, strmh);
 
+    delete(strmh->user_ptr);
 	free(strmh);
 }
 
