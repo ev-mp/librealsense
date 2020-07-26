@@ -20,6 +20,7 @@
 #include <future>
 
 
+uint32_t devopen_timeout_ms = 1000;
 // Data structures for Backend-Frontend queue:
 struct frame;
 // We keep no more then 2 frames in between frontend and backend
@@ -1134,7 +1135,6 @@ uvc_error_t winusb_start_streaming(winusb_uvc_device *devh, uvc_stream_ctrl_t *c
 		return ret;
 	}
 
-    std::cout << "usr callback: " << user_ptr << std::endl;
 	ret = winusb_uvc_stream_start(strmh, cb, user_ptr, flags);
 	if (ret != UVC_SUCCESS)
 	{
@@ -1877,7 +1877,18 @@ uvc_error_t winusb_find_devices(const std::string &uvc_interface, int vid, int p
 			{
 
 				// Create a handle for I/O operations to the IVCAM device
-				HANDLE Devicehandle = CreateFile(DevIntfDetailData->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+                HANDLE Devicehandle = nullptr;
+                auto start = std::chrono::system_clock::now();
+                do
+                {
+                    Devicehandle = CreateFile(DevIntfDetailData->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+                    auto end = std::chrono::system_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+                    if (elapsed > devopen_timeout_ms)
+                        break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                } while (Devicehandle == INVALID_HANDLE_VALUE);
+
 				if (Devicehandle != INVALID_HANDLE_VALUE)
 				{
 					WINUSB_INTERFACE_HANDLE winusbHandle;
@@ -2016,8 +2027,19 @@ uvc_error_t winusb_find_devices(winusb_uvc_device ***devs, int vid, int pid)
 			if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &DevIntfData, DevIntfDetailData, dwSize, &dwSize, &DevData) == TRUE)
 			{
 
-				// Create a handle for I/O operations to the IVCAM device
-				HANDLE Devicehandle = CreateFile(DevIntfDetailData->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+				// Create a handle for I/O operations
+                HANDLE Devicehandle = nullptr;
+                auto start = std::chrono::system_clock::now();
+                do
+                {
+                    Devicehandle = CreateFile(DevIntfDetailData->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+                    auto end = std::chrono::system_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+                    if (elapsed > devopen_timeout_ms)
+                        break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                } while (Devicehandle == INVALID_HANDLE_VALUE);
+
 				if (Devicehandle != INVALID_HANDLE_VALUE)
 				{
 					WINUSB_INTERFACE_HANDLE winusbHandle;
@@ -2173,14 +2195,23 @@ uvc_error_t winusb_open(winusb_uvc_device *device)
 	// will do something not good
 	memset(&device->deviceData, 0, sizeof(winusb_uvc_device_info_t));
 
-	// Create a handle for I/O operations to the IVCAM device
-	device->deviceHandle = CreateFile(device->devPath,
-		GENERIC_READ | GENERIC_WRITE,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		NULL,
-		OPEN_EXISTING,
-		FILE_FLAG_OVERLAPPED,
-		NULL);
+	//// Create a handle for I/O operations to the IVCAM device
+    auto start = std::chrono::system_clock::now();
+    do
+    {
+        device->deviceHandle = CreateFile(device->devPath,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL,
+            OPEN_EXISTING,
+            FILE_FLAG_OVERLAPPED,
+            NULL);
+        auto end = std::chrono::system_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        if (elapsed > devopen_timeout_ms)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } while (device->deviceHandle == INVALID_HANDLE_VALUE);
 
 	if (device->deviceHandle == INVALID_HANDLE_VALUE)
 	{

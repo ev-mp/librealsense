@@ -75,13 +75,18 @@ namespace librealsense
             for (auto&& elem : _extrinsics)
             {
                 // Delete any extrinsics going into the stream
-                elem.second.erase(removed_id);
-                ++counter;
+                //Evgeni - missing extrinsics
+                if (0 == elem.second.size())
+                {
+                    std::cout << "Yet another bug" << std::endl;
+                    elem.second.erase(removed_id);
+                    ++counter;
+                }
             }
         }
 
         if (!invalid_ids.empty())
-            LOG_INFO("Found " << invalid_ids.size() << " unreachable streams, " << counter << " extrinsics deleted");
+            LOG_INFO("Found " << std::dec << (int)invalid_ids.size() << " unreachable streams, " << counter << " extrinsics deleted");
     }
 
     int extrinsics_graph::find_stream_profile(const stream_interface& p)

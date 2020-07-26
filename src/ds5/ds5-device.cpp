@@ -352,14 +352,14 @@ namespace librealsense
         using namespace ds;
 
         auto&& backend = ctx->get_backend();
-
-        if (group.usb_devices.size() > 0)
+        //Disable HW monitor over USB to enforce usage XU channel
+        /*if (group.usb_devices.size() > 100)
         {
             _hw_monitor = std::make_shared<hw_monitor>(
                 std::make_shared<locked_transfer>(
                     backend.create_usb_device(group.usb_devices.front()), get_depth_sensor()));
         }
-        else
+        else*/
         {
             _hw_monitor = std::make_shared<hw_monitor>(
                 std::make_shared<locked_transfer>(

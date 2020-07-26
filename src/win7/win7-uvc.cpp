@@ -581,7 +581,7 @@ namespace librealsense
             while (curFormat != NULL)
             {
                 char *fourcc = (char *)&curFormat->fourcc;
-                printf("Format %d: Interface %d - FourCC = %c%c%c%c, width = %04d, height = %04d, fps = %03d\n", i, curFormat->interfaceNumber, fourcc[3], fourcc[2], fourcc[1], fourcc[0], curFormat->width, curFormat->height, curFormat->fps);
+                //printf("Format %d: Interface %d - FourCC = %c%c%c%c, width = %04d, height = %04d, fps = %03d\n", i, curFormat->interfaceNumber, fourcc[3], fourcc[2], fourcc[1], fourcc[0], curFormat->width, curFormat->height, curFormat->fps);
                 curFormat = curFormat->next;
                 i++;
             }
