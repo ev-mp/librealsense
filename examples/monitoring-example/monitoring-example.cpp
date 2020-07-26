@@ -23,10 +23,13 @@ std::string ExePath() {
 int main(int argc, char* argv[]) try
 {
     signal(SIGINT, sigintHook);
+    //Evgeniauto rs_log_path = ExePath() += "\\realsense_log.txt";
+    //evgenirs2::log_to_file(RS2_LOG_SEVERITY_DEBUG, rs_log_path.c_str());
     auto rs_log_path = ExePath() += "\\realsense_log.txt";
     rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG, rs_log_path.c_str());
+    //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
 
-    const auto RS_UPDATE_INTERVAL = std::chrono::seconds(10);
+    const auto RS_UPDATE_INTERVAL = std::chrono::milliseconds(100);
     auto last_check = std::chrono::steady_clock::now() - RS_UPDATE_INTERVAL - std::chrono::seconds(1); // ensure at least 1 run
     auto loop_count = 0;
 
