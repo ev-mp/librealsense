@@ -75,11 +75,8 @@ namespace librealsense
             for (auto&& elem : _extrinsics)
             {
                 // Delete any extrinsics going into the stream
-                if (elem.second.size())
-                {
-                    elem.second.erase(removed_id);
-                    ++counter;
-                }
+                elem.second.erase(removed_id);
+                ++counter;
             }
         }
 
