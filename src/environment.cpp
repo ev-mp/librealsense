@@ -75,10 +75,8 @@ namespace librealsense
             for (auto&& elem : _extrinsics)
             {
                 // Delete any extrinsics going into the stream
-                //Evgeni - missing extrinsics
-                if (0 == elem.second.size())
+                if (elem.second.size())
                 {
-                    std::cout << "Yet another bug" << std::endl;
                     elem.second.erase(removed_id);
                     ++counter;
                 }

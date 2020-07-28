@@ -20,7 +20,21 @@
 #include <future>
 
 
-uint32_t devopen_timeout_ms = 1000;
+static const uint32_t devopen_timeout_ms = 1000;
+void create_file_with_retry(HANDLE Handle,PWCHAR Path)
+{
+    auto start = std::chrono::system_clock::now();
+    do
+    {
+        //Devicehandle = CreateFile(DevIntfDetailData->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+        Handle = CreateFile(Path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+        auto end = std::chrono::system_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        if (elapsed > devopen_timeout_ms)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } while (Handle == INVALID_HANDLE_VALUE);
+}
 // Data structures for Backend-Frontend queue:
 struct frame;
 // We keep no more then 2 frames in between frontend and backend
