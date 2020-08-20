@@ -3,10 +3,9 @@
 
 #pragma once
 
-#include "ds5-device.h"
-
 #include <map>
-
+#include "ds5-device.h"
+#include "calibrated-sensor.h"
 #include "stream.h"
 
 namespace librealsense
@@ -20,11 +19,14 @@ namespace librealsense
         ds5_color(std::shared_ptr<context> ctx,
                   const platform::backend_device_group& group);
 
+        ds5_color_sensor* get_color_sensor();
+
     protected:
         std::shared_ptr<stream_interface> _color_stream;
 
     private:
         friend class ds5_color_sensor;
+        friend class ds5_recalibrable_color_sensor;
         friend class rs435i_device;
 
         uint8_t _color_device_idx = -1;
@@ -52,8 +54,29 @@ namespace librealsense
         stream_profiles init_stream_profiles() override;
         processing_blocks get_recommended_processing_blocks() const override;
 
-    private:
+    protected:
         const ds5_color* _owner;
+    };
+
+    class ds5_recalibrable_color_sensor : public ds5_color_sensor,
+                                          public calibrated_sensor
+    {
+    public:
+        ds5_recalibrable_color_sensor(ds5_color* owner,
+            std::shared_ptr<uvc_sensor> uvc_sensor,
+            std::map<uint32_t, rs2_format> color_fourcc_to_format,
+            std::map<uint32_t, rs2_stream> color_fourcc_to_stream)
+            : ds5_color_sensor(owner, uvc_sensor, color_fourcc_to_format, color_fourcc_to_stream)
+        {}
+
+        void override_intrinsics(rs2_intrinsics const&);
+        void override_extrinsics(rs2_extrinsics const&);
+
+        rs2_dsm_params get_dsm_params() const;
+        void override_dsm_params(rs2_dsm_params const&);
+
+        void reset_calibration();
+
     };
 
 }
