@@ -72,7 +72,7 @@ namespace librealsense
             std::unique_ptr<frame_timestamp_reader>(new global_timestamp_reader(std::move(ds5_timestamp_reader_metadata), _tf_keeper, enable_global_time_option)),
             this);
 
-        auto color_ep = std::make_shared<ds5_color_sensor>(this,
+        auto color_ep = std::make_shared<ds5_recalibrable_color_sensor>(this,
             raw_color_ep,
             ds5_color_fourcc_to_rs2_format,
             ds5_color_fourcc_to_rs2_stream);
@@ -195,6 +195,11 @@ namespace librealsense
         return color_ep;
     }
 
+    ds5_color_sensor* ds5_color::get_color_sensor()
+    {
+        return &dynamic_cast<ds5_color_sensor&>(get_sensor(_color_device_idx));
+    }
+
     rs2_intrinsics ds5_color_sensor::get_intrinsics(const stream_profile& profile) const
     {
         return get_intrinsic_by_resolution(
@@ -237,5 +242,28 @@ namespace librealsense
     processing_blocks ds5_color_sensor::get_recommended_processing_blocks() const
     {
         return get_color_recommended_proccesing_blocks();
+    }
+
+    void ds5_recalibrable_color_sensor::override_intrinsics(rs2_intrinsics const&)
+    {
+        throw std::runtime_error(to_string() << __FUNCTION__ << " not supported for this device model");
+    }
+    void ds5_recalibrable_color_sensor::override_extrinsics(rs2_extrinsics const&)
+    {
+        throw std::runtime_error(to_string() << __FUNCTION__ << " not supported for this device model");
+    }
+    rs2_dsm_params ds5_recalibrable_color_sensor::get_dsm_params() const
+    {
+        throw std::runtime_error(to_string() << __FUNCTION__ << " not supported for this device model");
+    }
+    void ds5_recalibrable_color_sensor::override_dsm_params(rs2_dsm_params const&)
+    {
+        throw std::runtime_error(to_string() << __FUNCTION__ << " not supported for this device model");
+    }
+
+    void ds5_recalibrable_color_sensor::reset_calibration()
+    {
+        std::cout << __FUNCTION__ << " was called" << std::endl;
+        _owner->_color_calib_table_raw.reset();
     }
 }
