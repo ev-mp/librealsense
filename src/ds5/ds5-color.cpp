@@ -46,7 +46,7 @@ namespace librealsense
     {
         using namespace ds;
 
-        _color_calib_table_raw = [this]() { return get_raw_calibration_table(rgb_calibration_id); };
+        _color_calib_table_raw = [this]() { std::cout << "!!!!!!EVEVEV!!!!!!!" << std::endl; return get_raw_calibration_table(rgb_calibration_id); };
         _color_extrinsic = std::make_shared<lazy<rs2_extrinsics>>([this]() { return from_pose(get_color_stream_extrinsic(*_color_calib_table_raw)); });
         environment::get_instance().get_extrinsics_graph().register_extrinsics(*_color_stream, *_depth_stream, _color_extrinsic);
         register_stream_to_extrinsic_group(*_color_stream, 0);
@@ -202,8 +202,9 @@ namespace librealsense
 
     rs2_intrinsics ds5_color_sensor::get_intrinsics(const stream_profile& profile) const
     {
+        auto xxx = *_owner->_color_calib_table_raw;
         return get_intrinsic_by_resolution(
-            *_owner->_color_calib_table_raw,
+            xxx,//*_owner->_color_calib_table_raw,
             ds::calibration_table_id::rgb_calibration_id,
             profile.width, profile.height);
     }
@@ -263,6 +264,6 @@ namespace librealsense
 
     void ds5_recalibrable_color_sensor::reset_calibration()
     {
-        _owner->_color_calib_table_raw.reset();
+        _owner->_color_calib_table_raw.reload();
     }
 }
