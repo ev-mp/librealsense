@@ -969,7 +969,7 @@ namespace librealsense
               firmware_logger_device(ctx, group, ds5_device::_hw_monitor,
                 get_firmware_logs_command(),
                 get_flash_logs_command()),
-            ds5_thermal_handler(get_depth_sensor()/*,get_color_sensor()*/)
+            ds5_thermal_handler(get_depth_sensor())
         {}
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override;
