@@ -263,7 +263,6 @@ namespace librealsense
 
     void ds5_recalibrable_color_sensor::reset_calibration()
     {
-        std::cout << __FUNCTION__ << " was called" << std::endl;
         _owner->_color_calib_table_raw.reset();
     }
 }
