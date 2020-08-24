@@ -202,9 +202,8 @@ namespace librealsense
 
     rs2_intrinsics ds5_color_sensor::get_intrinsics(const stream_profile& profile) const
     {
-        auto xxx = *_owner->_color_calib_table_raw;
         return get_intrinsic_by_resolution(
-            xxx,//*_owner->_color_calib_table_raw,
+            *_owner->_color_calib_table_raw,
             ds::calibration_table_id::rgb_calibration_id,
             profile.width, profile.height);
     }
