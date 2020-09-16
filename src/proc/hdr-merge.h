@@ -48,6 +48,10 @@ namespace librealsense
         int _frames_without_requested_metadata_counter;
         std::map<int, rs2::frameset> _framesets;
         rs2::frame _depth_merged_frame;
+        float _under_ir_saturated_Y8;
+        float _over_ir_saturated_Y8;
+        float _under_ir_saturated_Y16;
+        float _over_ir_saturated_Y16;
     };
     MAP_EXTENSION(RS2_EXTENSION_HDR_MERGE, librealsense::hdr_merge);
 
@@ -76,9 +80,9 @@ namespace librealsense
     {
         bool result = false;
         if (ir_format == RS2_FORMAT_Y8)
-            result = (ir_value > IR_UNDER_SATURATED_VALUE_Y8) && (ir_value < IR_OVER_SATURATED_VALUE_Y8);
+            result = (ir_value > _under_ir_saturated_Y8) && (ir_value < _over_ir_saturated_Y8);
         else if (ir_format == RS2_FORMAT_Y16)
-            result = (ir_value > IR_UNDER_SATURATED_VALUE_Y16) && (ir_value < IR_OVER_SATURATED_VALUE_Y16);
+            result = (ir_value > _under_ir_saturated_Y16) && (ir_value < _over_ir_saturated_Y16);
         else
             result = false;
         return result;
