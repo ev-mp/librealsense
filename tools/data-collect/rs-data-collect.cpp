@@ -67,7 +67,7 @@ void data_collector::parse_and_configure(ValueArg<string>& config_file)
         std::sort(user_requests.begin(), user_requests.end(),
             [](const stream_request& l, const stream_request& r) { return l._stream_type < r._stream_type; });
 
-        for (auto i = 0; i < user_requests.size() - 1; i++)
+        for (auto i = 0UL; i < user_requests.size() - 1; i++)
         {
             if ((user_requests[i]._stream_type == user_requests[i + 1]._stream_type) && ((user_requests[i]._stream_idx == user_requests[i + 1]._stream_idx)))
                 throw runtime_error(stringify() << "Invalid configuration file - multiple requests for the same sensor:\n"
@@ -113,6 +113,12 @@ void data_collector::save_data_to_file(const string& out_filename)
         << "] frames recorded per stream\nSerializing captured results to "
         << out_filename << std::endl;
 
+    // Calculate frames statistics
+    for (const auto& elem : data_collection)
+    {
+        stats_collection[elem.first] = calculate_stream_statistics(elem.first.first, elem.second);
+    }
+
     // Serialize and store data into csv-like format
     ofstream csv(out_filename);
     if (!csv.is_open())
@@ -124,12 +130,13 @@ void data_collector::save_data_to_file(const string& out_filename)
 
     for (const auto& elem : data_collection)
     {
+        //Evgeni elem represent a stream with all its frames recorded
         csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms)"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
             << std::endl;
 
-        for (auto i = 0; i < elem.second.size(); i++)
+        for (auto i = 0UL; i < elem.second.size(); i++)
             csv << elem.second[i].to_string();
     }
 }
@@ -222,6 +229,24 @@ bool data_collector::parse_configuration(const std::string& line, const std::vec
     }
 
     return res;
+}
+
+data_collector::stream_statistics data_collector::calculate_stream_statistics(rs2_stream stream, const std::vector<frame_record>& input) const
+{
+    stream_statistics stats{};
+    if (input.size() < 2)
+    {
+        std::cout << "Not enough frames for statistics for stream " << stream << std::endl;
+    }
+    else
+    {
+        for (size_t i = 0; i < input.size(); i++)
+        {
+
+        }
+    }
+
+    return stats;
 }
 
 // Assign the user configuration to the selected device
