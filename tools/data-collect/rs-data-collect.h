@@ -37,6 +37,7 @@ using namespace TCLAP;
 namespace rs_data_collect
 {
     const uint64_t  DEF_FRAMES_NUMBER = 100;
+    constexpr uint32_t HIST_INTERVALS = 32; // Use 30 bins + 2 empty bins to wrap min/max boundaries
     const std::string DEF_OUTPUT_FILE_NAME("frames_data.csv");
 
     // Split string into token,  trim unreadable characters
@@ -158,6 +159,7 @@ namespace rs_data_collect
             << req._stream_format << ", [" << req._width << "x" << req._height << "], " << req._fps << "fps" << std::endl;
     }
 
+
     enum config_params {
         e_stream_type,
         e_res_width,
@@ -219,7 +221,7 @@ namespace rs_data_collect
                 if (val_in_range(_stream_type,{RS2_STREAM_POSE}))
                     specific_attributes = 7;
 
-                for (auto i=0; i<specific_attributes; i++)
+                for (auto i=0UL; i<specific_attributes; i++)
                     ss << "," << _params[i];
 
                 return ss.str().c_str();
@@ -234,10 +236,29 @@ namespace rs_data_collect
             std::array<double,7>    _params;            // |The parameters are optional and sensor specific
         };
 
+
+        struct intervals_stats
+        {
+            float _interval_min, _interval_max, _interval_average, interval_mean,interval_std;
+            std::array<int, HIST_INTERVALS> _interval_hist;
+            std::array<float, HIST_INTERVALS> _interval_bins;
+        };
+
+        struct stream_statistics
+        {
+            std::map<uint32_t, uint32_t> _frame_drops_summary;                      // Sequencial drops: number of occurances
+            std::vector<std::pair<uint32_t, uint32_t>> _frame_drops_occurances;     // Frame index at occurance: number of frame drops registered
+            intervals_stats hw_intervals;                                           // Stats on FW-generated timestamps
+            intervals_stats be_intervals;                                           // Back-end timestamps
+            intervals_stats host_intervals;                                         // User-space timestamps
+            bool valid = false;
+        };
+
     private:
 
         std::shared_ptr<rs2::device>        _dev;
         std::map<std::pair<rs2_stream, int>, std::vector<frame_record>> data_collection;
+        std::map<std::pair<rs2_stream, int>, stream_statistics > stats_collection;
         std::vector<stream_request>         requests_to_go, user_requests;
         std::vector<rs2::sensor>            active_sensors;
         std::vector<rs2::stream_profile>    selected_stream_profiles;
@@ -247,6 +268,8 @@ namespace rs_data_collect
 
         bool parse_configuration(const std::string& line, const std::vector<std::string>& tokens,
             rs2_stream& type, int& width, int& height, rs2_format& format, int& fps, int& index);
+
+        stream_statistics calculate_stream_statistics(rs2_stream stream, const std::vector<frame_record>& input) const;
 
         // Assign the user configuration to the selected device
         bool configure_sensors();
