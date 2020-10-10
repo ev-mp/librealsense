@@ -13,6 +13,7 @@
 #include <regex>
 #include <iostream>
 #include <algorithm>
+#include <numeric>
 
 using namespace std;
 using namespace TCLAP;
@@ -113,24 +114,79 @@ void data_collector::save_data_to_file(const string& out_filename)
         << "] frames recorded per stream\nSerializing captured results to "
         << out_filename << std::endl;
 
+    // Serialize and store data into csv-like format
+    ofstream csv(out_filename);
+    if (!csv.is_open())
+        throw runtime_error(stringify() << "Cannot open the requested output file " << out_filename << ", please check permissions");
+
+
+    csv << "Configuration:\nStream Type,Stream Name,Format,FPS,Width,Height\n";
+    for (const auto& elem : selected_stream_profiles)
+        csv << get_profile_description(elem);
+
     // Calculate frames statistics
     for (const auto& elem : data_collection)
     {
         stats_collection[elem.first] = calculate_stream_statistics(elem.first.first, elem.second);
     }
 
-    // Serialize and store data into csv-like format
-    ofstream csv(out_filename);
-    if (!csv.is_open())
-        throw runtime_error(stringify() << "Cannot open the requested output file " << out_filename << ", please check permissions");
+    // Print out all stats info
+    for (const auto& elem : stats_collection)
+    {
+        auto& stat = elem.second;
+        //Evgeni elem represent a stream with all its frames recorded
+        if (stat.valid)
+        {
+            csv << "\nStatistics for stream," << elem.first.first;
+            csv << "\nFrames arrived:," << data_collection.at(elem.first).size() 
+                << ",[" << data_collection.at(elem.first).front()._frame_number << "-"
+                << data_collection.at(elem.first).back()._frame_number << "]";
+            csv << "\nFrame Drop Summary:,";
+            if (stat._frame_drops_summary.size())
+            {
+                "\nFrame number gap,";
+                for (auto const& reg : stat._frame_drops_summary)  csv << reg.first << ",";
+                csv << "\nOccurances,";
+                for (auto const& reg : stat._frame_drops_summary)  csv << reg.second << ",";
+                csv << std::endl;
+            }
+            else
+                csv << "Zero frame drops\n" ;
 
-    csv << "Configuration:\nStream Type,Stream Name,Format,FPS,Width,Height\n";
-    for (const auto& elem : selected_stream_profiles)
-        csv << get_profile_description(elem);
+            // Find the expected interval
+            double expected_interval = 1;
+            for (const auto& sp : selected_stream_profiles)
+            {
+                if (sp.stream_type() == elem.first.first)
+                {
+                    expected_interval = 1000. / sp.fps();
+                    break;
+                }
+            }
+            for (auto val : { hw_intervals, be_intervals, host_intervals })
+            {
+                auto data = stat._intervals[val];
+                csv << "\n" << interval_names.at(val) << ",golden,min,max,mean,avg,stdev\n,";
+                csv << expected_interval << ","
+                    << data._interval_min << ","
+                    << data._interval_max << ","
+                    << data._interval_mean << ","
+                    << data._interval_average << ","
+                    << data.interval_stdev << ","
+                << "\nBins:,";
+                for (auto& val : data._interval_bins) csv << val << ",";
+                csv << "\nOccurances:,";
+                for (auto& val : data._interval_hist) csv << val << ",";
+                csv << std::endl;
+            }
+
+        }
+    }
+
 
     for (const auto& elem : data_collection)
     {
-        //Evgeni elem represent a stream with all its frames recorded
+        // elem represent a stream with all its frames recorded
         csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms)"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
@@ -145,11 +201,13 @@ void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_po
 {
     auto arrival_time = std::chrono::duration<double, std::milli>(chrono::high_resolution_clock::now() - start_time);
     auto stream_uid = std::make_pair(f.get_profile().stream_type(), f.get_profile().stream_index());
+    double be_time = f.supports_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP) ? static_cast<double>(f.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP)) : 0.;
 
     if (data_collection[stream_uid].size() < _max_frames)
     {
         frame_record rec{ f.get_frame_number(),
             f.get_timestamp(),
+            be_time,
             arrival_time.count(),
             f.get_frame_timestamp_domain(),
             f.get_profile().stream_type(),
@@ -240,10 +298,90 @@ data_collector::stream_statistics data_collector::calculate_stream_statistics(rs
     }
     else
     {
-        for (size_t i = 0; i < input.size(); i++)
+        std::array<std::thread, 3> workers;
+        stats.valid = true;
+        int index = 0;
+        //int human::* ptr = &human::height;
+        for (double frame_record::* field : { &frame_record::_ts , &frame_record::_be_ts, &frame_record::_arrival_time, })
         {
+            workers[index] = std::thread([this, input, field, &stats, index](){
 
+                // Filter out only the sequential frames
+                auto& stat = stats._intervals[index];
+                auto& filtered = stats._intervals[index]._intervals_filtered;
+
+                for (size_t i = 1; i < input.size(); i++)
+                {
+                    auto frame_diff = input[i]._frame_number - input[i - 1]._frame_number;
+                    if (1 == frame_diff)
+                    {
+                        filtered.push_back(input[i].*field - input[i - 1].*field); // Trace only the sequential records
+                    }
+                    else // Frame drop occurred
+                    {
+                        if (index == 0) // The first worker thread will caclulate the drops statistics
+                        {
+                            auto reason = (frame_diff > 1) ? frame_drop : (frame_diff == 0 ? counter_stuck : counter_inconsistent);
+                            frame_drop_data drop= { input[i - 1]._frame_number , input[i]._frame_number, input[i - 1]._ts , input[i]._ts, reason };
+                            stats._frame_drops_occurances.push_back(std::make_pair(input[i - 1]._frame_number, drop));
+                            // All inconsistencies will be gathered under the same category
+                            if (frame_diff < 0 ) frame_diff = -1;
+                            stats._frame_drops_summary[frame_diff] += 1;
+                        }
+                    }
+                }
+
+                // Calculate basic stats
+                std::sort(filtered.begin(), filtered.end());
+                stat._interval_min = filtered.front();
+                stat._interval_max = filtered.back();
+                stat._interval_mean = filtered.at(filtered.size() / 2);
+                auto avg = std::accumulate(filtered.begin(), filtered.end(), 0.0) / filtered.size();
+                stat._interval_average = avg;
+
+                // Calc stdev
+                std::vector<double> diff(filtered.size());
+                std::transform(filtered.begin(), filtered.end(), diff.begin(), [avg](double sample) { return sample - avg; });
+                double sum_sq = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+                stat.interval_stdev = std::sqrt(sum_sq / diff.size());
+
+                // Calc histogram for floating point using preallocated bins
+                // Set bin values with last and first being empty (bins -2 borders -1 (++split))
+                auto bin_size = (stat._interval_max - stat._interval_min) / (stat._interval_bins.size() - 3);
+                auto current = stat._interval_min - ( 2* bin_size); // start with border (empty value)
+                std::generate(stat._interval_bins.begin(), stat._interval_bins.end(), [&current, bin_size]() { current += bin_size; return current; });
+
+                auto filt_iter = filtered.begin();
+                auto bin_iter = stat._interval_bins.begin();
+                int64_t count = 0;
+                for (size_t i = 1; i < stat._interval_bins.size()-1; )
+                {
+                    //std::cout << "Looking into bin " << i << " with lower bound " << stat._interval_bins[i] << std::endl;;
+                    // Find first element that is greater than the upper bound of that bin
+                    filt_iter = std::lower_bound(filt_iter, filtered.end(), stat._interval_bins[i]);
+                    if (filt_iter != filtered.end())
+                    {
+                        auto dist = std::distance(filtered.begin(), filt_iter) +1; // count is zero-indexed
+                        // Find the next bin to look up
+                        bin_iter = std::upper_bound(bin_iter, stat._interval_bins.end(), *filt_iter);
+                        i = std::distance(stat._interval_bins.begin(), bin_iter);
+                        //std::cout << " Val " << *filt_iter << " at index " << dist << " will be assigned to bin " << i << " with upper bound " << *bin_iter << std::endl;
+                        stat._interval_hist[i-1] = dist - count;
+                        count = dist;
+
+                        //std::cout << "Frames counted " << count << " Bin index = " << i << " Val: " << stat._interval_hist[i] << std::endl;;
+                    }
+                    else
+                        i = stat._interval_bins.size();
+                }
+            });
+
+            index++;
         }
+
+        for (auto& worker : workers)
+            if (worker.joinable())
+                worker.join();
     }
 
     return stats;

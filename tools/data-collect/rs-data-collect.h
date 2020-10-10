@@ -39,6 +39,15 @@ namespace rs_data_collect
     const uint64_t  DEF_FRAMES_NUMBER = 100;
     constexpr uint32_t HIST_INTERVALS = 32; // Use 30 bins + 2 empty bins to wrap min/max boundaries
     const std::string DEF_OUTPUT_FILE_NAME("frames_data.csv");
+    const uint8_t hw_intervals = 0;
+    const uint8_t be_intervals = 1;
+    const uint8_t host_intervals = 2;
+
+    static const std::map<uint8_t, std::string> interval_names = {
+    { hw_intervals,     "FW Intervals"},
+    { be_intervals,     "Back-end intervals"},
+    { host_intervals,   "App Intervals"} };
+
 
     // Split string into token,  trim unreadable characters
     inline std::vector<std::string> tokenize(std::string line, char separator)
@@ -176,6 +185,7 @@ namespace rs_data_collect
         stop_on_any
     };
 
+
     class data_collector
     {
     public:
@@ -191,14 +201,16 @@ namespace rs_data_collect
 
         const std::vector<rs2::sensor>& selected_sensors() const { return active_sensors; };
 
+        //template<typename S, class Field>
         struct frame_record
         {
-            frame_record(unsigned long long frame_number, double frame_ts, double host_ts,
+            frame_record(unsigned long long frame_number, double frame_ts, double host_ts, double backend_ts,
                        rs2_timestamp_domain domain, rs2_stream stream_type,int stream_index,
                        double _p1=0., double _p2=0., double _p3=0.,
                        double _p4=0., double _p5=0., double _p6=0., double _p7=0.):
             _frame_number(frame_number),
             _ts(frame_ts),
+            _be_ts(backend_ts),
             _arrival_time(host_ts),
             _domain(domain),
             _stream_type(stream_type),
@@ -229,6 +241,7 @@ namespace rs_data_collect
 
             unsigned long long      _frame_number;
             double                  _ts;                // Device-based timestamp. (msec).
+            double                  _be_ts;             // UVC-Driver time of arrival
             double                  _arrival_time;      // Host arrival timestamp, relative to start streaming (msec)
             rs2_timestamp_domain    _domain;            // The origin of device-based timestamp. Note that Device timestamps may require kernel patches
             rs2_stream              _stream_type;
@@ -239,18 +252,28 @@ namespace rs_data_collect
 
         struct intervals_stats
         {
-            float _interval_min, _interval_max, _interval_average, interval_mean,interval_std;
-            std::array<int, HIST_INTERVALS> _interval_hist;
-            std::array<float, HIST_INTERVALS> _interval_bins;
+            double _interval_min, _interval_max, _interval_average, _interval_mean,interval_stdev;
+            std::array<size_t, HIST_INTERVALS> _interval_hist;
+            std::array<double, HIST_INTERVALS> _interval_bins;
+            std::vector<double> _intervals_filtered;
+        };
+
+        enum drop_reason  { frame_drop, counter_stuck, counter_inconsistent };
+
+        struct frame_drop_data
+        {
+            uint64_t    prev_fn;
+            uint64_t    current_fn;
+            double      prev_ts;
+            double      cur_ts;
+            drop_reason reason;
         };
 
         struct stream_statistics
         {
-            std::map<uint32_t, uint32_t> _frame_drops_summary;                      // Sequencial drops: number of occurances
-            std::vector<std::pair<uint32_t, uint32_t>> _frame_drops_occurances;     // Frame index at occurance: number of frame drops registered
-            intervals_stats hw_intervals;                                           // Stats on FW-generated timestamps
-            intervals_stats be_intervals;                                           // Back-end timestamps
-            intervals_stats host_intervals;                                         // User-space timestamps
+            std::map<int64_t, uint32_t> _frame_drops_summary;                           // Frame diff: number of occurances
+            std::vector<std::pair<uint64_t, frame_drop_data>> _frame_drops_occurances;  // Frame index at occurance: diff data
+            std::array<intervals_stats, 3> _intervals;                                  // Stats on FW-generated, Back-end and User-space timestamps
             bool valid = false;
         };
 
