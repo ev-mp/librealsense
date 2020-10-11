@@ -398,6 +398,13 @@ bool data_collector::configure_sensors()
     // Configure and starts streaming
     for (auto&& sensor : _dev->query_sensors())
     {
+        // Disable global timer for all sensors to expose actual HW timestamps
+        if (sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+        {
+            if (sensor.get_option(RS2_OPTION_GLOBAL_TIME_ENABLED))
+                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 0.f);
+        }
+
         for (auto& profile : sensor.get_stream_profiles())
         {
             // All requests have been resolved
