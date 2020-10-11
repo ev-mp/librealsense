@@ -398,11 +398,16 @@ bool data_collector::configure_sensors()
     // Configure and starts streaming
     for (auto&& sensor : _dev->query_sensors())
     {
-        // Disable global timer for all sensors to expose actual HW timestamps
-        if (sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+        // Disable performance-affecting settings
+        // Disable Global Timer for to expose actual HW timestamps
+        // Disable AE to avoid FPS changes due to ambient conditions - TODO need to recalculate and overwrite manual exposure for preset FPS.
+        for (auto opt : {/*RS2_OPTION_ENABLE_AUTO_EXPOSURE,*/ RS2_OPTION_GLOBAL_TIME_ENABLED})
         {
-            if (sensor.get_option(RS2_OPTION_GLOBAL_TIME_ENABLED))
-                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 0.f);
+            if (sensor.supports(opt))
+            {
+                if (sensor.get_option(opt))
+                    sensor.set_option(opt, 0.f);
+            }
         }
 
         for (auto& profile : sensor.get_stream_profiles())
