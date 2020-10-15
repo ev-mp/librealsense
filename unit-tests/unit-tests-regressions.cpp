@@ -149,70 +149,76 @@ TEST_CASE("Frame Drops", "[live]"){
                 auto dev = list[0];
                 CAPTURE(dev.get_info(RS2_CAMERA_INFO_NAME));
                 disable_sensitive_options_for(dev);
-                for (auto& snr : dev.query_sensors())
-                {
-                    if (snr.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
-                        snr.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,0.f);
+//                for (auto& snr : dev.query_sensors())
+//                {
+//                    if (snr.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+//                        snr.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,0.f);
 
-                    if (snr.supports(RS2_OPTION_ERROR_POLLING_ENABLED))
-                    {
-                        snr.set_option(RS2_OPTION_ERROR_POLLING_ENABLED,1.f);
-                        snr.set_notifications_callback([&](rs2::notification n)
-                        {
-                            std::unique_lock<std::mutex> lock(m);
-                            WARN("Notification: " << n.get_severity() << " : " << n.get_description());
-                        });
-                    }
-                }
+//                    if (snr.supports(RS2_OPTION_ERROR_POLLING_ENABLED))
+//                    {
+//                        snr.set_option(RS2_OPTION_ERROR_POLLING_ENABLED,1.f);
+//                        snr.set_notifications_callback([&](rs2::notification n)
+//                        {
+//                            std::unique_lock<std::mutex> lock(m);
+//                            WARN("Notification: " << n.get_severity() << " : " << n.get_description());
+//                        });
+//                    }
+//                }
 
                 std::mutex m;
                 size_t drops_count=0;
                 bool all_streams = true;
-                int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+                int fps = is_usb3(dev) ? 60 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+                float interval_msec = 1000.f / fps;
 
                 for (auto i = 0; i < 10000; i++)
                 {
                     std::map<std::string, size_t> frames_per_stream{};
                     std::map<std::string, size_t> last_frame_per_stream{};
+                    std::map<std::string, double> last_frame_ts_per_stream{};
                     std::vector<std::string> drop_descriptions;
                     bool iter_finished  =false;
 
-                    auto profiles = configure_all_supported_streams(dev, 640, 480, fps);
+                    auto profiles = configure_all_supported_streams(dev, 848, 480, fps);
                     drops_count=0;
 
                     auto start_time = std::chrono::high_resolution_clock::now();
                     std::cout << "Iteration " << i << " started, time =  " << std::dec << start_time.time_since_epoch().count() << std::endl;
                     for (auto s : profiles.first)
                     {
-                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&drops_count,&drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles](rs2::frame f)
+                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&last_frame_ts_per_stream,&drops_count,&drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles,interval_msec](rs2::frame f)
                             {
                                 auto time_elapsed = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
                                 auto stream_name = f.get_profile().stream_name();
                                 auto fn = f.get_frame_number();
+                                auto ts = f.get_timestamp();
 
                                 if (frames_per_stream[stream_name])
                                 {
-
                                     auto prev_fn = last_frame_per_stream[stream_name];
+                                    auto prev_ts = last_frame_ts_per_stream[stream_name];
                                     auto arrival_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
-                                    // Skip events during the very first second
-                                    if (time_elapsed.count() > 1000)
+                                    // Skip events during the first 2 second
+                                    if (time_elapsed.count() > 2000)
                                     {
                                         if (RS2_FORMAT_MOTION_XYZ32F != f.get_profile().format())
                                         {
-                                            if (fn && (fn > prev_fn) &&((fn - prev_fn) > 1))
+                                            if ((fn && (fn > prev_fn) &&((fn - prev_fn) > 2)) || ((ts - prev_ts) >= (interval_msec*2.5)))
                                             {
-                                                if ((fn - prev_fn) > 1)
-                                                    drops_count++;
+                                                //if ((fn - prev_fn) > 1)
+                                                //drops_count++;
                                                 std::stringstream s;
-                                                s << "Frame drop was recognized for " << stream_name<< " jumped from " << prev_fn << " to "
-                                                  << fn << "step fn-prev= " << (fn-prev_fn)
-                                                  << std::fixed << std::setprecision(3) << ", ts " << f.get_timestamp()
-                                                  << " domain " << f.get_frame_timestamp_domain()
-                                                  << " time elapsed: " << time_elapsed.count()/1000.f << " sec";
+                                                s << "Frame drop was recognized for " << stream_name << " jump from fn " << prev_fn << "  to fn " << fn
+                                                  << " from " << std::fixed << std::setprecision(3) << prev_ts << " to "
+                                                  << ts << " while expected ts = " << (prev_ts + interval_msec)
+                                                  << ", ts domain " << f.get_frame_timestamp_domain()
+                                                  << " time elapsed: " << time_elapsed.count()/1000.f << " sec, host time: "
+                                                  << std::chrono::high_resolution_clock::now().time_since_epoch().count();
                                                 if (f.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
                                                     s << " hw ts: " << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << " = 0x"
-                                                      <<std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
+                                                      << std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
+                                                WARN(s.str().c_str());
+                                                exit(1);
                                                 drop_descriptions.emplace_back(s.str().c_str());
                                             }
                                         }
@@ -248,6 +254,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                 }
                                 ++frames_per_stream[stream_name];
                                 last_frame_per_stream[stream_name] = fn;
+                                last_frame_ts_per_stream[stream_name] = ts;
                                 {
                                     std::lock_guard<std::mutex> lock(m);
                                     if (drops_count /*|| (!all_streams)*/)

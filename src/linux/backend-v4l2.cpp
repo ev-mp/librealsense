@@ -401,6 +401,10 @@ namespace librealsense
                 }
             }
 
+            if (nullptr == md_start)
+            {
+                LOG_WARNING("Could not parse metadata");
+            }
             set_md_attributes(static_cast<uint8_t>(md_size),md_start);
         }
 
@@ -882,6 +886,7 @@ namespace librealsense
 
             struct timeval expiration_time = { mono_time.tv_sec + 5, mono_time.tv_nsec / 1000 };
             int val = 0;
+            LOG_DEBUG_V4L("Select initiated");
             do {
                 struct timeval remaining;
                 ret = clock_gettime(CLOCK_MONOTONIC, &mono_time);
@@ -894,9 +899,10 @@ namespace librealsense
                 }
                 else {
                     val = 0;
+                    LOG_DEBUG_V4L("Select timeouted");
                 }
             } while (val < 0 && errno == EINTR);
-
+            LOG_DEBUG_V4L("Select done, val = " << val);
             if(val < 0)
             {
                 stop_data_capture();
@@ -982,6 +988,8 @@ namespace librealsense
                                             s << "overflow video frame detected!\nSize " << buf.bytesused
                                                 << ", payload size " << buffer->get_length_frame_only();
                                     }
+                                    //buf_mgr.request_next_frame(); // Evgeni  -try 1
+                                    LOG_WARNING("Incomplete frame received: " << s.str()); // Ev -try1
                                     librealsense::notification n = { RS2_NOTIFICATION_CATEGORY_FRAME_CORRUPTED, 0, RS2_LOG_SEVERITY_WARN, s.str()};
 
                                     _error_handler(n);
@@ -1694,7 +1702,7 @@ namespace librealsense
         std::shared_ptr<uvc_device> v4l_backend::create_uvc_device(uvc_device_info info) const
         {
             auto v4l_uvc_dev = (!info.has_metadata_node) ? std::make_shared<v4l_uvc_device>(info) :
-                                                           std::make_shared<v4l_uvc_meta_device>(info);
+                                                           std::make_shared<v4l_uvc_meta_device/*v4l_uvc_device*/>(info); // Evgeni
 
             return std::make_shared<platform::retry_controls_work_around>(v4l_uvc_dev);
         }
