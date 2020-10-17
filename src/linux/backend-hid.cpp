@@ -252,7 +252,9 @@ namespace librealsense
                     size_t read_size = 0;
 
                     struct timeval tv = {5,0};
+                    LOG_DEBUG("HID Select initiated");
                     auto val = select(max_fd + 1, &fds, nullptr, nullptr, &tv);
+                    LOG_DEBUG("HID Select done, val = " << val);
                     if (val < 0)
                     {
                         // TODO: write to log?
@@ -277,9 +279,15 @@ namespace librealsense
                         else
                         {
                             // TODO: write to log?
+                            LOG_WARNING("HID unresolved event : after select->FD_ISSET");
                             continue;
                         }
 
+                        auto sz= read_size / channel_size;
+                        if (sz > 2)
+                        {
+                            LOG_DEBUG("HID: Going to handle " <<  sz << " packets");
+                        }
                         for (auto i = 0; i < read_size / channel_size; ++i)
                         {
                             auto p_raw_data = raw_data.data() + channel_size * i;
@@ -290,6 +298,10 @@ namespace librealsense
 
                             sens_data.fo = {channel_size, channel_size, p_raw_data, p_raw_data};
                             this->_callback(sens_data);
+                        }
+                        if (sz > 2)
+                        {
+                            LOG_DEBUG("HID: Finished to handle " <<  sz << " packets");
                         }
                     }
                     else
@@ -524,7 +536,9 @@ namespace librealsense
                     ssize_t read_size = 0;
 
                     struct timeval tv = {5, 0};
+                    LOG_DEBUG("HID IIO Select initiated");
                     auto val = select(max_fd + 1, &fds, nullptr, nullptr, &tv);
+                    LOG_DEBUG("HID IIO Select done, val = " << val);
                     if (val < 0)
                     {
                         // TODO: write to log?
@@ -549,11 +563,17 @@ namespace librealsense
                         else
                         {
                             // TODO: write to log?
+                            LOG_WARNING("HID IIO unresolved event : after select->FD_ISSET");
                             continue;
                         }
 
+                        auto sz= read_size / channel_size;
+                        if (sz > 2)
+                        {
+                            LOG_DEBUG("HID: Going to handle " <<  sz << " packets");
+                        }
                         // TODO: code refactoring to reduce latency
-                        for (auto i = 0; i < read_size / channel_size; ++i)
+                        for (auto i = 0; i < sz; ++i)
                         {
                             auto now_ts = std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
                             auto p_raw_data = raw_data.data() + channel_size * i;
@@ -591,6 +611,10 @@ namespace librealsense
 //                            std::cout << std::dec << std::endl;
 
                             this->_callback(sens_data);
+                        }
+                        if (sz > 2)
+                        {
+                            LOG_DEBUG("HID: Finished to handle " <<  sz << " packets");
                         }
                     }
                     else
