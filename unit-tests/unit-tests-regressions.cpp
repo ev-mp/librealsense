@@ -168,7 +168,7 @@ TEST_CASE("Frame Drops", "[live]"){
                 std::mutex m;
                 size_t drops_count=0;
                 bool all_streams = true;
-                int fps = is_usb3(dev) ? 60 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+                int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
                 float interval_msec = 1000.f / fps;
 
                 for (auto i = 0; i < 10000; i++)
@@ -179,7 +179,7 @@ TEST_CASE("Frame Drops", "[live]"){
                     std::vector<std::string> drop_descriptions;
                     bool iter_finished  =false;
 
-                    auto profiles = configure_all_supported_streams(dev, 848, 480, fps);
+                    auto profiles = configure_all_supported_streams(dev, 640, 480, fps);
                     drops_count=0;
 
                     auto start_time = std::chrono::high_resolution_clock::now();
