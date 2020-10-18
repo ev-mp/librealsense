@@ -535,13 +535,15 @@ namespace librealsense
                     int max_fd = std::max(_stop_pipe_fd[0], _fd);
                     ssize_t read_size = 0;
 
-                    struct timeval tv = {5, 0};
+                    // Evgeni struct timeval tv = {5, 0};
+                    struct timeval tv = {0, 10000}; // Hold no longer than 10 msec
                     LOG_DEBUG("HID IIO Select initiated");
                     auto val = select(max_fd + 1, &fds, nullptr, nullptr, &tv);
                     LOG_DEBUG("HID IIO Select done, val = " << val);
                     if (val < 0)
                     {
                         // TODO: write to log?
+                        LOG_WARNING("iio_hid_sensor: select failed");
                         continue;
                     }
                     else if (val > 0)
@@ -619,7 +621,13 @@ namespace librealsense
                     }
                     else
                     {
-                        LOG_WARNING("iio_hid_sensor: Frames didn't arrived within 5 seconds");
+                        LOG_WARNING("iio_hid_sensor: Frames didn't arrived within the predefined interval");
+                        // Use busy "sleep" to try and reduce the kernel blocking time
+                        auto start = std::chrono::high_resolution_clock::now();
+                        auto end = start + std::chrono::microseconds(2000);
+                        do {
+                            std::this_thread::yield();
+                        } while (std::chrono::high_resolution_clock::now() < end);
                     }
                 } while(this->_is_capturing);
             }));
