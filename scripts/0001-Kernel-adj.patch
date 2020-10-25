@@ -1,0 +1,66 @@
+From c99c2a236d7aaf6de70ce0704471f1271281e758 Mon Sep 17 00:00:00 2001
+From: Evgeni Raikhel <evgeni.raikhel@intel.com>
+Date: Sun, 25 Oct 2020 16:37:28 +0200
+Subject: [PATCH] Kernel adj
+
+---
+ drivers/media/usb/uvc/uvc_video.c | 22 +++++++++++++++++-----
+ 1 file changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/media/usb/uvc/uvc_video.c b/drivers/media/usb/uvc/uvc_video.c
+index 8fa77a81dd7f..4093c4c7351d 100644
+--- a/drivers/media/usb/uvc/uvc_video.c
++++ b/drivers/media/usb/uvc/uvc_video.c
+@@ -1054,12 +1054,22 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
+ 	 */
+ 	if (buf->state != UVC_BUF_STATE_ACTIVE) {
+ 		if (fid == stream->last_fid) {
+-			uvc_trace(UVC_TRACE_FRAME, "Dropping payload (out of "
+-				"sync).\n");
++			uvc_trace(UVC_TRACE_FRAME, "FID idle - buf state is %d.\n",
++				buf->state);
++			uvc_trace(UVC_TRACE_FRAME, "Would be Dropping payload (out of "
++				"sync. sequence = %d).\n", buf->buf.sequence);
+ 			if ((stream->dev->quirks & UVC_QUIRK_STREAM_NO_FID) &&
+ 			    (data[1] & UVC_STREAM_EOF))
+ 				stream->last_fid ^= UVC_STREAM_FID;
+-			return -ENODATA;
++
++			if (stream->sequence == buf->buf.sequence)
++			{
++				uvc_trace(UVC_TRACE_FRAME, "!! Dropping payload out of sync!"
++					", stream->sequence == buf->buf.sequence > %d).\n",
++					stream->sequence);
++				return -ENODATA;
++			}
++			//return -ENODATA; // Evgeni
+ 		}
+ 
+ 		buf->buf.field = V4L2_FIELD_NONE;
+@@ -1280,12 +1290,13 @@ static void uvc_video_decode_meta(struct uvc_streaming *stream,
+ 	meta_buf->bytesused += length + sizeof(meta->ns) + sizeof(meta->sof);
+ 
+ 	uvc_trace(UVC_TRACE_FRAME,
+-		  "%s(): t-sys %lluns, SOF %u, len %u, flags 0x%x, PTS %u, STC %u frame SOF %u\n",
++		  "%s(): t-sys %lluns, SOF %u, len %u, flags 0x%x, PTS %u, STC %u frame SOF %u Name %s\n",
+ 		  __func__, ktime_to_ns(time), meta->sof, meta->length,
+ 		  meta->flags,
+ 		  has_pts ? *(u32 *)meta->buf : 0,
+ 		  has_scr ? *(u32 *)scr : 0,
+-		  has_scr ? *(u32 *)(scr + 4) & 0x7ff : 0);
++		  has_scr ? *(u32 *)(scr + 4) & 0x7ff : 0,
++		  stream->dev->name);
+ }
+ 
+ /* ------------------------------------------------------------------------
+@@ -1523,6 +1534,7 @@ static void uvc_video_complete(struct urb *urb)
+ 	}
+ 
+ 	buf = uvc_queue_get_current_buffer(queue);
++	//uvc_printk(KERN_WARNING, "uvc_queue_get_current_buffer seq = %d\n", buf->buf.sequence);
+ 
+ 	if (vb2_qmeta) {
+ 		spin_lock_irqsave(&qmeta->irqlock, flags);
+-- 
+2.17.1
+
