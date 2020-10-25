@@ -15,7 +15,7 @@ index 8fa77a81dd7f..b3aaa2088e93 100644
  	}
  
  	buf = uvc_queue_get_current_buffer(queue);
-+	uvc_printk(KERN_WARNING, "uvc_queue_get_current_buffer seq = %d\n", buf->buf.sequence);
++	//uvc_printk(KERN_WARNING, "uvc_queue_get_current_buffer seq = %d\n", buf->buf.sequence);
  
  	if (vb2_qmeta) {
  		spin_lock_irqsave(&qmeta->irqlock, flags);
