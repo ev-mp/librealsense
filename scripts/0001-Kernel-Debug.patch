@@ -1,0 +1,24 @@
+From 649baf992de56664a4ec772a34cb8f64d0a4fc1c Mon Sep 17 00:00:00 2001
+From: Evgeni Raikhel <evgeni.raikhel@intel.com>
+Date: Sun, 25 Oct 2020 11:45:28 +0200
+Subject: [PATCH] Kernel Debug
+
+---
+ drivers/media/usb/uvc/uvc_video.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/media/usb/uvc/uvc_video.c b/drivers/media/usb/uvc/uvc_video.c
+index 8fa77a81dd7f..b3aaa2088e93 100644
+--- a/drivers/media/usb/uvc/uvc_video.c
++++ b/drivers/media/usb/uvc/uvc_video.c
+@@ -1523,6 +1523,7 @@ static void uvc_video_complete(struct urb *urb)
+ 	}
+ 
+ 	buf = uvc_queue_get_current_buffer(queue);
++	uvc_printk(KERN_WARNING, "uvc_queue_get_current_buffer seq = %d\n", buf->buf.sequence);
+ 
+ 	if (vb2_qmeta) {
+ 		spin_lock_irqsave(&qmeta->irqlock, flags);
+-- 
+2.17.1
+
