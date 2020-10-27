@@ -613,26 +613,6 @@ namespace librealsense
         register_option(id, std::make_shared<uvc_pu_option>(*this, id));
     }
 
-    void uvc_sensor::try_register_pu(rs2_option id)
-    {
-        auto opt = std::make_shared<uvc_pu_option>(*this, id);
-        try
-        {
-            auto range = opt->get_range();
-            if (range.max <= range.min || range.step <= 0 || range.def < range.min || range.def > range.max) return;
-
-            auto val = opt->query();
-            if (val < range.min || val > range.max) return;
-            opt->set(val);
-
-            register_option(id, opt);
-        }
-        catch (...)
-        {
-            LOG_WARNING("Exception was thrown when inspecting " << this->get_info(RS2_CAMERA_INFO_NAME) << " property " << opt->get_description());
-        }
-    }
-
     //////////////////////////////////////////////////////
     /////////////////// HID Sensor ///////////////////////
     //////////////////////////////////////////////////////
@@ -1049,6 +1029,40 @@ namespace librealsense
         sensor_base::register_option(id, option);
     }
 
+    bool synthetic_sensor::try_register_option(rs2_option id, std::shared_ptr<option> option)
+    {
+        bool res=false;
+        try
+        {
+            auto range = option->get_range();
+            if (range.max <= range.min || range.step <= 0 || range.def < range.min || range.def > range.max)
+            {
+                LOG_WARNING("Failed to add " << rs2_option_to_string(id)<< " control for " << this->get_info(RS2_CAMERA_INFO_NAME)
+                            << ": invalid descriptor: [min/max/step/default]= ["
+                            << range.min << "/" << range.max << "/" << range.step << "/" << range.def << "]");
+                return res;
+            }
+
+            // Check option's getter/setter
+            auto val = option->query();
+            if (val < range.min || val > range.max)
+            {
+                LOG_WARNING("Invalid initial control setting " << rs2_option_to_string(id)<< " detected (" << this->get_info(RS2_CAMERA_INFO_NAME)
+                            << ") : val = " << val << " range [min..max] = [" << range.min << "/" << range.max << "]");
+            }
+
+            // Register the option to both raw sensor and synthetic sensor.
+            register_option(id, option);
+            sensor_base::register_option(id, option);
+            res = true;
+        }
+        catch (...)
+        {
+            LOG_WARNING("Failed to add " << rs2_option_to_string(id)<< " control for " << this->get_info(RS2_CAMERA_INFO_NAME));
+        }
+        return res;
+    }
+
     void synthetic_sensor::unregister_option(rs2_option id)
     {
         _raw_sensor->unregister_option(id);
@@ -1059,6 +1073,12 @@ namespace librealsense
     {
         const auto&& raw_uvc_sensor = As<uvc_sensor, sensor_base>(_raw_sensor);
         register_option(id, std::make_shared<uvc_pu_option>(*raw_uvc_sensor.get(), id));
+    }
+
+    bool synthetic_sensor::try_register_pu(rs2_option id)
+    {
+        const auto&& raw_uvc_sensor = As<uvc_sensor, sensor_base>(_raw_sensor);
+        return try_register_option(id, std::make_shared<uvc_pu_option>(*raw_uvc_sensor.get(), id));
     }
 
     void synthetic_sensor::sort_profiles(stream_profiles* profiles)
