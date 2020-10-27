@@ -143,7 +143,7 @@ TEST_CASE("Frame Drops", "[live]"){
             for (size_t iter = 0; iter < 1000; iter++)
             {
                 std::vector<rs2::device> list;
-                REQUIRE_NOTHROW(list = ctx.query_devices());
+                REQUIRE_NOTHROW(list = ctx.query_devices(RS2_PRODUCT_LINE_ANY));
                 REQUIRE(list.size());
 
                 auto dev = list[0];
