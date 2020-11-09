@@ -168,7 +168,7 @@ TEST_CASE("Frame Drops", "[live]"){
                 std::mutex m;
                 size_t drops_count=0;
                 bool all_streams = true;
-                int fps = is_usb3(dev) ? 30 : 15; // In USB2 Mode the devices will switch to lower FPS rates
+                int fps = is_usb3(dev) ? 60 : 15; // In USB2 Mode the devices will switch to lower FPS rates
                 float interval_msec = 1000.f / fps;
 
                 for (auto i = 0; i < 10000; i++)
@@ -179,14 +179,21 @@ TEST_CASE("Frame Drops", "[live]"){
                     std::vector<std::string> drop_descriptions;
                     bool iter_finished  =false;
 
-                    auto profiles = configure_all_supported_streams(dev, 640, 480, fps);
+                    auto profiles = configure_all_supported_streams(dev, 848, 480, fps);
                     drops_count=0;
 
                     auto start_time = std::chrono::high_resolution_clock::now();
-                    std::cout << "Iteration " << i << " started, time =  " << std::dec << start_time.time_since_epoch().count() << std::endl;
+                    std::stringstream ss;
+                    ss << "Iteration " << i << " started, time =  " << std::dec << start_time.time_since_epoch().count() << std::endl;
+                    std::string syscl = "echo \"timecheck: $(date +%s.%N) = $(date +%FT%T,%N)\" | sudo tee /dev/kmsg";
+                    auto r = system(syscl.c_str());
+                    ss << "sys call result = " << r;
+                    rs2::log(RS2_LOG_SEVERITY_INFO,ss.str().c_str());
+                    std::cout << ss.str().c_str() << std::endl;
                     for (auto s : profiles.first)
                     {
-                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&last_frame_ts_per_stream,&drops_count,&drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles,interval_msec](rs2::frame f)
+                        REQUIRE_NOTHROW(s.start([&m, &frames_per_stream,&last_frame_per_stream,&last_frame_ts_per_stream,&drops_count,
+                                                &drop_descriptions,&cv,&all_streams,&iter_finished,start_time,profiles,interval_msec,syscl](rs2::frame f)
                             {
                                 auto time_elapsed = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time);
                                 auto stream_name = f.get_profile().stream_name();
@@ -203,7 +210,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                     {
                                         if (RS2_FORMAT_MOTION_XYZ32F != f.get_profile().format())
                                         {
-                                            if ((fn && (fn > prev_fn) &&((fn - prev_fn) > 2)) || ((ts - prev_ts) >= (interval_msec*2.5)))
+                                            if ((fn && (fn > prev_fn) &&((fn - prev_fn) > 2)) || (((ts - prev_ts) >= (interval_msec*3.5))))
                                             {
                                                 //if ((fn - prev_fn) > 1)
                                                 //drops_count++;
@@ -218,7 +225,11 @@ TEST_CASE("Frame Drops", "[live]"){
                                                     s << " hw ts: " << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << " = 0x"
                                                       << std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
                                                 WARN(s.str().c_str());
-                                                exit(1);
+                                                if (fabs(fn - prev_fn)< 20)
+                                                {
+                                                    system(syscl.c_str());
+                                                    exit(1);
+                                                }
                                                 drop_descriptions.emplace_back(s.str().c_str());
                                             }
                                         }
