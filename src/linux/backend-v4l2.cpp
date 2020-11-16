@@ -1020,7 +1020,7 @@ namespace librealsense
                                             s << "overflow video frame detected!\nSize " << buf.bytesused
                                                 << ", payload size " << buffer->get_length_frame_only();
                                     }
-                                    //buf_mgr.request_next_frame(); // Evgeni  -try 1
+                                    buf_mgr.request_next_frame(); // Evgeni
                                     LOG_WARNING("Incomplete frame received: " << s.str()); // Ev -try1
                                     librealsense::notification n = { RS2_NOTIFICATION_CATEGORY_FRAME_CORRUPTED, 0, RS2_LOG_SEVERITY_WARN, s.str()};
 

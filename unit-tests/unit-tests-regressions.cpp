@@ -152,7 +152,10 @@ TEST_CASE("Frame Drops", "[live]"){
 //                for (auto& snr : dev.query_sensors())
 //                {
 //                    if (snr.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+//                    {
+//                        REQUIRE(0.f ==snr.get_option(RS2_OPTION_GLOBAL_TIME_ENABLED));
 //                        snr.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,0.f);
+//                    }
 
 //                    if (snr.supports(RS2_OPTION_ERROR_POLLING_ENABLED))
 //                    {
