@@ -213,7 +213,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                     {
                                         if (RS2_FORMAT_MOTION_XYZ32F != f.get_profile().format())
                                         {
-                                            if ((fn && (fn > prev_fn) &&((fn - prev_fn) > 2)) || (((ts - prev_ts) >= (interval_msec*3.5))))
+                                            if ((fn && (fn > prev_fn) &&((fn - prev_fn) > 2) && ((fn - prev_fn) < 20)) || (((ts - prev_ts) >= (interval_msec*3.5))))
                                             {
                                                 //if ((fn - prev_fn) > 1)
                                                 //drops_count++;
