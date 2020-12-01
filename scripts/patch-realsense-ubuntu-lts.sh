@@ -155,8 +155,8 @@ then
 			patch -p1 < ../scripts/04-xhci-remove-unused-stopped_td-pointer.patch
 		fi
 		echo -e "\e[32mApplying kernel-debug patch\e[0m"
-		#patch -p1 < ../scripts/0001-Kernel-Debug.patch
 		patch -p1 < ../scripts/0001-Kernel-adj.patch
+		patch -p1 < ../scripts/0001-Change-UVC_URBS.patch
 	fi
 
 	#Copy configuration
