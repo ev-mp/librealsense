@@ -526,35 +526,6 @@ namespace librealsense
                 std::vector<uint8_t> raw_data(raw_data_size);
                 auto metadata = has_metadata();
 
-                // Evgeni - epoll instead of select
-//                struct epoll_event event1, event2, events[hid_buf_len];
-//                int epoll_fd = epoll_create1(0);
-//                if(epoll_fd == -1)
-//                {
-//                    LOG_ERROR("HID IIO - Failed to create epoll file descriptor");
-//                    return 1;
-//                }
-
-//                event1.events = EPOLLIN;
-//                event1.data.fd = _fd;
-////                event1.events = EPOLLIN;
-////                event1.data.fd = _stop_pipe_fd[0];
-
-//                for (auto evt : { event1/*, event2*/ })
-//                {
-//                    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, 0, &evt))
-//                    {
-//                      fprintf(stderr, "Failed to add file descriptor to epoll\n");
-//                      close(epoll_fd);
-//                      return 1;
-//                    }
-//                }
-//              struct pollfd fds[2];
-//              fds[0].fd = _stop_pipe_fd[0];
-//              fds[1].fd = _fd;
-//              fds[1].events = POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI;
-//              fds[2].events = POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI;
-
                 do {
                     fd_set fds;
                     FD_ZERO(&fds);
@@ -583,7 +554,7 @@ namespace librealsense
                             if(!_is_capturing)
                             {
                                 LOG_INFO("iio_hid_sensor: Stream finished");
-                                return 0;
+                                return;
                             }
                         }
                         else if (FD_ISSET(_fd, &fds))
@@ -652,12 +623,7 @@ namespace librealsense
                     else
                     {
                         LOG_WARNING("iio_hid_sensor: Frames didn't arrived within the predefined interval");
-                        // Use busy "sleep" to try and reduce the kernel blocking time
-                        auto start = std::chrono::high_resolution_clock::now();
-                        auto end = start + std::chrono::microseconds(2000);
-                        do {
-                            std::this_thread::yield();
-                        } while (std::chrono::high_resolution_clock::now() < end);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(2));
                     }
                 } while(this->_is_capturing);
             }));

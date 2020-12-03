@@ -2324,24 +2324,28 @@ AsyncDispatchWorker::~AsyncDispatchWorker() {
 }
 
 bool AsyncDispatchWorker::clean(void) {
-  std::mutex m;
+  std::mutex m; // Evgeni - this is bogus
   std::unique_lock<std::mutex> lk(m);
-  cv.wait(lk, [] { return !ELPP->asyncLogQueue()->empty(); });
-  emptyQueue();
+  try
+  {
+      //cv.wait(lk, [] { return (!(ELPP && ELPP->asyncLogQueue()) || (!ELPP->asyncLogQueue()->empty())); });
+      emptyQueue();
+  }
+  catch(...){}
   lk.unlock();
   cv.notify_one();
-  return ELPP->asyncLogQueue()->empty();
+  return (ELPP && ELPP->asyncLogQueue() &&ELPP->asyncLogQueue()->empty());
 }
 
 void AsyncDispatchWorker::emptyQueue(void) {
-  while (!ELPP->asyncLogQueue()->empty()) {
+  while (ELPP && ELPP->asyncLogQueue() && (!ELPP->asyncLogQueue()->empty())) {
     AsyncLogItem data = ELPP->asyncLogQueue()->next();
     handle(&data);
   }
 }
 
 void AsyncDispatchWorker::start(void) {
-  base::threading::msleep(5000); // 5s (why?)
+  // base::threading::msleep(5000); // 5s (why?) Evgeni - undefined
   setContinueRunning(true);
   m_t1 = std::thread(&AsyncDispatchWorker::run, this);
 }
@@ -2403,7 +2407,8 @@ void AsyncDispatchWorker::handle(AsyncLogItem* logItem) {
 void AsyncDispatchWorker::run(void) {
   while (continueRunning()) {
     emptyQueue();
-    base::threading::msleep(10); // 10ms
+    //base::threading::msleep(5);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5)); // Evgeni
   }
 }
 #endif  // ELPP_ASYNC_LOGGING
