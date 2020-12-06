@@ -131,15 +131,15 @@ TEST_CASE("DSO-14512", "[live]")
 
 TEST_CASE("Frame Drops", "[live]"){
     {
-        rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG,"lrs_frame_drops_repro.txt");
-        //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
         rs2::context ctx;
-
         std::condition_variable cv;
         std::mutex m;
 
         if (make_context(SECTION_FROM_TEST_NAME, &ctx))
         {
+            //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
+            rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG,"lrs_frame_drops_repro.txt");
+
             for (size_t iter = 0; iter < 1000; iter++)
             {
                 std::vector<rs2::device> list;
