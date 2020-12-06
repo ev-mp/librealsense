@@ -2324,8 +2324,8 @@ AsyncDispatchWorker::~AsyncDispatchWorker() {
 }
 
 bool AsyncDispatchWorker::clean(void) {
-  std::mutex m; // Evgeni - this is bogus
-  std::unique_lock<std::mutex> lk(m);
+  //std::mutex m; // Evgeni - this is bogus
+  std::unique_lock<std::mutex> lk(_mtx);
   try
   {
       //cv.wait(lk, [] { return (!(ELPP && ELPP->asyncLogQueue()) || (!ELPP->asyncLogQueue()->empty())); });
@@ -2338,9 +2338,14 @@ bool AsyncDispatchWorker::clean(void) {
 }
 
 void AsyncDispatchWorker::emptyQueue(void) {
-  while (ELPP && ELPP->asyncLogQueue() && (!ELPP->asyncLogQueue()->empty())) {
-    AsyncLogItem data = ELPP->asyncLogQueue()->next();
-    handle(&data);
+  while (ELPP && ELPP->asyncLogQueue() && (!(ELPP->asyncLogQueue()->empty())))
+  {
+      try // TODO Thread-safety
+      {
+        AsyncLogItem data = ELPP->asyncLogQueue()->next();
+        handle(&data);
+      }
+      catch(...){}
   }
 }
 
