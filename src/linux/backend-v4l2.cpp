@@ -958,12 +958,15 @@ namespace librealsense
                     {
                         bool md_extracted = false;
                         bool keep_md = false;
+                        bool wa_applied = false; // Evgeni  - debug
                         buffers_mgr buf_mgr(_use_memory_map);
                         if (_buf_dispatch.metadata_size())
                         {
                             buf_mgr = _buf_dispatch;
                             md_extracted = true;
+                            wa_applied = true;
                             _buf_dispatch.set_md_attributes(0,nullptr);
+                            _buf_dispatch.get_buffers().at(e_metadata_buf) = {};
                         }
                         // RAII to handle exceptions
                         std::unique_ptr<int, std::function<void(int*)> > md_poller(new int(0),
@@ -977,9 +980,12 @@ namespace librealsense
                                     {
                                         if (keep_md) // store internally for next poll cycle
                                         {
-                                            LOG_DEBUG_V4L("Poller stores buf for fd " << std::dec << buf_mgr.get_buffers().at(e_metadata_buf)._file_desc
-                                                          << " ,seq id = " << buf_mgr.get_buffers().at(e_metadata_buf)._dq_buf.index
-                                                          << " , metadata size = " << (int)buf_mgr.metadata_size());
+                                            auto fn = *(uint32_t*)((char*)(buf_mgr.metadata_start())+28);
+                                            auto mdb = buf_mgr.get_buffers().at(e_metadata_buf);
+                                            LOG_DEBUG_V4L("Poller stores buf for fd " << std::dec << mdb._file_desc
+                                                          << " ,seq = " << mdb._dq_buf.sequence << " v4l_buf " << mdb._dq_buf.index
+                                                          << " , metadata size = " << (int)buf_mgr.metadata_size()
+                                                          << ", fn = " << fn);
                                             _buf_dispatch  = buf_mgr; // TODO Evgeni it should override metadata buf only as dispatch may hold video buf from previous cycle
                                             buf_mgr.handle_buffer(e_metadata_buf,-1); // transfer new buffer request to next cycle
                                         }
@@ -1076,6 +1082,11 @@ namespace librealsense
                                     acquire_metadata(buf_mgr,fds,compressed_format);
                                     md_extracted = true;
 
+                                    if (wa_applied)
+                                    {
+                                        auto fn = *(uint32_t*)((char*)(buf_mgr.metadata_start())+28);
+                                        LOG_INFO("Extracting md buff, fn = " << fn);
+                                    }
                                     //if (val > 1)1
                                     //    LOG_INFO("Frame buf ready, md size: " << std::dec << (int)buf_mgr.metadata_size() << " seq. id: " << buf.sequence);
                                     frame_object fo{ std::min(buf.bytesused - buf_mgr.metadata_size(), buffer->get_length_frame_only()), buf_mgr.metadata_size(),
@@ -1745,7 +1756,15 @@ namespace librealsense
 
                     //throw linux_backend_exception(to_string() << "xioctl(VIDIOC_DQBUF) failed for metadata fd: " << _md_fd);
                 }
-                LOG_DEBUG_V4L("Dequeued md buf " << std::dec << buf.index << " for fd " << _md_fd << " seq " << buf.sequence);
+
+                //Debug
+                auto a = _md_buffers[buf.index]->get_frame_start();
+                auto hwts = *(uint32_t*)((a+2));
+                auto fn = *(uint32_t*)((a+38));
+
+                LOG_DEBUG_V4L("Dequeued md buf " << std::dec << buf.index << " for fd " << _md_fd << " seq " << buf.sequence
+                             << " fn " << fn << " hw ts " << hwts
+                              << " v4lbuf ts usec " << buf.timestamp.tv_usec);
 
                 auto buffer = _md_buffers[buf.index];
                 buf_mgr.handle_buffer(e_metadata_buf,_md_fd, buf,buffer);
