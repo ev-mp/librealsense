@@ -2338,12 +2338,15 @@ bool AsyncDispatchWorker::clean(void) {
 }
 
 void AsyncDispatchWorker::emptyQueue(void) {
-  while (ELPP && ELPP->asyncLogQueue() && (!(ELPP->asyncLogQueue()->empty())))
+  if (ELPP && ELPP->asyncLogQueue())
   {
       try // TODO Thread-safety
       {
-        AsyncLogItem data = ELPP->asyncLogQueue()->next();
-        handle(&data);
+        for (auto i=0UL; i< ELPP->asyncLogQueue()->size(); i++)
+        {
+          AsyncLogItem data = ELPP->asyncLogQueue()->next();
+          handle(&data);
+        }
       }
       catch(...){}
   }

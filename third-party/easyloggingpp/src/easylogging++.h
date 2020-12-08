@@ -2541,6 +2541,10 @@ class AsyncLogQueue : public base::threading::ThreadSafe {
     base::threading::ScopedLock scopedLock(lock());
     return m_queue.empty();
   }
+  inline size_t size(void) {
+    base::threading::ScopedLock scopedLock(lock());
+    return m_queue.size();
+  }
  private:
   std::queue<AsyncLogItem> m_queue;
 };
