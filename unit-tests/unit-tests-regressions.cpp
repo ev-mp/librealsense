@@ -140,6 +140,11 @@ TEST_CASE("Frame Drops", "[live]"){
             //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
             rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG,"lrs_frame_drops_repro.txt");
 
+            std::stringstream ss;
+            ss << "Frame Drops Test started, time =  " << std::dec << std::chrono::system_clock::now().time_since_epoch().count() << std::endl;
+            std::string syscl = "echo \"timecheck: $(date +%s.%N) = $(date +%FT%T,%N)\" | sudo tee /dev/kmsg";
+            auto r = system(syscl.c_str());
+
             for (size_t iter = 0; iter < 1000; iter++)
             {
                 std::vector<rs2::device> list;
@@ -230,7 +235,7 @@ TEST_CASE("Frame Drops", "[live]"){
                                                     s << " hw ts: " << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << " = 0x"
                                                       << std::hex << f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::dec;
                                                 WARN(s.str().c_str());
-                                                if ((delta_t < max_delay) || (fabs(fn - prev_fn)< 20)) // Skip inconsistent frame numbers due to intermittent metadata
+                                                //if ((delta_t < max_delay) || (fabs(fn - prev_fn)< 20)) // Skip inconsistent frame numbers due to intermittent metadata
                                                 {
                                                     std::cout << "Frame interval = " << delta_t << ", max = " << max_delay << std::endl;
                                                     std::cout << "fn = " << fn << ", prev_fn = " << prev_fn << std::endl;

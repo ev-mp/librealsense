@@ -361,7 +361,7 @@ namespace librealsense
                     frame_holder fh = _source.alloc_frame(stream_to_frame_types(req_profile_base->get_stream_type()), width * height * bpp / 8, fr->additional_data, requires_processing);
                     auto diff = environment::get_instance().get_time_service()->get_time() - system_time;
                     if (diff >10 )
-                        LOG_DEBUG("!! Frame allocation took " << diff << " msec");
+                        LOG_DEBUG("!! Frame allocation took " << diff << " msec, size = " << width * height * bpp / 8 );
 
                     if (fh.frame)
                     {
