@@ -183,6 +183,7 @@ namespace librealsense
                     { _md_start = md_start; _md_size = md_size; }
             void    set_md_from_video_node(bool compressed);
             bool    verify_vd_md_sync() const;
+            bool    md_node_present() const;
 
             //Debug Evgeni
             // RAII for buffer exchange with kernel
@@ -190,7 +191,7 @@ namespace librealsense
             {
                 ~kernel_buf_guard()
                 {
-                    if (/*_data_buf &&*/ (!_managed))
+                    if (_data_buf && (!_managed))
                     {
                         if (_file_desc > 0)
                         {
@@ -211,7 +212,6 @@ namespace librealsense
                             else
                                 LOG_DEBUG_V4L("Enqueue (e) buf " << std::dec << _dq_buf.index << " for fd " << _file_desc);
                         }
-
                     }
                 }
 
