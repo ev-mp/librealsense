@@ -154,8 +154,11 @@ then
 			echo -e "\e[32mApplying 04-xhci-remove-unused-stopped_td-pointer patch\e[0m"
 			patch -p1 < ../scripts/04-xhci-remove-unused-stopped_td-pointer.patch
 		fi
+		echo -e "\e[32mApplying async UVC revert patch\e[0m"
+		patch -p1 < ../scripts/0001-Revert-Asynchronous-UVC-commits-series.patch
 		echo -e "\e[32mApplying kernel-debug patch\e[0m"
 		patch -p1 < ../scripts/0001-Kernel-adj.patch
+		echo -e "\e[32mApplying kernel- URB amendment patch\e[0m"
 		patch -p1 < ../scripts/0001-Change-UVC_URBS.patch
 	fi
 
