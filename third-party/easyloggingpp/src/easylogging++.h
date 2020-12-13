@@ -994,14 +994,23 @@ typedef base::threading::internal::NoScopedLock<base::threading::Mutex> ScopedLo
 /// @brief Base of thread safe class, this class is inheritable-only
 class ThreadSafe {
  public:
-  virtual inline void acquireLock(void) ELPP_FINAL { m_mutex.lock(); }
-  virtual inline void releaseLock(void) ELPP_FINAL { m_mutex.unlock(); }
+  virtual inline void acquireLock(void) ELPP_FINAL { m_mutex.lock(); m_start_time = std::chrono::high_resolution_clock::now();}
+  virtual inline void releaseLock(void) ELPP_FINAL { 
+      m_mutex.unlock(); 
+      auto crnt_time = std::chrono::high_resolution_clock::now();
+      std::chrono::milliseconds diff = std::chrono::duration_cast<std::chrono::milliseconds>(crnt_time - m_start_time);
+      if (diff.count() > 5)
+      {
+        std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(crnt_time.time_since_epoch()).count() << ": Total time locked: " << diff.count() << "(mSec)" << std::endl;
+      }
+    }
   virtual inline base::threading::Mutex& lock(void) ELPP_FINAL { return m_mutex; }
  protected:
   ThreadSafe(void) {}
   virtual ~ThreadSafe(void) {}
  private:
   base::threading::Mutex m_mutex;
+  std::chrono::time_point<std::chrono::high_resolution_clock> m_start_time;
 };
 
 #if ELPP_THREADING_ENABLED
@@ -2509,6 +2518,8 @@ class AsyncLogQueue : public base::threading::ThreadSafe {
 
   inline AsyncLogItem next(void) {
     base::threading::ScopedLock scopedLock(lock());
+    if (!m_queue.size())
+        throw ("TODO Thread Safety");
     AsyncLogItem result = m_queue.front();
     m_queue.pop();
     return result;
@@ -2529,6 +2540,10 @@ class AsyncLogQueue : public base::threading::ThreadSafe {
   inline bool empty(void) {
     base::threading::ScopedLock scopedLock(lock());
     return m_queue.empty();
+  }
+  inline size_t size(void) {
+    base::threading::ScopedLock scopedLock(lock());
+    return m_queue.size();
   }
  private:
   std::queue<AsyncLogItem> m_queue;
@@ -2750,6 +2765,8 @@ class AsyncDispatchWorker : public base::IWorker, public base::threading::Thread
   std::condition_variable cv;
   bool m_continueRunning;
   base::threading::Mutex m_continueRunningLock;
+  std::thread m_t1;
+  std::mutex _mtx; // Evgeni
 };
 #endif  // ELPP_ASYNC_LOGGING
 }  // namespace base
