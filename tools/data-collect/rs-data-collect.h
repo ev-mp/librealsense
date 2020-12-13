@@ -37,7 +37,17 @@ using namespace TCLAP;
 namespace rs_data_collect
 {
     const uint64_t  DEF_FRAMES_NUMBER = 100;
+    constexpr uint32_t HIST_INTERVALS = 32; // Use 30 bins + 2 empty bins to wrap min/max boundaries
     const std::string DEF_OUTPUT_FILE_NAME("frames_data.csv");
+    const uint8_t hw_intervals = 0;
+    const uint8_t be_intervals = 1;
+    const uint8_t host_intervals = 2;
+
+    static const std::map<uint8_t, std::string> interval_names = {
+    { hw_intervals,     "FW Intervals"},
+    { be_intervals,     "Back-end intervals"},
+    { host_intervals,   "App Intervals"} };
+
 
     // Split string into token,  trim unreadable characters
     inline std::vector<std::string> tokenize(std::string line, char separator)
@@ -158,6 +168,7 @@ namespace rs_data_collect
             << req._stream_format << ", [" << req._width << "x" << req._height << "], " << req._fps << "fps" << std::endl;
     }
 
+
     enum config_params {
         e_stream_type,
         e_res_width,
@@ -174,6 +185,7 @@ namespace rs_data_collect
         stop_on_any
     };
 
+
     class data_collector
     {
     public:
@@ -189,14 +201,16 @@ namespace rs_data_collect
 
         const std::vector<rs2::sensor>& selected_sensors() const { return active_sensors; };
 
+        //template<typename S, class Field>
         struct frame_record
         {
-            frame_record(unsigned long long frame_number, double frame_ts, double host_ts,
+            frame_record(unsigned long long frame_number, double frame_ts, double host_ts, double backend_ts,
                        rs2_timestamp_domain domain, rs2_stream stream_type,int stream_index,
                        double _p1=0., double _p2=0., double _p3=0.,
                        double _p4=0., double _p5=0., double _p6=0., double _p7=0.):
             _frame_number(frame_number),
             _ts(frame_ts),
+            _be_ts(backend_ts),
             _arrival_time(host_ts),
             _domain(domain),
             _stream_type(stream_type),
@@ -219,7 +233,7 @@ namespace rs_data_collect
                 if (val_in_range(_stream_type,{RS2_STREAM_POSE}))
                     specific_attributes = 7;
 
-                for (auto i=0; i<specific_attributes; i++)
+                for (auto i=0UL; i<specific_attributes; i++)
                     ss << "," << _params[i];
 
                 return ss.str().c_str();
@@ -227,6 +241,7 @@ namespace rs_data_collect
 
             unsigned long long      _frame_number;
             double                  _ts;                // Device-based timestamp. (msec).
+            double                  _be_ts;             // UVC-Driver time of arrival
             double                  _arrival_time;      // Host arrival timestamp, relative to start streaming (msec)
             rs2_timestamp_domain    _domain;            // The origin of device-based timestamp. Note that Device timestamps may require kernel patches
             rs2_stream              _stream_type;
@@ -234,10 +249,39 @@ namespace rs_data_collect
             std::array<double,7>    _params;            // |The parameters are optional and sensor specific
         };
 
+
+        struct intervals_stats
+        {
+            double _interval_min, _interval_max, _interval_average, _interval_mean,interval_stdev;
+            std::array<size_t, HIST_INTERVALS> _interval_hist;
+            std::array<double, HIST_INTERVALS> _interval_bins;
+            std::vector<double> _intervals_filtered;
+        };
+
+        enum drop_reason  { frame_drop, counter_stuck, counter_inconsistent };
+
+        struct frame_drop_data
+        {
+            uint64_t    prev_fn;
+            uint64_t    current_fn;
+            double      prev_ts;
+            double      cur_ts;
+            drop_reason reason;
+        };
+
+        struct stream_statistics
+        {
+            std::map<int64_t, uint32_t> _frame_drops_summary;                           // Frame diff: number of occurances
+            std::vector<std::pair<uint64_t, frame_drop_data>> _frame_drops_occurances;  // Frame index at occurance: diff data
+            std::array<intervals_stats, 3> _intervals;                                  // Stats on FW-generated, Back-end and User-space timestamps
+            bool valid = false;
+        };
+
     private:
 
         std::shared_ptr<rs2::device>        _dev;
         std::map<std::pair<rs2_stream, int>, std::vector<frame_record>> data_collection;
+        std::map<std::pair<rs2_stream, int>, stream_statistics > stats_collection;
         std::vector<stream_request>         requests_to_go, user_requests;
         std::vector<rs2::sensor>            active_sensors;
         std::vector<rs2::stream_profile>    selected_stream_profiles;
@@ -247,6 +291,8 @@ namespace rs_data_collect
 
         bool parse_configuration(const std::string& line, const std::vector<std::string>& tokens,
             rs2_stream& type, int& width, int& height, rs2_format& format, int& fps, int& index);
+
+        stream_statistics calculate_stream_statistics(rs2_stream stream, const std::vector<frame_record>& input) const;
 
         // Assign the user configuration to the selected device
         bool configure_sensors();
