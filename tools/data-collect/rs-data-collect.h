@@ -45,7 +45,7 @@ namespace rs_data_collect
 
     static const std::map<uint8_t, std::string> interval_names = {
     { hw_intervals,     "FW Intervals"},
-    { be_intervals,     "Back-end intervals"},
+    { be_intervals,     "Backend intervals"},
     { host_intervals,   "App Intervals"} };
 
 
@@ -204,14 +204,20 @@ namespace rs_data_collect
         //template<typename S, class Field>
         struct frame_record
         {
-            frame_record(unsigned long long frame_number, double frame_ts, double host_ts, double backend_ts,
-                       rs2_timestamp_domain domain, rs2_stream stream_type,int stream_index,
-                       double _p1=0., double _p2=0., double _p3=0.,
-                       double _p4=0., double _p5=0., double _p6=0., double _p7=0.):
+            frame_record(unsigned long long frame_number, long long frame_number_delta,
+                        double frame_ts, double frame_ts_delta, double backend_ts, double backend_ts_delta,
+                        double host_ts, double host_ts_delta,
+                        rs2_timestamp_domain domain, rs2_stream stream_type,int stream_index,
+                        double _p1=0., double _p2=0., double _p3=0.,
+                        double _p4=0., double _p5=0., double _p6=0., double _p7=0.):
             _frame_number(frame_number),
+            _frame_number_delta(frame_number_delta),
             _ts(frame_ts),
+            _ts_delta(frame_ts_delta),
             _be_ts(backend_ts),
+            _be_ts_delta(backend_ts_delta),
             _arrival_time(host_ts),
+            _arrival_time_delta(host_ts_delta),
             _domain(domain),
             _stream_type(stream_type),
             _stream_idx(stream_index),
@@ -223,8 +229,10 @@ namespace rs_data_collect
                 std::stringstream ss;
                 ss  << std::endl
                     <<  rs2_stream_to_string(_stream_type) << ","
-                    << _stream_idx << "," << _frame_number << ","
-                    << std::fixed << std::setprecision(3) << _ts << "," << _arrival_time;
+                    << _stream_idx << "," << _frame_number << "," << _frame_number_delta << ","
+                    << std::fixed << std::setprecision(3) << _ts << "," << _ts_delta << ","
+                    << std::fixed << std::setprecision(0) << _be_ts << "," << _be_ts_delta << ","
+                    << std::fixed << std::setprecision(3) << _arrival_time << "," << _arrival_time_delta;
 
                 // IMU and Pose frame hold the sample data in addition to the frame's header attributes
                 size_t specific_attributes = 0;
@@ -240,9 +248,13 @@ namespace rs_data_collect
             }
 
             unsigned long long      _frame_number;
+            long long               _frame_number_delta;// Interval with previous sample
             double                  _ts;                // Device-based timestamp. (msec).
-            double                  _be_ts;             // UVC-Driver time of arrival
+            double                  _ts_delta;          // Interval with previous sample (msec)
+            double                  _be_ts;             // UVC-Driver time of arrival (msec)
+            double                  _be_ts_delta;       // Interval with previous sample (msec)
             double                  _arrival_time;      // Host arrival timestamp, relative to start streaming (msec)
+            double                  _arrival_time_delta;// Interval with previous sample (msec)
             rs2_timestamp_domain    _domain;            // The origin of device-based timestamp. Note that Device timestamps may require kernel patches
             rs2_stream              _stream_type;
             int                     _stream_idx;

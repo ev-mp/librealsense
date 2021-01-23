@@ -188,7 +188,7 @@ void data_collector::save_data_to_file(const string& out_filename)
     for (const auto& elem : data_collection)
     {
         // elem represent a stream with all its frames recorded
-        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms)"
+        csv << "\n\nStream Type,Index,F#,F#_diff,HW Timestamp (ms),HW TS_diff (ms),Backend Timestamp(ms),BE TS diff (ms), Host Timestamp(ms), Host TS diff (ms)"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
             << std::endl;
@@ -206,10 +206,10 @@ void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_po
 
     if (data_collection[stream_uid].size() < _max_frames)
     {
-        frame_record rec{ f.get_frame_number(),
-            f.get_timestamp(),
-            be_time,
-            arrival_time.count(),
+        frame_record rec{ f.get_frame_number(), 0,
+            f.get_timestamp(), 0.0,
+            be_time, 0.0,
+            arrival_time.count(), 0.0,
             f.get_frame_timestamp_domain(),
             f.get_profile().stream_type(),
             f.get_profile().stream_index() };
@@ -227,6 +227,13 @@ void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_po
             rec._params = { pose.translation.x, pose.translation.y, pose.translation.z,
                     pose.rotation.x,pose.rotation.y,pose.rotation.z,pose.rotation.w };
         }
+
+        // Calculate frame parameter delta and log along with the newly-arrived sample
+        auto prev_rec = data_collection[stream_uid].size() ? data_collection[stream_uid].back() : rec;
+        rec._frame_number_delta = rec._frame_number - prev_rec._frame_number;
+        rec._ts_delta           = rec._ts           - prev_rec._ts;
+        rec._be_ts_delta        = rec._be_ts        - prev_rec._be_ts;
+        rec._arrival_time_delta = rec._arrival_time - prev_rec._arrival_time;
 
         data_collection[stream_uid].emplace_back(rec);
     }
