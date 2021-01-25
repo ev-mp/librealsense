@@ -309,7 +309,9 @@ data_collector::stream_statistics data_collector::calculate_stream_statistics(rs
         std::array<std::thread, 3> workers;
         stats.valid = true;
         int index = 0;
-        //int human::* ptr = &human::height;
+
+        std::cout << "Calculating statistics for stream " << stream << std::endl;
+        std::lock_guard<std::recursive_mutex> lock(_mtx);
         for (double frame_record::* field : { &frame_record::_ts , &frame_record::_be_ts, &frame_record::_arrival_time, })
         {
             workers[index] = std::thread([this, input, field, &stats, index](){
@@ -343,6 +345,9 @@ data_collector::stream_statistics data_collector::calculate_stream_statistics(rs
                 std::sort(filtered.begin(), filtered.end());
                 stat._interval_min = filtered.front();
                 stat._interval_max = filtered.back();
+                //Debug
+                if (stat._interval_max / 2 > stat._interval_min)
+                    std::cout << "Suspicious log occurred";
                 stat._interval_mean = filtered.at(filtered.size() / 2);
                 auto avg = std::accumulate(filtered.begin(), filtered.end(), 0.0) / filtered.size();
                 stat._interval_average = avg;
@@ -364,7 +369,7 @@ data_collector::stream_statistics data_collector::calculate_stream_statistics(rs
                 int64_t count = 0;
                 for (size_t i = 1; i < stat._interval_bins.size()-1; )
                 {
-                    //std::cout << "Looking into bin " << i << " with lower bound " << stat._interval_bins[i] << std::endl;;
+                    std::cout << "Looking into bin " << i << " with lower bound " << stat._interval_bins[i] << std::endl;;
                     // Find first element that is greater than the upper bound of that bin
                     filt_iter = std::lower_bound(filt_iter, filtered.end(), stat._interval_bins[i]);
                     if (filt_iter != filtered.end())
@@ -373,11 +378,11 @@ data_collector::stream_statistics data_collector::calculate_stream_statistics(rs
                         // Find the next bin to look up
                         bin_iter = std::upper_bound(bin_iter, stat._interval_bins.end(), *filt_iter);
                         i = std::distance(stat._interval_bins.begin(), bin_iter);
-                        //std::cout << " Val " << *filt_iter << " at index " << dist << " will be assigned to bin " << i << " with upper bound " << *bin_iter << std::endl;
+                        std::cout << " Val " << *filt_iter << " at index " << dist << " will be assigned to bin " << i << " with upper bound " << *bin_iter << std::endl;
                         stat._interval_hist[i-1] = dist - count;
                         count = dist;
 
-                        //std::cout << "Frames counted " << count << " Bin index = " << i << " Val: " << stat._interval_hist[i] << std::endl;;
+                        std::cout << "Frames counted " << count << " Bin index = " << i << " Val: " << stat._interval_hist[i] << std::endl;;
                     }
                     else
                         i = stat._interval_bins.size();
@@ -466,7 +471,7 @@ bool data_collector::configure_sensors()
 
 int main(int argc, char** argv) try
 {
-    rs2::log_to_file(RS2_LOG_SEVERITY_WARN);
+    rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG);
 
     // Parse command line arguments
     CmdLine cmd("librealsense rs-data-collect example tool", ' ');

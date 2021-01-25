@@ -29,6 +29,7 @@ GYRO,1,1,200,MOTION_XYZ32F
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <mutex>
 
 
 using namespace std;
@@ -300,6 +301,7 @@ namespace rs_data_collect
         uint64_t                            _max_frames;
         int64_t                             _time_out_sec;
         application_stop                    _stop_cond;
+        mutable std::recursive_mutex        _mtx;
 
         bool parse_configuration(const std::string& line, const std::vector<std::string>& tokens,
             rs2_stream& type, int& width, int& height, rs2_format& format, int& fps, int& index);
