@@ -348,8 +348,9 @@ namespace librealsense
             }
 
             // Begin auto-calibration
-            _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_calib_begin, speed, 0, p4 });
-
+            if (host_assistance == 0 || host_assistance == 1)
+                _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_calib_begin, speed, 0, p4 });
+            
             if (host_assistance != 1)
             {
                 if (host_assistance == 2)
@@ -468,7 +469,8 @@ namespace librealsense
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
             }
 
-            _hw_monitor->send(command{ ds::AUTO_CALIB, focal_length_calib_begin, fl_step_count, fy_scan_range, p4 });
+            if (host_assistance == 0 || host_assistance == 1)
+                _hw_monitor->send(command{ ds::AUTO_CALIB, focal_length_calib_begin, fl_step_count, fy_scan_range, p4 });
 
             if (host_assistance != 1)
             {
@@ -586,7 +588,8 @@ namespace librealsense
             }
 
             // Begin auto-calibration
-            _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_plus_fl_calib_begin, speed_fl, 0, p4 });
+            if (host_assistance == 0 || host_assistance == 1)
+                _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_plus_fl_calib_begin, speed_fl, 0, p4 });
 
             if (host_assistance != 1)
             {
@@ -606,7 +609,7 @@ namespace librealsense
                     _hw_monitor->send(cmd);
                 }
 
-                if (host_assistance == 3)
+                if (host_assistance != 2)
                 {
                     DscPyRxFLCalibrationTableResult result{};
 
@@ -744,7 +747,8 @@ namespace librealsense
             if (host_assistance)
                 param.param_4 |= (1 << 8);
 
-            _hw_monitor->send(command{ ds::AUTO_CALIB, tare_calib_begin, param2, param3.param3, param.param_4 });
+            if (depth == 0)
+                _hw_monitor->send(command{ ds::AUTO_CALIB, tare_calib_begin, param2, param3.param3, param.param_4 });
 
             std::vector<uint8_t> res;
             if (!host_assistance || depth < 0)
