@@ -822,7 +822,7 @@ namespace rs2
         if (action == RS2_CALIB_ACTION_ON_CHIP_CALIB)
         {
             ss << "{\n \"calib type\":" << 0 <<
-                  ",\n \"speed\":" << speed <<
+                  ",\n \"host assistance\":" << host_assistance <<
                   ",\n \"average step count\":" << average_step_count <<
                   ",\n \"scan parameter\":" << (intrinsic_scan ? 0 : 1) <<
                   ",\n \"step count\":" << step_count <<
@@ -833,19 +833,19 @@ namespace rs2
         }
         else if (action == RS2_CALIB_ACTION_ON_CHIP_FL_CALIB)
         {
-            ss << "{\n \"calib type\":" << (_version == 3 ? 30 : 0) <<
-                ",\n \"speed\":" << speed <<
-                ",\n \"average step count\":" << average_step_count <<
-                ",\n \"scan parameter\":" << (intrinsic_scan ? 0 : 1) <<
-                ",\n \"step count\":" << step_count <<
-                ",\n \"apply preset\":" << (apply_preset ? 1 : 0) <<
-                ",\n \"accuracy\":" << accuracy <<
-                ",\n \"scan only\":" << (_version == 3 ? 1 : 0) <<
-                ",\n \"interactive scan\":" << 0 << "}";
+                  ",\n \"speed\":" << speed <<
+                  ",\n \"average step count\":" << average_step_count <<
+                  ",\n \"scan parameter\":" << (intrinsic_scan ? 0 : 1) <<
+                  ",\n \"step count\":" << step_count <<
+                  ",\n \"apply preset\":" << (apply_preset ? 1 : 0) <<
+                  ",\n \"accuracy\":" << accuracy <<
+                  ",\n \"scan only\":" << (host_assistance ? 1 : 0) <<
+                  ",\n \"interactive scan\":" << 0 << "}";
         }
         else if (action == RS2_CALIB_ACTION_ON_CHIP_FL_CALIB)
         {
-            ss << "{\n \"calib type\":" << (_version == 3 ? 31 : 1) <<
+            ss << "{\n \"calib type\":" << 1 <<
+                  ",\n \"host assistance\":" << host_assistance <<
                   ",\n \"fl step count\":" << fl_step_count <<
                   ",\n \"fy scan range\":" << fy_scan_range <<
                   ",\n \"keep new value after sucessful scan\":" << keep_new_value_after_sucessful_scan <<
@@ -854,13 +854,13 @@ namespace rs2
                   ",\n \"fl scan location\":" << fl_scan_location <<
                   ",\n \"fy scan direction\":" << fy_scan_direction <<
                   ",\n \"white wall mode\":" << white_wall_mode <<
-                  ",\n \"scan only\":" << (_version == 3 ? 1 : 0) <<
+                  ",\n \"scan only\":" << (host_assistance ? 1 : 0) <<
                   ",\n \"interactive scan\":" << 0 << "}";
         }
         else
         {
-            ss << "{\n \"calib type\":" << (_version == 3 ? 32 : 2) <<
-                  ",\n \"version\":" << _version <<
+            ss << "{\n \"calib type\":" << 2 <<
+                  ",\n \"host assistance\":" << host_assistance <<
                   ",\n \"fl step count\":" << fl_step_count <<
                   ",\n \"fy scan range\":" << fy_scan_range <<
                   ",\n \"keep new value after sucessful scan\":" << keep_new_value_after_sucessful_scan <<
@@ -875,8 +875,8 @@ namespace rs2
                   ",\n \"step count\":" << step_count <<
                   ",\n \"apply preset\":" << (apply_preset ? 1 : 0) <<
                   ",\n \"accuracy\":" << accuracy <<
-                  ",\n \"scan only\":" << (_version == 3 ? 1 : 0) <<
-                  ",\n \"interactive scan\":" << 0 << "}";
+                  ",\n \"scan only\":" << (host_assistance ? 1 : 0) <<
+                  ",\n \"interactive scan\":" << 0 <<
                   ",\n \"depth\":" << 0 << "}";
         }
         std::string json = ss.str();
@@ -907,24 +907,8 @@ namespace rs2
         else if (action == RS2_CALIB_ACTION_ON_CHIP_CALIB || action == RS2_CALIB_ACTION_ON_CHIP_FL_CALIB || action == RS2_CALIB_ACTION_ON_CHIP_OB_CALIB)
             _new_calib = calib_dev.run_on_chip_calibration(json, &_health, [&](const float progress) {_progress = progress;}, occ_timeout_ms);
 
-        if (action == RS2_CALIB_ACTION_ON_CHIP_OB_CALIB)
-        {
-            int h_both = static_cast<int>(_health);
-            int h_1 = (h_both & 0x00000FFF);
-            int h_2 = (h_both & 0x00FFF000) >> 12;
-            int sign = (h_both & 0x0F000000) >> 24;
-
-            _health_1 = h_1 / 1000.0f;
-            if (sign & 1)
-                _health_1 = -_health_1;
-
-            _health_2 = h_2 / 1000.0f;
-            if (sign & 2)
-                _health_2 = -_health_2;
-        }
-
         // version 3
-        if (_version == 3)
+        if (host_assistance)
         {
             int start_timeout_ms = 4000;
             if (action == RS2_CALIB_ACTION_TARE_CALIB)
@@ -1105,8 +1089,9 @@ namespace rs2
                 }
 
                 std::stringstream ss;
-                ss << "{\n \"calib type\":" << 33;
-                ss << ",\n \"step count v3\":" << total_frames;
+                ss << "{\n \"calib type\":" << 3 <<
+                    ",\n \"host assistance\":" << 2 <<
+                    ",\n \"step count v3\":" << total_frames;
                 for (int i = 0; i < total_frames; ++i)
                     ss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 ss << "}";
@@ -1199,8 +1184,9 @@ namespace rs2
                 }
 
                 std::stringstream sss;
-                sss << "{\n \"calib type\":" << 33;
-                sss << ",\n \"step count v3\":" << total_frames;
+                ss << "{\n \"calib type\":" << 3 <<
+                    ",\n \"host assistance\":" << 3 <<
+                    ",\n \"step count v3\":" << total_frames;
                 for (int i = 0; i < total_frames; ++i)
                     sss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 sss << "}";
@@ -1235,18 +1221,7 @@ namespace rs2
                 }
                 else
                 {
-                    switch (speed_fl)
-                    {
-                    case 0:
-                        total_frames = 41;
-                        break;
-                    case 1:
-                        total_frames = 51;
-                        break;
-                    case 2:
-                        total_frames = 41;
-                        break;
-                    }
+                    total_frames = fl_step_count;
                 }
 
                 int width = f.get_width();
@@ -1341,8 +1316,9 @@ namespace rs2
                 }
 
                 std::stringstream ss;
-                ss << "{\n \"calib type\":" << 33;
-                ss << ",\n \"step count v3\":" << total_frames;
+                ss << "{\n \"calib type\":" << (action == RS2_CALIB_ACTION_ON_CHIP_CALIB ? 0 : 1) <<
+                      ",\n \"host assistance\":" << 2 <<
+                      ",\n \"step count v3\":" << total_frames;
                 for (int i = 0; i < total_frames; ++i)
                     ss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 ss << "}";
@@ -1352,6 +1328,22 @@ namespace rs2
                 _new_calib = calib_dev.run_on_chip_calibration(json, &_health, [&](const float progress) {_progress = int(progress); }, occ_timeout_ms);
                 _progress = 100;
             }
+        }
+
+        if (action == RS2_CALIB_ACTION_ON_CHIP_OB_CALIB)
+        {
+            int h_both = static_cast<int>(_health);
+            int h_1 = (h_both & 0x00000FFF);
+            int h_2 = (h_both & 0x00FFF000) >> 12;
+            int sign = (h_both & 0x0F000000) >> 24;
+
+            _health_1 = h_1 / 1000.0f;
+            if (sign & 1)
+                _health_1 = -_health_1;
+
+            _health_2 = h_2 / 1000.0f;
+            if (sign & 2)
+                _health_2 = -_health_2;
         }
     }
 
@@ -1584,7 +1576,10 @@ namespace rs2
             (_version == 3 && action != RS2_CALIB_ACTION_TARE_GROUND_TRUTH))
             try_start_viewer(1280, 720, fps, invoke);
         else
-            try_start_viewer(256, 144, 90, invoke);
+            if (host_assistance && action != RS2_CALIB_ACTION_TARE_GROUND_TRUTH)
+                try_start_viewer(0, 0, 0, invoke);
+            else
+                try_start_viewer(256, 144, 90, invoke);
         }
 
         if (action == RS2_CALIB_ACTION_TARE_GROUND_TRUTH)
@@ -1808,22 +1803,22 @@ namespace rs2
                      update_state == RS2_CALIB_STATE_SELF_INPUT)
             {
                if (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB)
-                   ImGui::Text("%s", (get_manager()._version == 3 ? "On-Chip and Focal Length Calibration Version 3" : "On-Chip and Focal Length Calibration"));
+                   ImGui::Text("%s", "On-Chip and Focal Length Calibration");
                else if (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_FL_CALIB)
-                   ImGui::Text("%s", (get_manager()._version == 3 ? "On-Chip Focal Length Calibration Version 3" : "On-Chip Focal Length Calibration"));
+                   ImGui::Text("%s", "On-Chip Focal Length Calibration");
                else if (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_TARE_CALIB)
-                   ImGui::Text("%s", (get_manager()._version == 3 ? "Tare Calibration Version 3" : "Tare Calibration"));
+                   ImGui::Text("%s", "Tare Calibration");
                else if (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_FL_CALIB)
                    ImGui::Text("%s", "Focal Length Calibration");
                else if (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_UVMAPPING_CALIB)
                    ImGui::Text("%s", "UV-Mapping Calibration");
                else
-                   ImGui::Text("%s", (get_manager()._version == 3 ? "On-Chip Calibration Version 3" : "On-Chip Calibration"));
+                   ImGui::Text("%s", "On-Chip Calibration");
             }
             else if (update_state == RS2_CALIB_STATE_FL_INPUT)
                 ImGui::Text("%s", "Focal Length Calibration");
             else if (update_state == RS2_CALIB_STATE_TARE_INPUT || update_state == RS2_CALIB_STATE_TARE_INPUT_ADVANCED)
-                ImGui::Text("%s", (get_manager()._version == 3 ? "Tare Calibration Version 3" : "Tare Calibration"));
+                ImGui::Text("%s", "Tare Calibration");
             else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH || update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH_IN_PROCESS || update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH_COMPLETE)
                 ImGui::Text("%s", "Get Tare Calibration Ground Truth");
             else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH_FAILED)
@@ -2181,6 +2176,13 @@ namespace rs2
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("%s", "Calculate ground truth for the specific target");
 
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - ImGui::GetTextLineHeightWithSpacing() - 30) });
+                bool assistance = (get_manager().host_assistance != 0);
+                if (ImGui::Checkbox("Host Assistance", &assistance))
+                    get_manager().host_assistance = (assistance ? 1 : 0);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("%s", "check = host assitance for statistics data, uncheck = no host assistance");
+
                 std::string button_name = to_string() << "Calibrate" << "##tare" << index;
 
                 ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 28) });
@@ -2266,6 +2268,13 @@ namespace rs2
                 //    get_manager().action = on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB;
                 //if (ImGui::IsItemHovered())
                 //    ImGui::SetTooltip("%s", "On-Chip Calibration Extended");
+
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - ImGui::GetTextLineHeightWithSpacing() - 30) });
+                bool assistance = (get_manager().host_assistance != 0);
+                if (ImGui::Checkbox("Host Assistance", &assistance))
+                    get_manager().host_assistance = (assistance ? 1 : 0);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("%s", "check = host assitance for statistics data, uncheck = no host assistance");
 
                 auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
                 ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
@@ -3130,10 +3139,10 @@ namespace rs2
             }
             else return 80;
         }
-        else if (update_state == RS2_CALIB_STATE_SELF_INPUT) return (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB ? 160 : 120);
-        else if (update_state == RS2_CALIB_STATE_TARE_INPUT) return 85;
-        else if (update_state == RS2_CALIB_STATE_TARE_INPUT_ADVANCED) return 220;
-        else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH) return 135;
+        else if (update_state == RS2_CALIB_STATE_SELF_INPUT) return (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB ? 180 : 160);
+        else if (update_state == RS2_CALIB_STATE_TARE_INPUT) return 105;
+        else if (update_state == RS2_CALIB_STATE_TARE_INPUT_ADVANCED) return 230;
+        else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH) return 110;
         else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH_FAILED) return 115;
         else if (update_state == RS2_CALIB_STATE_FAILED) return ((get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB || get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_FL_CALIB) ? (get_manager().retry_times < 3 ? 0 : 80) : 110);
         else if (update_state == RS2_CALIB_STATE_FL_INPUT) return 200;
