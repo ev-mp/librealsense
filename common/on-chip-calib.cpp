@@ -114,7 +114,7 @@ namespace rs2
                 {
                     auto now = std::chrono::high_resolution_clock::now();
                     if (now - start_time > std::chrono::milliseconds(timeout_ms))
-                        throw std::runtime_error(to_string() << "Failed to fetch depth frame within " << timeout_ms << " ms");
+                        throw std::runtime_error(to_string() << "Failed to fetch depth frame within " << timeout_ms << "ms");
 
                     if (now - stream.second.last_frame < std::chrono::milliseconds(100))
                     {
@@ -932,16 +932,16 @@ namespace rs2
         if (_version == 3) // wait enough frames
         {
             frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
-            while (frame_counter <= total_frames)
+            while (frame_counter <= 2)
             {
-                if (_progress < 20)
-                    _progress += 1;
+                if (_progress < 7)
+                    _progress += 3;
 
-                f = fetch_depth_frame(invoke);
+                f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                 frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
             }
 
-            _progress = 20;
+            _progress = 10;
         }
         auto calib_dev = _dev.as<auto_calibrated_device>();
         if (action == RS2_CALIB_ACTION_TARE_CALIB)
@@ -952,6 +952,9 @@ namespace rs2
         // version 3
         if (host_assistance)
         {
+            int total_frames = 256;
+            int start_frame_counter = frame_counter;
+
             int width = f.get_width();
             int height = f.get_height();
             int size = width * height;
@@ -973,19 +976,19 @@ namespace rs2
             {
                 auto start_time = std::chrono::high_resolution_clock::now();
                 auto now = start_time;
-                while (frame_counter > total_frames)
+                while (frame_counter > start_frame_counter)
                 {
                     now = std::chrono::high_resolution_clock::now();
                     if (now - start_time > std::chrono::milliseconds(start_timeout_ms))
                         throw std::runtime_error("Operation timed-out when starting calibration!");
 
-                    if (_progress < 40)
-                        _progress += 1;
+                    if (_progress < 18)
+                        _progress += 2;
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
-                _progress = 40;
+                _progress = 20;
 
                 int depth = 0;
                 int prev_frame_counter = total_frames;
@@ -993,7 +996,7 @@ namespace rs2
                 {
                     if (frame_counter != prev_frame_counter)
                     {
-                        if (_progress < 90)
+                        if (_progress < 80)
                             _progress += 1;
 
                         tmp = 0.0;
@@ -1030,12 +1033,12 @@ namespace rs2
                         }
                     }
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     prev_frame_counter = static_cast<int>(frame_counter);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
 
-                _progress = 90;
+                _progress = 80;
 
                 std::stringstream ss;
                 ss << "{\n \"depth\":" << -1 << "}";
@@ -1049,19 +1052,19 @@ namespace rs2
                 // OCC
                 auto start_time = std::chrono::high_resolution_clock::now();
                 auto now = start_time;
-                while (frame_counter > total_frames)
+                while (frame_counter > start_frame_counter)
                 {
                     now = std::chrono::high_resolution_clock::now();
                     if (now - start_time > std::chrono::milliseconds(start_timeout_ms))
                         throw std::runtime_error("Operation timed-out when starting calibration!");
 
-                    if (_progress < 15)
-                        _progress += 1;
+                    if (_progress < 18)
+                        _progress += 2;
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
-                _progress = 15;
+                _progress = 20;
 
                 switch (speed)
                 {
@@ -1084,7 +1087,7 @@ namespace rs2
 
                 while (frame_counter < total_frames)
                 {
-                    _progress += static_cast<int>(frame_counter * 30 / total_frames);
+                    _progress += static_cast<int>(frame_counter * 25 / total_frames);
 
                     const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                     p += roi_start_h * height + roi_start_w;
@@ -1106,7 +1109,7 @@ namespace rs2
                     tmp *= 10000;
                     fill_factor[frame_counter] = static_cast<uint16_t>(tmp + 0.5);
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
 
@@ -1120,7 +1123,7 @@ namespace rs2
                     ss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 ss << "}";
                 std::string json = ss.str();
-                _new_calib = calib_dev.run_on_chip_calibration(json, &_health, [&](const float progress) {_progress = int(progress); }, occ_timeout_ms);
+                _new_calib = calib_dev.run_on_chip_calibration(json, &_health, [&](const float progress) {}, occ_timeout_ms);
                 _progress = 45;
 
                 // OCC-FL
@@ -1132,13 +1135,13 @@ namespace rs2
                     if (now - start_time > std::chrono::milliseconds(start_timeout_ms))
                         throw std::runtime_error("Operation timed-out when starting calibration!");
 
-                    if (_progress < 60)
-                        _progress += 1;
+                    if (_progress < 53)
+                        _progress += 2;
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
-                _progress = 60;
+                _progress = 55;
 
                 total_frames = fl_step_count;
                 
@@ -1151,7 +1154,7 @@ namespace rs2
                 memset(fill_factor, 0, 256 * sizeof(uint16_t));
                 while (frame_counter < total_frames)
                 {
-                    _progress += static_cast<int>(frame_counter * 30 / total_frames);
+                    _progress += static_cast<int>(frame_counter * 25 / total_frames);
 
                     const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                     p += from * height + roi_start_w;
@@ -1173,7 +1176,7 @@ namespace rs2
                     tmp *= 10000;
                     fill_factor[frame_counter] = static_cast<uint16_t>(tmp + 0.5);
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
 
@@ -1187,7 +1190,7 @@ namespace rs2
                     sss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 sss << "}";
 
-                _progress = 90;
+                _progress = 80;
                 std::string json2 = sss.str();
                 _new_calib = calib_dev.run_on_chip_calibration(json2, &_health, [&](const float progress) {_progress = int(progress); }, occ_timeout_ms);
                 _progress = 100;
@@ -1196,19 +1199,19 @@ namespace rs2
             {
                 auto start_time = std::chrono::high_resolution_clock::now();
                 auto now = start_time;
-                while (frame_counter > total_frames)
+                while (frame_counter > start_frame_counter)
                 {
                     now = std::chrono::high_resolution_clock::now();
                     if (now - start_time > std::chrono::milliseconds(start_timeout_ms))
                         throw std::runtime_error("Operation timed-out when starting calibration!");
 
-                    if (_progress < 40)
-                        _progress += 1;
+                    if (_progress < 18)
+                        _progress += 2;
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
-                _progress = 40;
+                _progress = 20;
 
                 int from = roi_start_h;
                 int to = roi_start_h + roi_h;
@@ -1250,7 +1253,7 @@ namespace rs2
 
                 while (frame_counter < total_frames)
                 {
-                    _progress += static_cast<int>(frame_counter * 50 / total_frames);
+                    _progress += static_cast<int>(frame_counter * 60 / total_frames);
 
                     const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                     p += from * height + roi_start_w;
@@ -1272,7 +1275,7 @@ namespace rs2
                     tmp *= 10000;
                     fill_factor[frame_counter] = static_cast<uint16_t>(tmp + 0.5f);
 
-                    f = fetch_depth_frame(invoke);
+                    f = fetch_depth_frame(invoke, frame_fetch_timeout_ms);
                     frame_counter = f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_COUNTER);
                 }
 
@@ -1286,7 +1289,7 @@ namespace rs2
                     ss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 ss << "}";
 
-                _progress = 90;
+                _progress = 80;
                 std::string json = ss.str();
                 _new_calib = calib_dev.run_on_chip_calibration(json, &_health, [&](const float progress) {_progress = int(progress); }, occ_timeout_ms);
                 _progress = 100;
