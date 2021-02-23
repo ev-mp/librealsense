@@ -1086,11 +1086,12 @@ namespace rs2
                 }
 
                 int prev_frame_counter = total_frames;
+                int cur_progress = _progress;
                 while (frame_counter < total_frames)
                 {
                     if (frame_counter != prev_frame_counter)
                     {
-                        _progress += static_cast<int>(frame_counter * 25 / total_frames);
+                        _progress = cur_progress + static_cast<int>(frame_counter * 25 / total_frames);
 
                         const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                         p += roi_start_h * height + roi_start_w;
@@ -1121,9 +1122,9 @@ namespace rs2
                 fill_missing_data(fill_factor, total_frames);
 
                 std::stringstream ss;
-                ss << "{\n \"calib type\":" << 3 <<
-                    ",\n \"host assistance\":" << 2 <<
-                    ",\n \"step count v3\":" << total_frames;
+                ss << "{\n \"calib type\":" << 2 <<
+                      ",\n \"host assistance\":" << 2 <<
+                      ",\n \"step count v3\":" << total_frames;
                 for (int i = 0; i < total_frames; ++i)
                     ss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 ss << "}";
@@ -1158,11 +1159,12 @@ namespace rs2
 
                 memset(fill_factor, 0, 256 * sizeof(uint16_t));
                 prev_frame_counter = total_frames;
+                cur_progress = _progress;
                 while (frame_counter < total_frames)
                 {
                     if (frame_counter != prev_frame_counter)
                     {
-                        _progress += static_cast<int>(frame_counter * 25 / total_frames);
+                        _progress = cur_progress + static_cast<int>(frame_counter * 25 / total_frames);
 
                         const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                         p += from * height + roi_start_w;
@@ -1193,9 +1195,9 @@ namespace rs2
                 fill_missing_data(fill_factor, total_frames);
 
                 std::stringstream sss;
-                ss << "{\n \"calib type\":" << 3 <<
-                    ",\n \"host assistance\":" << 3 <<
-                    ",\n \"step count v3\":" << total_frames;
+                sss << "{\n \"calib type\":" << 2 <<
+                       ",\n \"host assistance\":" << 3 <<
+                       ",\n \"step count v3\":" << total_frames;
                 for (int i = 0; i < total_frames; ++i)
                     sss << ",\n \"fill factor " << i << "\":" << fill_factor[i];
                 sss << "}";
@@ -1262,11 +1264,12 @@ namespace rs2
                 }
 
                 int prev_frame_counter = total_frames;
+                int cur_progress = _progress;
                 while (frame_counter < total_frames)
                 {
                     if (frame_counter != prev_frame_counter)
                     {
-                        _progress += static_cast<int>(frame_counter * 60 / total_frames);
+                        _progress = cur_progress + static_cast<int>(frame_counter * 60 / total_frames);
 
                         const uint16_t* p = reinterpret_cast<const uint16_t*>(f.get_data());
                         p += from * height + roi_start_w;
