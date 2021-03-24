@@ -22,15 +22,21 @@ struct RealsenseHandle
 
         cfg.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16);
         fprintf(log_file, "  enable_stream(RS2_STREAM_DEPTH, %d, %d, RS2_FORMAT_Z16)\n", width, height);
-        
+
+        cfg.enable_stream(RS2_STREAM_INFRARED, width, height, RS2_FORMAT_Y8);
+        fprintf(log_file, "  enable_stream(RS2_STREAM_INFRARED, %d, %d, RS2_FORMAT_Y8)\n", width, height);
+
         fprintf(log_file, "  Starting pipeline...\n");
+        auto start = std::chrono::system_clock::now();
         {
             scoped_timer t("pipe.start(cfg)");
             pipe.start(cfg);
+            fprintf(log_file, "  Pipeline started\n");
+            pipe.wait_for_frames();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start).count();
+            fprintf(log_file, "  First frame arrived after %lld msec\n", elapsed);
         }
-        fprintf(log_file, "  Pipeline started\n");
 
-        pipe.wait_for_frames();
         model = pipe.get_active_profile().get_device().get_info(RS2_CAMERA_INFO_NAME);
         
         depth_scale = pipe.get_active_profile().get_device().first<rs2::depth_sensor>().get_depth_scale();

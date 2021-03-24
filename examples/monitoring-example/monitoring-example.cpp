@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) try
     auto rs_log_path = ExePath() += "\\realsense_log.txt";
     rs2::log_to_file(RS2_LOG_SEVERITY_DEBUG, rs_log_path.c_str());
 
-    const auto RS_UPDATE_INTERVAL = std::chrono::seconds(10);
+    const auto RS_UPDATE_INTERVAL = std::chrono::milliseconds(100);
     auto last_check = std::chrono::steady_clock::now() - RS_UPDATE_INTERVAL - std::chrono::seconds(1); // ensure at least 1 run
     auto loop_count = 0;
 
@@ -43,12 +43,15 @@ int main(int argc, char* argv[]) try
             cfg.enable_stream(RS2_STREAM_INFRARED, 1, 640, 480, RS2_FORMAT_Y8, 30);
             cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 30);
             std::cout << "-> Try pipe start" << std::endl;
+            auto start = std::chrono::system_clock::now();
             pipe.start(cfg);
 
             std::cout << "Capture 15 frames" << std::endl;
             for (auto i = 0; i < 15; ++i)
                 pipe.wait_for_frames();
 
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start).count();
+            std::cout << "First frame arrived after " << std::dec << elapsed << " msec" << std::endl;
             std::cout << "-> Collect info" << std::endl;
 
             auto adev = pipe.get_active_profile().get_device().as<rs400::advanced_mode>();
