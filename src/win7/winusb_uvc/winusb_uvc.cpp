@@ -21,7 +21,7 @@
 
 
 // Open USB handle. Use retries to avoid inter-process temporal locks
-void create_file_with_retry(HANDLE &Handle, PWCHAR Path)
+void create_file_with_retry(HANDLE &Handle, PWCHAR Path, int retries = -1)
 {
     static const uint32_t devopen_timeout_ms = 1500;
     auto start = std::chrono::system_clock::now();
@@ -33,7 +33,9 @@ void create_file_with_retry(HANDLE &Handle, PWCHAR Path)
         if (elapsed > devopen_timeout_ms)
             break;
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    } while (Handle == INVALID_HANDLE_VALUE);
+        if (retries > 0)
+            retries--;
+    } while ((Handle == INVALID_HANDLE_VALUE) && retries);
 }
 // Data structures for Backend-Frontend queue:
 struct frame;
@@ -1890,9 +1892,9 @@ uvc_error_t winusb_find_devices(const std::string &uvc_interface, int vid, int p
 			if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &DevIntfData, DevIntfDetailData, dwSize, &dwSize, &DevData) == TRUE)
 			{
 
-				// Create a handle for I/O operations to the IVCAM device
+				// Create a handle for I/O operations to the RealSense device
                 HANDLE Devicehandle = nullptr;
-                create_file_with_retry(Devicehandle, DevIntfDetailData->DevicePath);
+                create_file_with_retry(Devicehandle, DevIntfDetailData->DevicePath, 10); // Limit the number of attempts
 
 				if (Devicehandle != INVALID_HANDLE_VALUE)
 				{
