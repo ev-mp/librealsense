@@ -19,16 +19,12 @@ if(BUILD_GRAPHICAL_EXAMPLES)
     add_executable(${PROJECT_NAME} rsmon_barebone.cpp rsmon_utils.h)
     target_link_libraries(${PROJECT_NAME} ${DEPENDENCIES})
     include_directories(${PROJECT_NAME} ../ ../../third-party/tclap/include ./../../common)
-    set_target_properties (rs-capture PROPERTIES
-        FOLDER "Examples"
-    )
+	set_target_properties (${PROJECT_NAME} PROPERTIES
+        FOLDER "Sberbank"
+	)
 
     install(
-        TARGETS
-
-        ${PROJECT_NAME}
-
-        RUNTIME DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/bin
+        TARGETS	${PROJECT_NAME}
+        RUNTIME DESTINATION	${CMAKE_INSTALL_PREFIX}/bin
     )
 endif()

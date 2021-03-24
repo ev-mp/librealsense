@@ -16,6 +16,17 @@ elseif(COMPILER_SUPPORTS_CXX0X)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 endif()
 
+if(BUILD_GRAPHICAL_EXAMPLES)
+	add_executable(${PROJECT_NAME} monitoring-example.cpp)
+	target_link_libraries(${PROJECT_NAME} ${DEPENDENCIES})
+    include_directories(${PROJECT_NAME} ./../../common)
+    set_target_properties (${PROJECT_NAME} PROPERTIES
+        FOLDER "Sberbank"
+    )
+		
+	install(TARGETS ${PROJECT_NAME}
+		RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+endif()
 # if(NOT DEFINED USE_PLATFROM)
     # set(USE_PLATFROM "Win32")
     # message("Using Win32 platform as default")
@@ -44,21 +55,3 @@ endif()
 #    message("RealSense libraries not found in '${REALSENSE_LIB_PATH}', set correct REALSENSE_LIB_PATH")
 #endif()
 
-if(BUILD_GRAPHICAL_EXAMPLES)
-	add_executable(${PROJECT_NAME} monitoring-example.cpp)
-	target_link_libraries(${PROJECT_NAME} ${DEPENDENCIES})
-    include_directories(${PROJECT_NAME} ./../../common)
-    set_target_properties (rs-capture PROPERTIES
-        FOLDER "Examples"
-    )
-	install(TARGETS ${PROJECT_NAME}
-		RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-	# target_include_directories(${MONIT_EXAMPLE} PRIVATE 
-		# "${PROJECT_SOURCE_DIR}/realsense2/include/")
-	# target_link_libraries(${MONIT_EXAMPLE} PRIVATE ${REALSENSE_LIB})
-
-	# add_custom_command(TARGET ${MONIT_EXAMPLE} POST_BUILD 
-		# COMMAND "${CMAKE_COMMAND}" -E copy 
-			# "${USE_RS_DLL}"
-			# "$(OutDir)")
-endif()
