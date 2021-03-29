@@ -827,7 +827,10 @@ namespace librealsense
                 res = get_calibration_results();
 
                 if (depth < 0)
+                {
                     restore_preset();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                }
             }
 
             return res;
