@@ -793,7 +793,7 @@ namespace librealsense
                     // Check calibration status
                     try
                     {
-                        auto res = _hw_monitor->send(command{ ds::AUTO_CALIB, tare_calib_check_status });
+                        res = _hw_monitor->send(command{ ds::AUTO_CALIB, tare_calib_check_status });
                         if (res.size() < sizeof(TareCalibrationResult))
                         {
                             if (depth < 0)
@@ -832,6 +832,28 @@ namespace librealsense
                 }
 
                 auto status = (rs2_dsc_status)result.status;
+                
+                int nnn = sizeof(TareCalibrationResult);
+                nnn;
+                uint8_t* p = res.data() + sizeof(TareCalibrationResult) + 2 * result.iterations * sizeof(uint32_t);
+                float* ph = reinterpret_cast<float*>(p);
+
+                int health_1 = static_cast<int>(abs(ph[0]) * 1000.0f + 0.5f);
+                health_1 &= 0xFFF;
+
+                int health_2 = static_cast<int>(abs(ph[1]) * 1000.0f + 0.5f);
+                health_2 &= 0xFFF;
+
+                int sign = 0;
+                if (ph[0] < 0.0f)
+                    sign = 1;
+                if (ph[1] < 0.0f)
+                    sign |= 2;
+
+                int h = health_1;
+                h |= health_2 << 12;
+                h |= sign << 24;
+                *health = static_cast<float>(h);
 
                 // Handle errors from firmware
                 if (status != RS2_DSC_STATUS_SUCCESS)
@@ -839,7 +861,7 @@ namespace librealsense
                     handle_calibration_error(status);
                 }
 
-                res = get_calibration_results(health);
+                res = get_calibration_results();
 
                 if (depth < 0)
                 {
