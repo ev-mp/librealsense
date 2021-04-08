@@ -1519,6 +1519,166 @@ namespace rs2
         }
     }
 
+    void on_chip_calib_manager::calibrate_fl()
+    {
+        try
+        {
+            auto sensor = _sub->s->as<rs2::depth_stereo_sensor>();
+            float stereo_baseline = 0.0f;
+            if (sensor)
+                stereo_baseline = sensor.get_option(RS2_OPTION_STEREO_BASELINE);
+
+            std::shared_ptr<rect_calculator> gt_calculator[2];
+            bool created[2] = { false, false };
+
+            int counter = 0;
+            int limit = rect_calculator::_frame_num << 1;
+            int step = 50 / rect_calculator::_frame_num;
+
+            int ret = { 0 };
+            int id[2] = { _uid, _uid2 };
+            float fx[2] = { 0 };
+            float fy[2] = { 0 };
+            float rec_sides[2][4] = { 0 };
+            float target_fw[2] = { 0 };
+            float target_fh[2] = { 0 };
+
+            rs2::frame f;
+            bool done[2] = { false, false };
+            while (counter < limit)
+            {
+                for (int i = 0; i < 2; ++i)
+                {
+                    if (!done[i])
+                    {
+                        f = _viewer.ppf.frames_queue[id[i]].wait_for_frame();
+                        if (f)
+                        {
+                            if (!created[i])
+                            {
+                                stream_profile profile = f.get_profile();
+                                auto vsp = profile.as<video_stream_profile>();
+
+                                gt_calculator[i] = std::make_shared<rect_calculator>();
+                                fx[i] = vsp.get_intrinsics().fx;
+                                fy[i] = vsp.get_intrinsics().fy;
+                                target_fw[i] = vsp.get_intrinsics().fx * config_file::instance().get_or_default(configurations::viewer::target_width_r, 175.0f);
+                                target_fh[i] = vsp.get_intrinsics().fy * config_file::instance().get_or_default(configurations::viewer::target_height_r, 100.0f);
+                                created[i] = true;
+                            }
+
+                            ret = gt_calculator[i]->calculate(f.get(), rec_sides[i]);
+                            if (ret == 0)
+                                ++counter;
+                            else if (ret == 1)
+                                _progress += step;
+                            else if (ret == 2)
+                            {
+                                _progress += step;
+                                done[i] = true;
+                            }
+                        }
+                    }
+                }
+
+                if (done[0] && done[1])
+                    break;
+            }
+
+            if (ret == 2 && fx[1] > 0.1f && fy[1] > 0.1f)
+            {
+                float ar[2] = { 0 };
+                float tmp = rec_sides[0][2] + rec_sides[0][3];
+                if (tmp > 0.1f)
+                    ar[0] = (rec_sides[0][0] + rec_sides[0][1]) / tmp;
+
+                tmp = rec_sides[1][2] + rec_sides[1][3];
+                if (tmp > 0.1f)
+                    ar[1] = (rec_sides[1][0] + rec_sides[1][1]) / tmp;
+
+                if (ar[0] > 0.0f)
+                    align = ar[1] / ar[0] - 1.0f;
+
+                float ta[2] = { 0 };
+                float gt[4] = { 0 };
+                float ave_gt = 0.0f;
+                for (int i = 0; i < 2; ++i)
+                {
+                    if (rec_sides[i][0] > 0)
+                        gt[0] = target_fw[i] / rec_sides[i][0];
+
+                    if (rec_sides[i][1] > 0)
+                        gt[1] = target_fw[i] / rec_sides[i][1];
+
+                    if (rec_sides[i][2] > 0)
+                        gt[2] = target_fh[i] / rec_sides[i][2];
+
+                    if (rec_sides[i][3] > 0)
+                        gt[3] = target_fh[i] / rec_sides[i][3];
+
+                    ave_gt = 0.0f;
+                    for (int i = 0; i < 4; ++i)
+                        ave_gt += gt[i];
+                    ave_gt /= 4.0;
+
+                    ta[i] = atanf(align * ave_gt / stereo_baseline);
+                    ta[i] = rad2deg(ta[i]);
+                }
+
+                tilt_angle = (ta[0] + ta[1]) / 2;
+
+                align *= 100;
+
+                float r[4] = { 0 };
+                float c = fx[0] / fx[1];
+
+                if (rec_sides[0][0] > 0.1f)
+                    r[0] = c * rec_sides[1][0] / rec_sides[0][0];
+
+                if (rec_sides[0][1] > 0.1f)
+                    r[1] = c * rec_sides[1][1] / rec_sides[0][1];
+
+                c = fy[0] / fy[1];
+                if (rec_sides[0][2] > 0.1f)
+                    r[2] = c * rec_sides[1][2] / rec_sides[0][2];
+
+                if (rec_sides[0][3] > 0.1f)
+                    r[3] = c * rec_sides[1][3] / rec_sides[0][3];
+
+                ratio = 0.0f;
+                for (int i = 0; i < 4; ++i)
+                    ratio += r[i];
+                ratio /= 4;
+
+                ratio -= 1.0f;
+                ratio *= 100;
+
+                corrected_ratio = ratio - correction_factor * align;
+
+                float ratio_to_apply = corrected_ratio / 100.0f + 1.0f;
+                _new_calib = _old_calib;
+                auto table = (librealsense::ds::coefficients_table*)_new_calib.data();
+                table->intrinsic_right.x.x *= ratio_to_apply;
+                table->intrinsic_right.x.y *= ratio_to_apply;
+
+                auto actual_data = _new_calib.data() + sizeof(librealsense::ds::table_header);
+                auto actual_data_size = _new_calib.size() - sizeof(librealsense::ds::table_header);
+                auto crc = helpers::calc_crc32(actual_data, actual_data_size);
+                table->header.crc32 = crc;
+            }
+            else
+                fail("Please adjust the camera position \nand make sure the specific target is \nin the middle of the camera image!");
+        }
+        catch (const std::runtime_error& error)
+        {
+            fail(error.what());
+        }
+        catch (...)
+        {
+            fail("Getting ground truth failed!");
+        }
+    }
+
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup, invoker invoke)
     {
         if (action == RS2_CALIB_ACTION_FL_CALIB || action == RS2_CALIB_ACTION_UVMAPPING_CALIB)
