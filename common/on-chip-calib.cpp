@@ -1891,7 +1891,7 @@ namespace rs2
                     get_manager().restore_workspace([this](std::function<void()> a) { a(); });
                     get_manager().reset();
                     get_manager().retry_times = 0;
-                    get_manager().action = on_chip_calib_manager::RS2_CALIB_ACTION_UVMAPPING_CALIB;
+                    get_manager().action = on_chip_calib_manager::RS2_CALIB_ACTION_UVMAPPING;
                     auto _this = shared_from_this();
                     auto invoke = [_this](std::function<void()> action) {
                         _this->invoke(action);
