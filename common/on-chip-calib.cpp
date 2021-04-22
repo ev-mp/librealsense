@@ -471,6 +471,49 @@ namespace rs2
                 if (_sub->s->supports(RS2_OPTION_THERMAL_COMPENSATION))
                     _sub->s->set_option(RS2_OPTION_THERMAL_COMPENSATION, 0.f);
             }
+            else if (action == RS2_CALIB_ACTION_UVMAPPING)
+            {
+                _uid = 1;
+                _uid2 = 2;
+                bool first_done = 0;
+                bool second_done = 0;
+                for (const auto& format : _sub->formats)
+                {
+                    if (format.second[0] == "Y8" && !first_done)
+                    {
+                        _uid = format.first;
+                        first_done = true;
+                    }
+
+                    if (format.second[0] == "Z16" && !second_done)
+                    {
+                        _uid2 = format.first;
+                        second_done = true;
+                    }
+
+                    if (first_done && second_done)
+                        break;
+                }
+
+                for (const auto& format : _sub_color->formats)
+                {
+                    int done = false;
+                    for (int i = 0; i < format.second.size(); ++i)
+                    {
+                        if (format.second[i] == "RGB8")
+                        {
+                            _uid_color = format.first;
+                            done = true;
+                            break;
+                        }
+                    }
+                    if (done)
+                        break;
+                }
+
+                if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
+                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+            }
             else if (run_fl_calib)
             {
                 _uid = 1;
@@ -1684,59 +1727,116 @@ namespace rs2
         try
         {
             std::shared_ptr<dots_calculator> gt_calculator[2];
-            bool created[2] = { false, false };
+            bool created[3] = { false, false, false };
 
             int counter = 0;
             int limit = dots_calculator::_frame_num << 1;
             int step = limit / dots_calculator::_frame_num;
 
             int ret = { 0 };
-            int id[2] = { _uid, _uid2 }; // 0 for left and 1 for color
-            rs2_intrinsics intrin[2] = { 0 };
+            int id[3] = { _uid, _uid_color, _uid2 }; // 0 for left, 1 for color, and 2 for depth
+            rs2_intrinsics intrin[2];
+            stream_profile profile[2];
             float dots_x[2][4] = { 0 };
             float dots_y[2][4] = { 0 };
 
+            int idx = 0;
+            int depth_frame_size = 0;
+            std::vector<std::vector<uint16_t>> depth(dots_calculator::_frame_num);
+
             rs2::frame f;
-            bool done[2] = { false, false };
+            int width = 0;
+            int height = 0;
+            bool done[3] = { false, false, false };
             while (counter < limit)
             {
-                for (int i = 0; i < 2; ++i)
+                if (!done[2])
                 {
-                    if (!done[i])
+                    f = _viewer.ppf.frames_queue[id[2]].wait_for_frame();
+
+                    if (!created[2])
                     {
-                        f = _viewer.ppf.frames_queue[id[i]].wait_for_frame();
-                        if (f)
-                        {
-                            if (!created[i])
-                            {
-                                stream_profile profile = f.get_profile();
-                                auto vsp = profile.as<video_stream_profile>();
+                        profile[1] = f.get_profile();
+                        auto vsp = profile[1].as<video_stream_profile>();
+                        width = vsp.width();
+                        depth_frame_size = vsp.width() * vsp.height() * sizeof(uint16_t);
+                        created[2] = true;
+                    }
 
-                                gt_calculator[i] = std::make_shared<dots_calculator>();
-                                intrin[i] = vsp.get_intrinsics();
-                                created[i] = true;
-                            }
+                    depth[idx].resize(depth_frame_size);
+                    memmove(depth[idx++].data(), f.get_data(), depth_frame_size);
 
-                            ret = gt_calculator[i]->calculate(f.get(), dots_x[i], dots_y[i]);
-                            if (ret == 0)
-                                ++counter;
-                            else if (ret == 1)
-                                _progress += step;
-                            else if (ret == 2)
-                            {
-                                _progress += step;
-                                done[i] = true;
-                            }
-                        }
+                    if (idx == dots_calculator::_frame_num)
+                        done[2] = true;
+                }
+
+                if (!done[0])
+                {
+                    f = _viewer.ppf.frames_queue[id[0]].wait_for_frame();
+
+                    if (!created[0])
+                    {
+                        profile[0] = f.get_profile();
+                        auto vsp = profile[0].as<video_stream_profile>();
+
+                        gt_calculator[0] = std::make_shared<dots_calculator>();
+                        intrin[0] = vsp.get_intrinsics();
+                        created[0] = true;
+                    }
+
+                    ret = gt_calculator[0]->calculate(f.get(), dots_x[0], dots_y[0]);
+                    if (ret == 0)
+                        ++counter;
+                    else if (ret == 1)
+                        _progress += step;
+                    else if (ret == 2)
+                    {
+                        _progress += step;
+                        done[0] = true;
                     }
                 }
 
-                if (done[0] && done[1])
+                if (!done[1])
+                {
+                    f = _viewer.ppf.frames_queue[id[1]].wait_for_frame();
+
+                    if (!created[1])
+                    {
+                        profile[1] = f.get_profile();
+                        auto vsp = profile[1].as<video_stream_profile>();
+                        width = vsp.width();
+                        height = vsp.height();
+
+                        gt_calculator[1] = std::make_shared<dots_calculator>();
+                        intrin[1] = vsp.get_intrinsics();
+                        created[1] = true;
+                    }
+
+                    undistort(const_cast<uint8_t *>(static_cast<const uint8_t *>(f.get_data())), width, height, intrin[1]);
+                    ret = gt_calculator[1]->calculate(f.get(), dots_x[1], dots_y[1]);
+                    if (ret == 0)
+                        ++counter;
+                    else if (ret == 1)
+                        _progress += step;
+                    else if (ret == 2)
+                    {
+                        _progress += step;
+                        done[1] = true;
+                    }
+                }
+
+                if (done[0] && done[1] && done[2])
                     break;
             }
 
-            if (done[0] && done[1])
+            if (done[0] && done[1] && done[2])
             {
+                rs2_extrinsics extrin = profile[0].get_extrinsics_to(profile[1]);
+
+                float z[4] = { 0 };
+                FindZatCorners(dots_x[0], dots_y[0], width, dots_calculator::_frame_num, depth, z);
+
+                uvmapping_calib calib(4, dots_x[0], dots_y[0], z, dots_x[1], dots_y[1], intrin[0], intrin[1], extrin);
 
 
 
@@ -3568,4 +3668,22 @@ namespace rs2
 
         pinned = true;
     }
+
+    uvmapping_calib::uvmapping_calib(int pt_num, const float* left_x, const float* left_y, const float* left_z, const float* color_x, const float* color_y, const rs2_intrinsics& left_intrin, const rs2_intrinsics& color_intrin, rs2_extrinsics& extrin)
+        : _pt_num(pt_num)
+    {
+        for (int i = 0; i < pt_num; ++i)
+        {
+            _left_x.emplace_back(left_x[i]);
+            _left_y.emplace_back(left_y[i]);
+            _left_x.emplace_back(left_z[i]);
+            _color_x.emplace_back(color_x[i]);
+            _color_y.emplace_back(color_y[i]);
+        }
+
+        memmove(&_left_intrin, &left_intrin, sizeof(rs2_intrinsics));
+        memmove(&_color_intrin, &color_intrin, sizeof(rs2_intrinsics));
+        memmove(&_extrin, &extrin, sizeof(rs2_extrinsics));
+    }
+
 }
