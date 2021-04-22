@@ -1,5 +1,7 @@
 #include <signal.h>
 #include <iostream>
+#include <thread>
+#include <chrono>
 #include <../include/librealsense2/rs.hpp>
 #include <../include/librealsense2/rs_advanced_mode.hpp>
 #include <windows.h>
@@ -43,15 +45,23 @@ int main(int argc, char* argv[]) try
             cfg.enable_stream(RS2_STREAM_INFRARED, 1, 640, 480, RS2_FORMAT_Y8, 30);
             cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 30);
             std::cout << "-> Try pipe start" << std::endl;
+            std::cout << "Capture 15 frames" << std::endl;
             auto start = std::chrono::system_clock::now();
             pipe.start(cfg);
 
-            std::cout << "Capture 15 frames" << std::endl;
+            bool first_frame = false;
             for (auto i = 0; i < 15; ++i)
+            {
                 pipe.wait_for_frames();
+                if (!first_frame)
+                {
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start).count();
+                    std::cout << "First frame arrived after " << std::dec << elapsed << " msec" << std::endl;
+                    first_frame = true;
+                }
+            }
 
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start).count();
-            std::cout << "First frame arrived after " << std::dec << elapsed << " msec" << std::endl;
+
             std::cout << "-> Collect info" << std::endl;
 
             auto adev = pipe.get_active_profile().get_device().as<rs400::advanced_mode>();
@@ -105,7 +115,8 @@ int main(int argc, char* argv[]) try
             std::cout << "-> Try pipe stop" << std::endl;
             pipe.stop();
             std::cout << "---ALL GOOD---" << std::endl;
-            std::cout << "Wait 10 seconds..." << std::endl;
+            std::cout << "Wait 0.5 seconds..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
     }
 
