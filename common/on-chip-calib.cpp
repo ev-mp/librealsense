@@ -3494,8 +3494,11 @@ namespace rs2
                 {
                     update_state = RS2_CALIB_STATE_CALIB_COMPLETE;
                     enable_dismiss = true;
-                    get_manager().apply_calib(true);
-                    use_new_calib = true;
+                    if (get_manager().action != on_chip_calib_manager::RS2_CALIB_ACTION_UVMAPPING)
+                    {
+                        get_manager().apply_calib(true);
+                        use_new_calib = true;
+                    }
                 }
 
                 if (!expanded)
