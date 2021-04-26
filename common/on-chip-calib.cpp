@@ -227,7 +227,6 @@ namespace rs2
         {
             stop_viewer();
             _viewer.is_3d_view = false;
-
             _uid = 1;
             _uid2 = 2;
             bool first_done = 0;
