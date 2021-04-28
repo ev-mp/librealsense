@@ -2387,8 +2387,6 @@ namespace rs2
             auto metrics_after = get_depth_metrics(invoke);
             _metrics.push_back(metrics_after);
         }
-        else if (action == RS2_CALIB_ACTION_UVMAPPING_CALIB)
-            start_uvmapping_viewer(true);
 
         _progress = 100;
         _done = true;
