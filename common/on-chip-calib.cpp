@@ -2432,6 +2432,8 @@ namespace rs2
         calib_dev.write_calibration();
     }
 
+
+        _dev.hardware_reset(); // Workaround for reloading color calibration table. Othere approach?
     void on_chip_calib_manager::apply_calib(bool use_new)
     {
         auto calib_dev = _dev.as<auto_calibrated_device>();
