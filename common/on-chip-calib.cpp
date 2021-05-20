@@ -1723,7 +1723,7 @@ namespace rs2
                                 stream_profile profile = f.get_profile();
                                 auto vsp = profile.as<video_stream_profile>();
 
-                                gt_calculator[i] = std::make_shared<rect_calculator>();
+                                gt_calculator[i] = std::make_shared<rect_calculator>(true);
                                 fx[i] = vsp.get_intrinsics().fx;
                                 fy[i] = vsp.get_intrinsics().fy;
                                 target_fw[i] = vsp.get_intrinsics().fx * config_file::instance().get_or_default(configurations::viewer::target_width_r, 175.0f);
@@ -2179,7 +2179,7 @@ namespace rs2
                         stream_profile profile = f.get_profile();
                         auto vsp = profile.as<video_stream_profile>();
 
-                        gt_calculator = std::make_shared<rect_calculator>();
+                        gt_calculator = std::make_shared<rect_calculator>(true);
                         target_fw = vsp.get_intrinsics().fx * config_file::instance().get_or_default(configurations::viewer::target_width_r, 175.0f);
                         target_fh = vsp.get_intrinsics().fy * config_file::instance().get_or_default(configurations::viewer::target_height_r, 100.0f);
                         created = true;
@@ -4089,7 +4089,7 @@ namespace rs2
         else if (update_state == RS2_CALIB_STATE_SELF_INPUT) return (get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB ? 180 : 160);
         else if (update_state == RS2_CALIB_STATE_TARE_INPUT) return 105;
         else if (update_state == RS2_CALIB_STATE_TARE_INPUT_ADVANCED) return 230;
-        else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH) return 110;
+        else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH) return 135;
         else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH_FAILED) return 115;
         else if (update_state == RS2_CALIB_STATE_FAILED) return ((get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_OB_CALIB || get_manager().action == on_chip_calib_manager::RS2_CALIB_ACTION_ON_CHIP_FL_CALIB) ? (get_manager().retry_times < 3 ? 0 : 80) : 110);
         else if (update_state == RS2_CALIB_STATE_FL_INPUT) return 200;
