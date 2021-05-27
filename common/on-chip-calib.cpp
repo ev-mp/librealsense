@@ -1822,8 +1822,19 @@ namespace rs2
                 float ratio_to_apply = corrected_ratio / 100.0f + 1.0f;
                 _new_calib = _old_calib;
                 auto table = (librealsense::ds::coefficients_table*)_new_calib.data();
-                table->intrinsic_right.x.x *= ratio_to_apply;
-                table->intrinsic_right.x.y *= ratio_to_apply;
+                if (adjust_both_sides)
+                {
+                    float ratio_to_apply_2 = sqrtf(ratio_to_apply);
+                    table->intrinsic_left.x.x /= ratio_to_apply_2;
+                    table->intrinsic_left.x.y /= ratio_to_apply_2;
+                    table->intrinsic_right.x.x *= ratio_to_apply_2;
+                    table->intrinsic_right.x.y *= ratio_to_apply_2;
+                }
+                else
+                {
+                    table->intrinsic_right.x.x *= ratio_to_apply;
+                    table->intrinsic_right.x.y *= ratio_to_apply;
+                }
 
                 auto actual_data = _new_calib.data() + sizeof(librealsense::ds::table_header);
                 auto actual_data_size = _new_calib.size() - sizeof(librealsense::ds::table_header);
