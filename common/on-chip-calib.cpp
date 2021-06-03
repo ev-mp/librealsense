@@ -138,7 +138,7 @@ namespace rs2
                 {
                     auto now = std::chrono::high_resolution_clock::now();
                     if (now - start_time > std::chrono::milliseconds(timeout_ms))
-                        throw std::runtime_error(to_string() << "Failed to fetch depth frame within " << timeout_ms << "ms");
+                        throw std::runtime_error(to_string() << "Failed to fetch depth frame within " << timeout_ms << " ms");
 
                     if (now - stream.second.last_frame < std::chrono::milliseconds(100))
                     {
@@ -2018,7 +2018,7 @@ namespace rs2
         }
         catch (...)
         {
-            fail("UVMapping calibration failed!");
+            fail("UV-Mapping calibration failed!");
         }
     }
 
