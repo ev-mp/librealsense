@@ -637,13 +637,13 @@ namespace rs2
         * \return       New calibration table
         */
         std::vector<uint8_t> run_uvmapping_calibration_cpp(rs2_frame_queue* left, rs2_frame_queue* color, rs2_frame_queue* depth, int py_px_only,
-            float* health, int helath_size)
+            float* health, int health_size)
         {
             std::vector<uint8_t> results;
 
             rs2_error* e = nullptr;
             std::shared_ptr<const rs2_raw_data_buffer> list(
-                rs2_run_uvmapping_calibration_cpp(_dev.get(), left, color, depth, py_px_only, health, helath_size, nullptr, &e),
+                rs2_run_uvmapping_calibration_cpp(_dev.get(), left, color, depth, py_px_only, health, health_size, nullptr, &e),
                 rs2_delete_raw_data);
             error::handle(e);
 
@@ -671,13 +671,13 @@ namespace rs2
         */
         template<class T>
         std::vector<uint8_t> run_uvmapping_calibration(rs2_frame_queue* left, rs2_frame_queue* color, rs2_frame_queue* depth, int py_px_only,
-            float* health, int helath_size, T callback)
+            float* health, int health_size, T callback)
         {
             std::vector<uint8_t> results;
 
             rs2_error* e = nullptr;
             std::shared_ptr<const rs2_raw_data_buffer> list(
-                rs2_run_uvmapping_calibration_cpp(_dev.get(), left, color, depth, py_px_only, health, helath_size,
+                rs2_run_uvmapping_calibration_cpp(_dev.get(), left, color, depth, py_px_only, health, health_size,
                     new update_progress_callback<T>(std::move(callback)), &e),
                 rs2_delete_raw_data);
             error::handle(e);
@@ -690,6 +690,25 @@ namespace rs2
             results.insert(results.begin(), start, start + size);
 
             return results;
+        }
+
+        /**
+        *  Calculate Ground Truth distance to target
+        * \param[in]    queue: A frame queue of raw images used to calculate and extract the ground truth
+        * \param[out]   Calculated ground truth distance in millimeter, or negative number if failed
+        * \return       New calibration table
+        */
+        template<class T>
+        float distance_to_target(rs2_frame_queue* queue, float target_width, float target_height, T callback)
+        {
+            float result;
+            rs2_error* e = nullptr;
+
+            result = rs2_distance_to_target(_dev.get(), queue, target_width, target_height,
+                new update_progress_callback<T>(std::move(callback)), &e);
+            error::handle(e);
+
+            return result;
         }
     };
 
