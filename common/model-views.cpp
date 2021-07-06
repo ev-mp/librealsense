@@ -782,7 +782,7 @@ namespace rs2
                                     cur_len--;
                                 return cur_len - 2;
                             };
-                            int num_of_decimal_digits_displayed = num_of_decimal_digits(range.step);
+                            int num_of_decimal_digits_displayed = int(num_of_decimal_digits(range.step));
 
                             // displaying in cm instead of meters for D405
                             if (use_cm_units)
