@@ -3457,7 +3457,7 @@ rs2_raw_data_buffer* rs2_terminal_parse_response(rs2_terminal_parser* terminal_p
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, terminal_parser, command, response)
 
-const rs2_raw_data_buffer* rs2_run_fl_calibration_cpp(rs2_device* device, rs2_frame_queue* left, rs2_frame_queue* right, float target_w, float target_h, 
+const rs2_raw_data_buffer* rs2_run_focal_length_calibration_cpp(rs2_device* device, rs2_frame_queue* left, rs2_frame_queue* right, float target_w, float target_h, 
     int adjust_both_sides, float* ratio, float* angle, rs2_update_progress_callback * progress_callback, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
@@ -3469,15 +3469,15 @@ const rs2_raw_data_buffer* rs2_run_fl_calibration_cpp(rs2_device* device, rs2_fr
     auto auto_calib = VALIDATE_INTERFACE(device->device, librealsense::auto_calibrated_interface);
     std::vector<uint8_t> buffer;
     if (progress_callback == nullptr)
-        buffer = auto_calib->run_fl_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, nullptr);
+        buffer = auto_calib->run_focal_length_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, nullptr);
     else
-        buffer = auto_calib->run_fl_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, { progress_callback, [](rs2_update_progress_callback* p) { p->release(); } });
+        buffer = auto_calib->run_focal_length_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, { progress_callback, [](rs2_update_progress_callback* p) { p->release(); } });
 
     return new rs2_raw_data_buffer{ buffer };
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, device, left, right, ratio, angle)
 
-const rs2_raw_data_buffer* rs2_run_fl_calibration(rs2_device* device, rs2_frame_queue* left, rs2_frame_queue* right, float target_w, float target_h,
+const rs2_raw_data_buffer* rs2_run_focal_length_calibration(rs2_device* device, rs2_frame_queue* left, rs2_frame_queue* right, float target_w, float target_h,
     int adjust_both_sides, float* ratio, float* angle, rs2_update_progress_callback_ptr callback, void* client_data, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
@@ -3489,11 +3489,11 @@ const rs2_raw_data_buffer* rs2_run_fl_calibration(rs2_device* device, rs2_frame_
     auto auto_calib = VALIDATE_INTERFACE(device->device, librealsense::auto_calibrated_interface);
     std::vector<uint8_t> buffer;
     if (callback == nullptr)
-        buffer = auto_calib->run_fl_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, nullptr);
+        buffer = auto_calib->run_focal_length_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, nullptr);
     else
     {
         librealsense::update_progress_callback_ptr cb(new librealsense::update_progress_callback(callback, client_data), [](update_progress_callback* p) { delete p; });
-        buffer = auto_calib->run_fl_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, cb);
+        buffer = auto_calib->run_focal_length_calibration(left, right, target_w, target_h, adjust_both_sides, ratio, angle, cb);
     }
 
     return new rs2_raw_data_buffer{ buffer };
