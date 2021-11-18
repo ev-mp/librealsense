@@ -993,7 +993,7 @@ namespace librealsense
 
 
         const uint16_t* p = reinterpret_cast<const uint16_t*>(frame->get_frame_data());
-        p += from * height + roi_start_w;
+        p += from * width + roi_start_w;
 
         int counter(0);
         for (int j = from; j < to; ++j)
@@ -1004,7 +1004,7 @@ namespace librealsense
                     ++counter;
                 ++p;
             }
-            p += width;
+            p += (width - roi_w);
         }
 
         double tmp = static_cast<double>(counter) / static_cast<double>(data_size) * 10000.0;
@@ -1069,7 +1069,7 @@ namespace librealsense
         int roi_start_h = 2 * roi_h;
 
         const uint16_t* p = reinterpret_cast<const uint16_t*>(frame->get_frame_data());
-        p += roi_start_h * height + roi_start_w;
+        p += roi_start_h * width + roi_start_w;
 
         for (int j = 0; j < roi_h; ++j)
         {
@@ -1082,7 +1082,7 @@ namespace librealsense
                 }
                 ++p;
             }
-            p += width;
+            p += (width- roi_h);
         }
     }
 
