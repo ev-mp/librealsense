@@ -290,7 +290,6 @@ namespace librealsense
             {
                 // Check calibration status
                 auto res = _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_calib_check_status });
-
                 if (res.size() < sizeof(DirectSearchCalibrationResult))
                 {
                     if (!((retries++) % 5)) // Add log debug once in a sec
@@ -304,8 +303,9 @@ namespace librealsense
                     done = !wait_for_final_results || result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
                 }
             }
-            catch (const invalid_value_exception&)
+            catch (const invalid_value_exception& e)
             {
+                LOG_DEBUG("error: " << e.what());
                 // Asked for status while firmware is still in progress.
             }
 
@@ -1350,7 +1350,7 @@ namespace librealsense
         catch (const std::exception& ex)
         {
             _interactive_state = interactive_calibration_state::RS2_OCC_STATE_NOT_ACTIVE;
-            throw ex;
+            throw;
         }
     }
 
@@ -1521,7 +1521,6 @@ namespace librealsense
         if(health)
             *health = reslt->m_dscResultParams.m_healthCheck;
 
-        LOG_INFO("Got calibration results with calib size: " << calib.size());
         return calib;
     }
 
