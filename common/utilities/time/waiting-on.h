@@ -15,10 +15,13 @@ namespace time {
 // Helper class -- encapsulate a variable of type T that we want to wait on: another thread will set
 // it and signal when we can continue...
 // 
-// We use the least amount of synchronization mechanisms: no effort is made to synchronize (usually,
-// it's not needed: only one thread will be writing to T, and the owner of T will be waiting on it)
-// so it's the responsibility of the user to do so if needed.
-//
+// In order to synchronize the users predicate, we expect the user to provide his conditional variable and mutex used to set the predicate.
+// As mentioned at the conditional variable documentation: (https://en.cppreference.com/w/cpp/thread/condition_variable)
+//     The thread that intends to modify the shared variable has to
+//      1. acquire a std::mutex(typically via std::lock_guard)
+//      2. perform the modification while the lock is held
+//      3. execute notify_one or notify_all on the std::condition_variable(the lock does not need to be held for notification)
+// For more detailed information see https://www.modernescpp.com/index.php/c-core-guidelines-be-aware-of-the-traps-of-condition-variables
 template< class T >
 class waiting_on
 {
@@ -30,15 +33,23 @@ public:
     class wait_state_t
     {
         T _value;
-        std::condition_variable _cv;
+        std::condition_variable &_cv;
+        std::mutex &_m;
         std::atomic_bool _valid{ true };
-
         friend class waiting_on;
 
     public:
-        wait_state_t() = default;   // allow default ctor
-        wait_state_t( T const & t )
-            : _value( t )
+        wait_state_t() = delete; // Do not allow default Ctor, we need the user's CV and Mutex
+        wait_state_t( std::condition_variable & cv, std::mutex & m )
+            : _cv( cv )
+            , _m( m )
+        {
+        }
+
+        wait_state_t( std::condition_variable &cv, std::mutex &m, T const & t )
+            : _cv( cv )
+            , _m( m )
+            , _value( t )
         {
         }
 
@@ -51,7 +62,9 @@ public:
         // Set a new value and signal
         void signal( T const & t )
         {
+            std::unique_lock<std::mutex> locker(_m);
             _value = t;
+            locker.unlock();
             signal();
         }
         // Signal with the current value
@@ -113,12 +126,12 @@ public:
     };
 
 public:
-    waiting_on()
-        : _ptr( std::make_shared< wait_state_t >() )
+    waiting_on( std::condition_variable & cv, std::mutex & m )
+        : _ptr( std::make_shared< wait_state_t >( cv, m ) )
     {
     }
-    waiting_on( T const & value )
-        : _ptr( std::make_shared< wait_state_t >( value ) )
+    waiting_on( std::condition_variable & cv, std::mutex & m, T const & value )
+        : _ptr( std::make_shared< wait_state_t >( cv, m, value ) )
     {
     }
 
@@ -144,12 +157,9 @@ public:
     template < class U, class L >
     void wait_until( U const& timeout, L const& pred )
     {
-        // Note that the mutex is useless and used only for the wait -- we assume here that access
-        // to the T data does not need mutual exclusion
-        std::mutex m;
-        // Following will issue (from CppCheck):
-        //     warning: The lock is ineffective because the mutex is locked at the same scope as the mutex itself. [localMutex]
-        std::unique_lock< std::mutex > locker( m );
+        // The CV must use the same lock that locks the predicate assignment value, otherwise it
+        // could miss the signal which is a known trap of conditional variables
+        std::unique_lock< std::mutex > locker(_ptr->_m);
         _ptr->_cv.wait_for( locker, timeout, [&]() -> bool {
             if( ! _ptr->_valid )
                 return true;

@@ -14,7 +14,7 @@ env:
   
 jobs:    
   Windows_testing_cpp_USB_Win7:
-    runs-on: windows-2016
+    runs-on: windows-2019
     timeout-minutes: 60
     env:
       VS15: false
@@ -44,7 +44,7 @@ jobs:
         cd build
         pwd
         ls        
-        cmake .. -G "Visual Studio 15 2017 Win64" -DPYTHON_EXECUTABLE=${{env.PYTHON_PATH}} -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.8 -DBUILD_UNIT_TESTS=false -DBUILD_LEGACY_LIVE_TEST=true -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_WITH_TM2=false -DFORCE_RSUSB_BACKEND=true
+        cmake .. -G "Visual Studio 16 2019" -DPYTHON_EXECUTABLE=${{env.PYTHON_PATH}} -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.8 -DBUILD_UNIT_TESTS=false -DBUILD_LEGACY_LIVE_TEST=true -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_WITH_TM2=false -DFORCE_RSUSB_BACKEND=true
 
     - name: Build
       # Build your program with the given configuration
@@ -84,7 +84,7 @@ jobs:
         fi
   
   Windows_cpp:
-    runs-on: windows-2016
+    runs-on: windows-2019
     timeout-minutes: 60
     env:
       VS15: true
@@ -110,7 +110,7 @@ jobs:
         cd build
         pwd
         ls
-        cmake .. -G "Visual Studio 15 2017 Win64" -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DCHECK_FOR_UPDATES=true
+        cmake .. -G "Visual Studio 16 2019" -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DCHECK_FOR_UPDATES=true
 
     - name: Build
       # Build your program with the given configuration
@@ -124,7 +124,7 @@ jobs:
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: windows-2016   
+    runs-on: windows-2019   
     timeout-minutes: 60
     env:
       VS15: true  
@@ -150,7 +150,7 @@ jobs:
         cd build
         pwd
         ls
-        cmake .. -G "Visual Studio 15 2017 Win64" -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_CSHARP_BINDINGS=true -DDOTNET_VERSION_LIBRARY="4.5" -DDOTNET_VERSION_EXAMPLES="4.5" -DCHECK_FOR_UPDATES=true    
+        cmake .. -G "Visual Studio 16 2019" -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_CSHARP_BINDINGS=true -DDOTNET_VERSION_LIBRARY="4.5" -DDOTNET_VERSION_EXAMPLES="4.5" -DCHECK_FOR_UPDATES=true    
 
     - name: Build
       # Build your program with the given configuration
@@ -172,13 +172,6 @@ jobs:
         cd scripts && ./api_check.sh && cd ..
         mkdir build && cd build
         export LRS_LOG_LEVEL="DEBUG";
-        url_records_path="https://librealsense.intel.com/rs-tests/lrs_2.8.3/";
-        records_name="records_test.txt";
-        url_records_list=$url_records_path$records_name;
-        wget $url_records_path$records_name;
-        tests_list=`cat $records_name`;
-        for record in $tests_list; do echo $url_records_path$record; wget $url_records_path$record -P "records/"$(echo $record | cut -d '/' -f 1); done;
-        
         sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test;
         sudo apt-get update;
         sudo apt-get install -qq build-essential xorg-dev libgl1-mesa-dev libglu1-mesa-dev libglew-dev libglm-dev;
@@ -204,10 +197,7 @@ jobs:
       run: | 
         export LRS_LOG_LEVEL="DEBUG";
         cd build   
-        ./unit-tests/live-test -d yes -i [software-device]
-        # for i in ./records/single_cam/*; do ./unit-tests/live-test -d yes -i ~[multicam] from "$i"; done
-        # for i in ./records/multi_cam/*; do ./unit-tests/live-test -d yes -i [multicam] from "$i"; done
-        
+        ./unit-tests/live-test -d yes -i [software-device]        
 
     - name: Upload RS log artifact
       uses: actions/upload-artifact@v2
@@ -305,7 +295,7 @@ jobs:
 
 
   Mac_cpp:
-    runs-on: macos-latest
+    runs-on: macos-10.15
     timeout-minutes: 60
     
     steps:
@@ -314,15 +304,18 @@ jobs:
       run: |
         cd scripts && ./api_check.sh && cd ..
         mkdir build
-        #brew uninstall xctool;
-        #brew install xctool --HEAD;
+        # install coreutils for greadlink use
+        brew install coreutils
         brew install homebrew/core/glfw3;
         brew list libusb || brew install libusb;
         
     - name: Build
       run: |
         cd build
-        export OPENSSL_ROOT_DIR=`brew --prefix openssl` # Used by libcurl for 'CHECK_FOR_UPDATES' capability
+        # `OPENSSL_ROOT_DIR` setting is Used by libcurl for 'CHECK_FOR_UPDATES' capability
+        # We use "greadlink -f" which is mac-os parallel command to "readlink -f" from Linux (-f to convert relative link to absolute link)
+        export OPENSSL_ROOT_DIR=`greadlink -f /usr/local/opt/openssl@1.1`        
+        echo "OPENSSL_ROOT_DIR = ${OPENSSL_ROOT_DIR}"
         cmake .. -DBUILD_EXAMPLES=true -DBUILD_WITH_OPENMP=false -DHWM_OVER_XU=false -DCHECK_FOR_UPDATES=true
         cmake --build . --config ${{env.LRS_BUILD_CONFIG}} -- -j4
         ls
@@ -352,7 +345,7 @@ jobs:
     - name: Build
       run: |
        cd build
-       cmake .. -DCMAKE_TOOLCHAIN_FILE=../android-ndk-r20b/build/cmake/android.toolchain.cmake
+       cmake .. -DCMAKE_TOOLCHAIN_FILE=../android-ndk-r20b/build/cmake/android.toolchain.cmake -DFORCE_RSUSB_BACKEND=true
        cmake --build . --config ${{env.LRS_BUILD_CONFIG}} -- -j4
        ls
   
