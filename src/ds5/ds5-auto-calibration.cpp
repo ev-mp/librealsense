@@ -1,8 +1,6 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2016 Intel Corporation. All Rights Reserved.
 
-#define SAVE_RAW_IMAGE
-
 #include <numeric>
 #include "../third-party/json.hpp"
 #include "ds5-device.h"
@@ -27,11 +25,6 @@ namespace librealsense
         float calRightRotation[9]; // Calibrated right rotation
         uint16_t accuracyLevel;  // [0-3] (Very High/High/Medium/Low)
         uint16_t iterations;        // Number of iterations it took to converge
-        //int32_t errors[iterations];  // Array of errors in 1/1000000 of a percent
-        //int32_t x[iterations];    // Intrinsic scan: array of Px in 1/1000000 normalized unit
-        //                         // Extrinsic scan: array of Ry in 1/100000 radian
-        //float beforeHealthCheck; // Before health check number
-        //float afterHealthCheck;  // After health check number
     };
 
     struct FocalLengthCalibrationResult
@@ -464,16 +457,6 @@ namespace librealsense
             }
             _min_valid_depth = result.minDepth;
             _max_valid_depth = result.maxDepth;
-#ifdef SAVE_RAW_IMAGE
-            {
-                std::stringstream name_s;
-                name_s << "valid_depth_values.txt";
-                std::ofstream fout(name_s.str(), std::ios::out);
-                fout << "_min_valid_depth:" << _min_valid_depth << std::endl;
-                fout << "_max_valid_depth:" << _max_valid_depth << std::endl;
-            }
-#endif
-
             return res;
         }
 
@@ -509,27 +492,16 @@ namespace librealsense
             {
                 if (host_assistance == host_assistance_type::assistance_first_feed)
                 {
-#ifdef SAVE_RAW_IMAGE
-                    std::stringstream name_s;
-                    name_s << "fill_factor_final.txt";
-                    std::ofstream fout(name_s.str(), std::ios::out);
-#endif
                     command cmd(ds::AUTO_CALIB, interactive_scan_control, 0, 0);
                     uint8_t* p = reinterpret_cast<uint8_t*>(&step_count_v3);
                     cmd.data.push_back(p[0]);
                     cmd.data.push_back(p[1]);
                     for (uint16_t i = 0; i < step_count_v3; ++i)
                     {
-#ifdef SAVE_RAW_IMAGE
-                        fout << i << ", " << *(fill_factor + i) << std::endl;
-#endif
                         p = reinterpret_cast<uint8_t*>(fill_factor + i);
                         cmd.data.push_back(p[0]);
                         cmd.data.push_back(p[1]);
                     }
-#ifdef SAVE_RAW_IMAGE
-                    fout.close();
-#endif
                     _hw_monitor->send(cmd);
                 }
 
@@ -539,8 +511,8 @@ namespace librealsense
                         {
                             if (host_assistance != host_assistance_type::no_assistance)
                                 if (count < 20) progress_callback->on_update_progress(static_cast<float>(80 + count++));
-                                else
-                                    progress_callback->on_update_progress(count++ * (2.f * speed)); //curently this number does not reflect the actual progress
+                            else
+                                progress_callback->on_update_progress(count++ * (2.f * speed)); //curently this number does not reflect the actual progress
                         }
                     });
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -1181,7 +1153,7 @@ namespace librealsense
 #endif
     }
 
-    std::vector<uint8_t> auto_calibrated::add_calibration_frame(int timeout_ms, const rs2_frame* f, float* const health, update_progress_callback_ptr progress_callback)
+    std::vector<uint8_t> auto_calibrated::process_calibration_frame(int timeout_ms, const rs2_frame* f, float* const health, update_progress_callback_ptr progress_callback)
     {
         try
         {
