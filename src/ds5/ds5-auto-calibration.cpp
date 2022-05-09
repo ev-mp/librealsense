@@ -324,7 +324,7 @@ namespace librealsense
         if (!done)
         {
             throw std::runtime_error("Operation timed-out!\n"
-                "Calibration state did not converged in time");
+                "Calibration state did not converge on time");
         }
         return result;
     }
@@ -417,8 +417,6 @@ namespace librealsense
             try_fetch(jsn, "resize factor", &_resize_factor);
         }
 
-        std::shared_ptr<ds5_advanced_mode_base> preset_recover;
-
         std::vector<uint8_t> res;
 
         if (host_assistance != host_assistance_type::no_assistance && _interactive_state == interactive_calibration_state::RS2_OCC_STATE_NOT_ACTIVE)
@@ -494,7 +492,7 @@ namespace librealsense
             // Begin auto-calibration
             if (host_assistance == host_assistance_type::no_assistance || host_assistance == host_assistance_type::assistance_start)
                 _hw_monitor->send(command{ ds::AUTO_CALIB, py_rx_calib_begin, speed, 0, p4 });
-            
+
             if (host_assistance != host_assistance_type::assistance_start)
             {
                 if (host_assistance == host_assistance_type::assistance_first_feed)
@@ -518,22 +516,23 @@ namespace librealsense
                         {
                             if (host_assistance != host_assistance_type::no_assistance)
                                 if (count < 20) progress_callback->on_update_progress(static_cast<float>(80 + count++));
-                            else
-                                progress_callback->on_update_progress(count++ * (2.f * speed)); //curently this number does not reflect the actual progress
+                                else
+                                    progress_callback->on_update_progress(count++ * (2.f * speed)); //curently this number does not reflect the actual progress
                         }
                     });
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-            auto status = (rs2_dsc_status)result.status;
+                auto status = (rs2_dsc_status)result.status;
 
-            // Handle errors from firmware
-            if (status != RS2_DSC_STATUS_SUCCESS)
-            {
-                handle_calibration_error(status);
+                // Handle errors from firmware
+                if (status != RS2_DSC_STATUS_SUCCESS)
+                {
+                    handle_calibration_error(status);
+                }
+                if (progress_callback)
+                    progress_callback->on_update_progress(static_cast<float>(100));
+                res = get_calibration_results(health);
             }
-            if (progress_callback)
-                progress_callback->on_update_progress(static_cast<float>(100));
-            res = get_calibration_results(health);
         }
         else if (calib_type == 1)
         {
@@ -750,7 +749,7 @@ namespace librealsense
                     if (!done)
                     {
                         throw std::runtime_error("Operation timed-out!\n"
-                            "Calibration state did not converged in time");
+                            "Calibration state did not converge on time");
                     }
 
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -966,11 +965,6 @@ namespace librealsense
                 if (status != RS2_DSC_STATUS_SUCCESS)
                     handle_calibration_error(status);
 
-                uint8_t* p = res.data() + sizeof(TareCalibrationResult) + 2 * result.iterations * sizeof(uint32_t);
-                float* ph = reinterpret_cast<float*>(p);
-                health[0] = ph[0];
-                health[1] = ph[1];
-
                 if (depth < 0)
                 {
                     restore_preset();
@@ -983,6 +977,7 @@ namespace librealsense
 
         return res;
     }
+
     uint16_t auto_calibrated::calc_fill_rate(const rs2_frame* f)
     {
         auto frame = ((video_frame*)f);
