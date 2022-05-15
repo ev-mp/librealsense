@@ -61,7 +61,7 @@ constexpr bool metadata_node = false;
 #define V4L2_META_FMT_D4XX      v4l2_fourcc('D', '4', 'X', 'X') /* D400 Payload Header metadata */
 #endif
 
-//#define DEBUG_V4L
+#define DEBUG_V4L
 #ifdef DEBUG_V4L
 #define LOG_DEBUG_V4L(...)   do { CLOG(DEBUG   ,"librealsense") << __VA_ARGS__; } while(false)
 #else
@@ -271,8 +271,14 @@ namespace librealsense
 
             // pulling synced data
             // if returned value is true - the data could have been pulled
-            // if returned value is false - no data is returned via the inout params because data could not be synced
+            // if returned value is false - no data is returned via the input params because data could not be synced
             bool pull_video_with_metadata(std::shared_ptr<v4l2_buffer>& video_buffer, std::shared_ptr<v4l2_buffer>& md_buffer);
+
+            // Drop collected but yet-to-be used frames on stop signal
+            bool flush();
+
+            // Debug and utility call
+            std::string print_status() const;
 
         private:
             void enqueue_buffer_before_throwing_it(const sync_buffer& sb) const;

@@ -100,7 +100,7 @@ namespace rs2
         ImFont                   *_font_14, *_font_18, *_monofont;
         rs2::mouse_info          _mouse{};
         std::string              _error_message;
-        float                    _scale_factor;
+        float                    _scale_factor=1;
 
         std::thread              _first_load;
         bool                     _first_frame;

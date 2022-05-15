@@ -941,12 +941,13 @@ namespace librealsense
             _is_capturing = false;
             _is_started = false;
 
-            // Stop nn-demand frames polling
+            // Stop on-demand frames polling
             signal_stop();
 
             _thread->join();
             _thread.reset();
 
+            LOG_DEBUG_V4L(__FUNCTION__ << " polling thread closed. Going to streamoff");
             // Notify kernel
             streamoff();
         }
@@ -996,6 +997,7 @@ namespace librealsense
             {
                  throw linux_backend_exception("Could not signal video capture thread to stop. Error write to pipe.");
             }
+            LOG_DEBUG_V4L(__FUNCTION__ << " was invoked");
         }
 
         std::string time_in_HH_MM_SS_MMM()
@@ -1063,6 +1065,7 @@ namespace librealsense
             LOG_DEBUG_V4L("Select done, val = " << val << " at " << time_in_HH_MM_SS_MMM());
             if(val < 0)
             {
+                LOG_ERROR("select was negatively signalled, aborting stream");
                 _is_capturing = false;
                 _is_started = false;
 
@@ -1075,14 +1078,15 @@ namespace librealsense
                 {
                     if(FD_ISSET(_stop_pipe_fd[0], &fds) || FD_ISSET(_stop_pipe_fd[1], &fds))
                     {
+                        LOG_DEBUG_V4L(__FUNCTION__ << " stop_pipe signal received");
                         if(!_is_capturing)
                         {
-                            LOG_INFO("V4L stream is closed");
+                            LOG_INFO("V4L stream is being closed");
                             return;
                         }
                         else
                         {
-                            LOG_ERROR("Stop pipe was signalled during streaming");
+                            LOG_ERROR("Stop pipe was signalled while streaming");
                             return;
                         }
                     }
@@ -1227,6 +1231,13 @@ namespace librealsense
                             LOG_DEBUG("FD_ISSET: no data on video node sink");
                         }
 
+                        if(!_is_capturing)
+                        {
+                            LOG_INFO("polling after stop request, flush syncer and return");
+                            _video_md_syncer.flush();
+                            return;
+                        }
+
                         // uploading to user's callback
                         std::shared_ptr<v4l2_buffer> video_v4l2_buffer;
                         std::shared_ptr<v4l2_buffer> md_v4l2_buffer;
@@ -1259,6 +1270,8 @@ namespace librealsense
                                 frame_object fo{ frame_sz, buf_mgr.metadata_size(),
                                                  video_buffer->get_frame_start(), buf_mgr.metadata_start(), timestamp };
 
+                                LOG_DEBUG_V4L("Invoke cb from FD,Seq: " << this->_fd
+                                              << ", "<< video_v4l2_buffer->sequence);
                                 //Invoke user callback and enqueue next frame
                                 _callback(_profile, fo, [buf_mgr]() mutable {
                                     buf_mgr.request_next_frame();
@@ -1981,7 +1994,7 @@ namespace librealsense
         void v4l_uvc_meta_device::acquire_metadata(buffers_mgr & buf_mgr,fd_set &fds, bool)
         {
             //Use non-blocking metadata node polling
-            if(FD_ISSET(_md_fd, &fds))
+            if(_is_capturing && (_md_fd > 0) &&FD_ISSET(_md_fd, &fds))
             {
                 // In scenario if [md+vid] ->[md] ->[md,vid] the third md should not be retrieved but wait for next select
                 if (buf_mgr.metadata_size())
@@ -2020,7 +2033,12 @@ namespace librealsense
                 buf_mgr.handle_buffer(e_metadata_buf,_md_fd, buf,buffer);
 
                 // pushing metadata buffer to syncer
-                _video_md_syncer.push_metadata({std::make_shared<v4l2_buffer>(buf), _md_fd, buf.index});
+                if (_is_started)
+                    _video_md_syncer.push_metadata({std::make_shared<v4l2_buffer>(buf), _md_fd, buf.index});
+                else
+                {
+                    LOG_DEBUG_V4L(__FUNCTION__ << " called in idle mode, md_syncer: " << _video_md_syncer.print_status());
+                }
             }
         }
 
@@ -2110,6 +2128,7 @@ namespace librealsense
 
         bool v4l_mipi_device::get_xu(const extension_unit& xu, uint8_t control, uint8_t* data, int size) const
         {
+            memset(data, 0, size);
             v4l2_ext_control xctrl{xu_to_cid(xu,control), uint32_t(size), 0, 0};
             xctrl.p_u8 = data;
 
@@ -2404,6 +2423,43 @@ namespace librealsense
             {
                 LOG_ERROR("xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: " << sb._fd << " error: " << strerror(errno));
             }
+        }
+
+
+        // Drop collected but yet-to-be used frames on stop signal
+        bool v4l2_video_md_syncer::flush()
+        {
+            LOG_DEBUG_V4L(__FUNCTION__);
+            while (!_md_queue.empty())
+                _md_queue.pop();
+            while (!_video_queue.empty())
+                _video_queue.pop();
+        }
+
+        // Debug and utility call
+        std::string v4l2_video_md_syncer::print_status() const
+        {
+            std::stringstream ss;
+
+            ss << "Video queue size: " << _video_queue.size() << ". sequence id: ";
+
+            auto tmp_q = _video_queue; //copy the original queue to the temporary queue
+            while (!tmp_q.empty())
+            {
+                auto elem = tmp_q.front();
+                ss << elem._v4l2_buf->sequence << " ";
+                tmp_q.pop();
+            }
+            ss << "MD queue size: " << _md_queue.size() << ". sequence id: ";
+            tmp_q = _md_queue;
+            while (!tmp_q.empty())
+            {
+                auto elem = tmp_q.front();
+                ss << elem._v4l2_buf->sequence << " ";
+                tmp_q.pop();
+            }
+
+            return ss.str().c_str();
         }
     }
 }

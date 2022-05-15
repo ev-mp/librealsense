@@ -147,7 +147,7 @@ Some auxillary functionalities might be affected. Please report this message if 
         if (widthMM * heightMM == 0) return 1;
 
         // The actual calculation is somewhat arbitrary, but we are going for
-        // about 1cm buttons, regardless of resultion
+        // about 1cm buttons, regardless of resolution
         // We discourage fractional scale factors
         float how_many_pixels_in_mm =
             get_monitor_rect(best).area() / (widthMM * heightMM);
