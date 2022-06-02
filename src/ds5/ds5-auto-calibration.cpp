@@ -289,11 +289,12 @@ namespace librealsense
                 {
                     if (!((retries++) % 5)) // Add log debug once in a sec
                     {
-                        LOG_DEBUG("Not enough data from CALIB_STATUS!");
+                        LOG_WARNING("Not enough data from CALIB_STATUS!");
                     }
                 }
                 else
                 {
+                    LOG_WARNING("py_rx_calib_check_status accepted");
                     result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
                     done = !wait_for_final_results || result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
                 }
@@ -303,7 +304,11 @@ namespace librealsense
                 LOG_DEBUG("error: " << e.what());
                 // Asked for status while firmware is still in progress.
             }
-
+//            catch (...) // Evgeni
+//            {
+//                LOG_WARNING("no answer on py/rx cal status");
+//                // Asked for status while firmware is still in progress.
+//            }
             if (progress_func)
             {
                 progress_func(count);
@@ -463,7 +468,7 @@ namespace librealsense
         std::shared_ptr<ds5_advanced_mode_base> preset_recover;
         if (calib_type == 0)
         {
-            LOG_DEBUG("run_on_chip_calibration with parameters: speed = " << speed << " scan_parameter = " << scan_parameter << " data_sampling = " << data_sampling);
+            LOG_WARNING("run_on_chip_calibration with parameters: speed = " << speed << " scan_parameter = " << scan_parameter << " data_sampling = " << data_sampling);
             check_params(speed, scan_parameter, data_sampling);
 
             int p4 = 0;

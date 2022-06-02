@@ -2112,7 +2112,7 @@ namespace librealsense
                 if (errno == EIO || errno == EAGAIN) // TODO: Log?
                     return false;
 
-                throw linux_backend_exception("xioctl(VIDIOC_S_EXT_CTRLS) failed");
+                throw linux_backend_exception(to_string() << "xioctl(VIDIOC_S_EXT_CTRLS) failed, error: " << retVal);
             }
             return true;
         }

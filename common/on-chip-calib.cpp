@@ -408,7 +408,7 @@ namespace rs2
             if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
             {
                 laser_status_prev = _sub->s->get_option(RS2_OPTION_EMITTER_ENABLED);
-                _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+                _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 1.0f); // evgeni - D457 converge
             }
             if (_sub->s->supports(RS2_OPTION_THERMAL_COMPENSATION))
             {
@@ -474,7 +474,7 @@ namespace rs2
                 }
 
                 if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
-                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 1.f); // Evgeni
                 if (_sub->s->supports(RS2_OPTION_THERMAL_COMPENSATION))
                     _sub->s->set_option(RS2_OPTION_THERMAL_COMPENSATION, 0.f);
             }
@@ -522,7 +522,7 @@ namespace rs2
                 }
 
                 if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
-                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 1.0f); // Evgeni
             }
             else if (action == RS2_CALIB_ACTION_FL_PLUS_CALIB)
             {
@@ -559,7 +559,7 @@ namespace rs2
                 }
 
                 if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
-                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 1.0f); //Evgeni
             }
             else if (run_fl_calib)
             {
@@ -584,7 +584,7 @@ namespace rs2
                 }
 
                 if (_sub->s->supports(RS2_OPTION_EMITTER_ENABLED))
-                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 0.0f);
+                    _sub->s->set_option(RS2_OPTION_EMITTER_ENABLED, 1.0f); // Evgeni
                 if (_sub->s->supports(RS2_OPTION_THERMAL_COMPENSATION))
                     _sub->s->set_option(RS2_OPTION_THERMAL_COMPENSATION, 0.f);
             }
