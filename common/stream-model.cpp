@@ -968,6 +968,10 @@ namespace rs2
               "sufficiently increase exposure time (an get enough light)" },
             { RS2_FRAME_METADATA_POWER_LINE_FREQUENCY,
               "Power Line Frequency for anti-flickering Off/50Hz/60Hz/Auto. " },
+            { RS2_FRAME_METADATA_PIPELATENCY,
+              "HW Pipeline Latency" },
+            { RS2_FRAME_METADATA_READOUT,
+              "HW Pipeline Readout" },
         };
 
         for( auto i = 0; i < RS2_FRAME_METADATA_COUNT; i++ )

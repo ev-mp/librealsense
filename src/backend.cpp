@@ -19,6 +19,7 @@
 #include "platform/uvc-device.h"
 
 #include <iomanip>
+#include <iostream>
 
 
 namespace librealsense {
@@ -55,6 +56,8 @@ double monotonic_to_realtime(double monotonic)
 {
     auto realtime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     auto time_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    std::cout << "TS: Monotonic:"
+        << std::fixed << std::setprecision(3) << monotonic << std::endl;
     return monotonic + (realtime - time_since_epoch);
 }
 

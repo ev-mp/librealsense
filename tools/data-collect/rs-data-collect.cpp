@@ -131,7 +131,7 @@ void data_collector::save_data_to_file(const string& out_filename)
 
     for (const auto& elem : data_collection)
     {
-        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms)"
+        csv << "\n\nStream Type,Index,F#,HW Timestamp (ms),Host Timestamp(ms),Sensor TS, Frame TS, BE TS, LRS TS, APP TS"
             << (val_in_range(elem.first.first, { RS2_STREAM_GYRO,RS2_STREAM_ACCEL }) ? ",3DOF_x,3DOF_y,3DOF_z" : "")
             << (val_in_range(elem.first.first, { RS2_STREAM_POSE }) ? ",t_x,t_y,t_z,r_x,r_y,r_z,r_w" : "")
             << std::endl;
@@ -143,6 +143,8 @@ void data_collector::save_data_to_file(const string& out_filename)
 
 void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_point<std::chrono::high_resolution_clock> start_time)
 {
+    auto duration = std::chrono::high_resolution_clock::now().time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
     auto arrival_time = std::chrono::duration<double, std::milli>(chrono::high_resolution_clock::now() - start_time);
     auto stream_uid = std::make_pair(f.get_profile().stream_type(), f.get_profile().stream_index());
 
@@ -153,7 +155,13 @@ void data_collector::collect_frame_attributes(rs2::frame f, std::chrono::time_po
             arrival_time.count(),
             f.get_frame_timestamp_domain(),
             f.get_profile().stream_type(),
-            f.get_profile().stream_index() };
+            f.get_profile().stream_index(),
+            static_cast<double>(f.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP)),
+            static_cast<double>(f.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP)),
+            static_cast<double>(f.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP)),
+            static_cast<double>(f.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL)),
+            static_cast<double>(millis)
+        };
 
         // Assume that the frame extensions are unique
         if (auto motion = f.as<rs2::motion_frame>())

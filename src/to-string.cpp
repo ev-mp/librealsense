@@ -648,6 +648,8 @@ std::string const & get_string( rs2_frame_metadata_value value )
         CASE( SUB_PRESET_INFO )
         CASE( CALIB_INFO )
         CASE( CRC )
+        CASE( PIPELATENCY )
+        CASE( READOUT )
 #undef CASE
             return arr;
     }();

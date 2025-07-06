@@ -239,3 +239,44 @@ namespace librealsense
 #pragma pack(pop)
     }
 }
+/*
+ Expected changes
+ 1.replacing    uint8_t  cssHeader[128];  with new fields:
+
+     uint8_t  headerVersion[2];  // The version of the header structure including Major.Minor numbers. Shall be populated with (1.0) for HKR-based SKUs
+                                //headerVersion[0] - Minor version (LSB)
+                                //headerVersion[1] - Minor version (MSB)
+                                //imageVersion[0] - represent the major version in[0..0xFF] range(decimal units)
+    uint16_t headerAttribute;   // Provision for future
+    uint16_t imageVersion[4];   // BKC Version of the SW stack including Major.Minor.Patch.Build numbers ( XXXX.YYYY.ZZZZ.WWWW), and formatted format as follows:
+                                //imageVersion[0] - represent the major version in[0..0xFFFF] range(decimal units)
+                                //  imageVersion[1] - represent the minor version in[0..0xFFFF] range(decimal units)
+                                //imageVersion[2] - represent the patch version in[0..0xFFFF] range(decimal units)
+                                //imageVersion[3] - represent the build version in[0..0xFFFF] range(decimal units)
+    uint8_t  reserve1[116];
+
+ 2. replacing uint32_t magicNumber;
+ Instead of  D4xx firmware's :    s_dfuMagicNumber[4] = { 0x1, 0x2, 0x3, 0x4 };
+ HKR to use                                             { 0x5, 0x8, 0x5, 0xa };
+
+ 3. Librealsense to
+
+ */
+struct dfu_hkr_header {
+    uint32_t dwCRC;
+    uint8_t  headerSignature[256];
+    uint8_t  headerVersion[2];  // The version of the header structure including Major.Minor numbers. 
+                                //headerVersion[0] - Minor version (LSB)
+                                //headerVersion[1] - Minor version (MSB)
+                                //imageVersion[0] - represent the major version in[0..0xFF] range(decimal units)
+    uint16_t headerAttribute;   // 
+    uint16_t imageVersion[4];   // BKC Version of the SW stack including Major.Minor.Patch.Build numbers ( XX.YY.ZZ.WW)
+    uint8_t  reserve1[116];
+    uint32_t magicNumber;
+    uint32_t prefixLength;
+    uint16_t bcdDFU;
+    uint32_t bcdDevice;
+    uint8_t  reserve[4];
+    uint32_t imageSize;
+    uint16_t nofBlocks;
+};

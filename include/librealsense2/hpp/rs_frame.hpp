@@ -525,6 +525,25 @@ namespace rs2
             return r != 0;
         }
 
+        /** try and retrieve the current value of a single frame_metadata
+        * \param[in] frame_metadata  the frame_metadata whose value should be retrieved
+        * \return            the value of the frame_metadata
+        */
+        rs2_metadata_type try_get_frame_metadata(rs2_frame_metadata_value frame_metadata) const
+        {
+            rs2_error* e = nullptr;
+            rs2_metadata_type r = 0;
+            r = rs2_supports_frame_metadata(frame_ref, frame_metadata, &e);
+            error::handle(e);
+            if (r != 0)
+            {
+                e = nullptr;
+                r = rs2_get_frame_metadata(frame_ref, frame_metadata, &e);
+                error::handle(e);
+            }
+            return r;
+        }
+
         /**
         * retrieve frame number (from frame handle)
         * \return               the frame number of the frame, in milliseconds since the device was started

@@ -74,6 +74,8 @@ typedef enum rs2_frame_metadata_value
     RS2_FRAME_METADATA_SUB_PRESET_INFO                      , /**< Sub-preset information */
     RS2_FRAME_METADATA_CALIB_INFO                           , /**< FW-controlled frame counter to be using in Calibration scenarios */
     RS2_FRAME_METADATA_CRC                                  , /**< CRC checksum of the Metadata */
+    RS2_FRAME_METADATA_PIPELATENCY                          , /**< HW Pipe Latency metadata attribute */
+    RS2_FRAME_METADATA_READOUT,
 
     RS2_FRAME_METADATA_COUNT
 } rs2_frame_metadata_value;
