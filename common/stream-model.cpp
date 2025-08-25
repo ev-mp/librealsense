@@ -968,10 +968,14 @@ namespace rs2
               "sufficiently increase exposure time (an get enough light)" },
             { RS2_FRAME_METADATA_POWER_LINE_FREQUENCY,
               "Power Line Frequency for anti-flickering Off/50Hz/60Hz/Auto. " },
-            { RS2_FRAME_METADATA_PIPELATENCY,
-              "HW Pipeline Latency" },
-            { RS2_FRAME_METADATA_READOUT,
-              "HW Pipeline Readout" },
+            { RS2_FRAME_METADATA_PIPELATENCY, "HW Pipeline Latency" },
+            { RS2_FRAME_METADATA_READOUT, "Readout time" },
+            { RS2_FRAME_METADATA_EXPOSURE_TIME, "Exposure Time stats" },
+            { RS2_FRAME_METADATA_FRAME_INTERVAL, "Frame Interval" },
+            { RS2_FRAME_METADATA_HW_TIMESTAMP_STATS, "Timestamp stats" },
+            { RS2_FRAME_METADATA_EXPOSURE_STATS, "Exposure stats" },
+            { RS2_FRAME_METADATA_EXPOSURE_COMP_STATS, "Exposure compensation stats" },
+            { RS2_FRAME_METADATA_SENSOR_FRAMERATE_STATS, "Framerate stats" },
         };
 
         for( auto i = 0; i < RS2_FRAME_METADATA_COUNT; i++ )

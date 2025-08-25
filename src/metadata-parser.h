@@ -391,6 +391,36 @@ namespace librealsense
         }
     };
 
+    /**\brief Optical timestamp for RS4xx Rolling Shuter devices is calculated internally*/
+    class md_rs400_rs_sensor_timestamp : public md_attribute_parser_base
+    {
+        std::shared_ptr<md_attribute_parser_base> _sensor_ts_parser = nullptr;
+        std::shared_ptr<md_attribute_parser_base> _frame_ts_parser = nullptr;
+        std::shared_ptr<md_attribute_parser_base> _actual_exposure_parser = nullptr;
+
+    public:
+        explicit md_rs400_rs_sensor_timestamp(std::shared_ptr<md_attribute_parser_base> sensor_ts_parser,
+            std::shared_ptr<md_attribute_parser_base> frame_ts_parser, std::shared_ptr<md_attribute_parser_base> actual_exposure_parser) :
+            _sensor_ts_parser(sensor_ts_parser),
+            _frame_ts_parser(frame_ts_parser),
+            _actual_exposure_parser(actual_exposure_parser) {
+        };
+
+        virtual ~md_rs400_rs_sensor_timestamp() { _sensor_ts_parser = nullptr; _frame_ts_parser = nullptr;  _actual_exposure_parser = nullptr; };
+
+        // The sensor's timestamp is defined as the middle of exposure time. However, for Rolling shutter, Sensor_ts= Frame_ts - ((Actual_Exposure+Readout_time)/2)
+        // For RS4xx the metadata payload holds only the (Actual_Exposure+Readout_time/2) offset, and the actual value needs to be calculated
+        bool find(const librealsense::frame& frm, rs2_metadata_type* p_value) const override
+        {
+            rs2_metadata_type frame_value, sensor_value, exposure_value;
+            if (!_sensor_ts_parser->find(frm, &sensor_value) || !_frame_ts_parser->find(frm, &frame_value) || !_actual_exposure_parser->find(frm, &exposure_value))
+                return false;
+            if (p_value)
+                *p_value = frame_value - exposure_value + sensor_value; // Sensor_ts = Frame_ts - ((Actual_Exposure + Readout_time) / 2)
+            return true;
+        }
+    };
+
     template<class S, class Attribute, typename Flag>
     class md_attribute_parser_with_crc : public md_attribute_parser<S, Attribute, Flag>
     {
@@ -457,11 +487,19 @@ namespace librealsense
         }
     };
 
-    /**\brief A helper function to create a specialized parser for RS4xx sensor timestamp*/
+    /**\brief A helper function to create a specialized parser for RS4xx Global Shutter sensor timestamp*/
     inline std::shared_ptr<md_attribute_parser_base> make_rs400_sensor_ts_parser(std::shared_ptr<md_attribute_parser_base> frame_ts_parser,
         std::shared_ptr<md_attribute_parser_base> sensor_ts_parser)
     {
         std::shared_ptr<md_rs400_sensor_timestamp> parser(new md_rs400_sensor_timestamp(sensor_ts_parser, frame_ts_parser));
+        return parser;
+    }
+
+    /**\brief A helper function to create a specialized parser for RS4xx Rolling Shutter sensor timestamp*/
+    inline std::shared_ptr<md_attribute_parser_base> make_rs400_rs_sensor_ts_parser(std::shared_ptr<md_attribute_parser_base> frame_ts_parser,
+        std::shared_ptr<md_attribute_parser_base> sensor_ts_parser, std::shared_ptr<md_attribute_parser_base> actual_exposure_parser)
+    {
+        std::shared_ptr<md_rs400_rs_sensor_timestamp> parser(new md_rs400_rs_sensor_timestamp(sensor_ts_parser, frame_ts_parser, actual_exposure_parser));
         return parser;
     }
 }

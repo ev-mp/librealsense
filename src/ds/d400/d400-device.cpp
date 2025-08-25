@@ -1036,70 +1036,76 @@ namespace librealsense
         depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP, make_uvc_header_parser(&platform::uvc_header::timestamp));
 
         // attributes of md_capture_timing
-        auto md_prop_offset = metadata_raw_mode_offset +
-            offsetof(md_depth_mode, depth_y_mode) +
-            offsetof(md_depth_y_normal_mode, intel_capture_timing);
+        //auto md_prop_offset = metadata_raw_mode_offset +
+        //    offsetof(md_depth_mode, depth_y_mode) +
+        //    offsetof(md_depth_y_normal_mode, intel_capture_timing);
+        // attributes of md_capture_timing
+        auto md_prop_offset = metadata_raw_mode_offset + offsetof(md_depth_mode, depth_y_mode);
+        auto md_timing_offset   = md_prop_offset + offsetof(md_depth_y_normal_mode, intel_capture_timing);
+        auto md_stats_offset    = md_prop_offset + offsetof(md_depth_y_normal_mode, intel_capture_stats);
+        auto md_ctl_offset      = md_prop_offset + offsetof(md_depth_y_normal_mode, intel_depth_control);
+        auto md_cfg_offset      = md_prop_offset + offsetof(md_depth_y_normal_mode, intel_configuration);
 
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_COUNTER, make_attribute_parser(&md_capture_timing::frame_counter, md_capture_timing_attributes::frame_counter_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP, make_rs400_sensor_ts_parser(make_uvc_header_parser(&platform::uvc_header::timestamp),
-            make_attribute_parser(&md_capture_timing::sensor_timestamp, md_capture_timing_attributes::sensor_timestamp_attribute, md_prop_offset)));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_PIPELATENCY,
-            make_attribute_parser(&md_capture_timing::pipe_latency, md_capture_timing_attributes::pipe_latency_attribute, md_prop_offset));
+        //depth_sensor.register_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP, make_rs400_sensor_ts_parser(make_uvc_header_parser(&platform::uvc_header::timestamp),
+          //  make_attribute_parser(&md_capture_timing::sensor_timestamp, md_capture_timing_attributes::sensor_timestamp_attribute, md_prop_offset)));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP, make_rs400_rs_sensor_ts_parser(make_uvc_header_parser(&platform::uvc_header::timestamp),
+            make_attribute_parser(&md_capture_timing::sensor_timestamp, md_capture_timing_attributes::sensor_timestamp_attribute, md_timing_offset),
+            make_attribute_parser(&md_depth_control::manual_exposure, md_depth_control_attributes::exposure_attribute, md_ctl_offset))
+        ); // Evgeni
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_WHITE_BALANCE,
+            make_attribute_parser(&md_capture_timing::sensor_timestamp, md_capture_timing_attributes::sensor_timestamp_attribute, md_timing_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_COUNTER,
+            make_attribute_parser(&md_capture_timing::frame_counter, md_capture_timing_attributes::frame_counter_attribute, md_timing_offset));
         depth_sensor.register_metadata(RS2_FRAME_METADATA_READOUT,
-            make_attribute_parser(&md_capture_timing::readout_time, md_capture_timing_attributes::readout_time_attribute, md_prop_offset));
+            make_attribute_parser(&md_capture_timing::readout_time, md_capture_timing_attributes::readout_time_attribute, md_timing_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_TIME,
+            make_attribute_parser(&md_capture_timing::exposure_time, md_capture_timing_attributes::exposure_attribute, md_timing_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_INTERVAL,
+            make_attribute_parser(&md_capture_timing::frame_interval, md_capture_timing_attributes::frame_interval_attribute, md_timing_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_PIPELATENCY,
+            make_attribute_parser(&md_capture_timing::pipe_latency, md_capture_timing_attributes::pipe_latency_attribute, md_timing_offset));
 
+        //depth_sensor.register_metadata(RS2_FRAME_METADATA_WHITE_BALANCE, make_attribute_parser(&md_capture_stats::white_balance, md_capture_stat_attributes::white_balance_attribute, md_prop_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_HW_TIMESTAMP_STATS,   make_attribute_parser(&md_capture_stats::hw_timestamp, md_capture_stat_attributes::hw_timestamp_attribute, md_stats_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_STATS, make_attribute_parser(&md_capture_stats::exposure_time, md_capture_stat_attributes::exposure_time_attribute, md_stats_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_COMP_STATS, make_attribute_parser(&md_capture_stats::exposure_compensation_value, md_capture_stat_attributes::exposure_compensation_attribute, md_stats_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_SENSOR_FRAMERATE_STATS, make_attribute_parser(&md_capture_stats::sensor_framerate, md_capture_stat_attributes::sensor_framerate_attribute, md_stats_offset));
 
-        // attributes of md_capture_stats
-        md_prop_offset = metadata_raw_mode_offset +
-            offsetof(md_depth_mode, depth_y_mode) +
-            offsetof(md_depth_y_normal_mode, intel_capture_stats);
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_GAIN_LEVEL, make_attribute_parser(&md_depth_control::manual_gain, md_depth_control_attributes::gain_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE, make_attribute_parser(&md_depth_control::manual_exposure, md_depth_control_attributes::exposure_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_AUTO_EXPOSURE, make_attribute_parser(&md_depth_control::auto_exposure_mode, md_depth_control_attributes::ae_mode_attribute, md_ctl_offset));
 
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_WHITE_BALANCE, make_attribute_parser(&md_capture_stats::white_balance, md_capture_stat_attributes::white_balance_attribute, md_prop_offset));
-
-        // attributes of md_depth_control
-        md_prop_offset = metadata_raw_mode_offset +
-            offsetof(md_depth_mode, depth_y_mode) +
-            offsetof(md_depth_y_normal_mode, intel_depth_control);
-
-
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_GAIN_LEVEL, make_attribute_parser(&md_depth_control::manual_gain, md_depth_control_attributes::gain_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE, make_attribute_parser(&md_depth_control::manual_exposure, md_depth_control_attributes::exposure_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_AUTO_EXPOSURE, make_attribute_parser(&md_depth_control::auto_exposure_mode, md_depth_control_attributes::ae_mode_attribute, md_prop_offset));
-
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LASER_POWER, make_attribute_parser(&md_depth_control::laser_power, md_depth_control_attributes::laser_pwr_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LASER_POWER_MODE, make_attribute_parser(&md_depth_control::emitterMode, md_depth_control_attributes::emitter_mode_attribute, md_prop_offset,
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LASER_POWER, make_attribute_parser(&md_depth_control::laser_power, md_depth_control_attributes::laser_pwr_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LASER_POWER_MODE, make_attribute_parser(&md_depth_control::emitterMode, md_depth_control_attributes::emitter_mode_attribute, md_ctl_offset,
             [](const rs2_metadata_type& param) { return param == 1 ? 1 : 0; })); // starting at version 2.30.1 this control is superceeded by RS2_FRAME_METADATA_FRAME_EMITTER_MODE
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_PRIORITY, make_attribute_parser(&md_depth_control::exposure_priority, md_depth_control_attributes::exposure_priority_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_LEFT, make_attribute_parser(&md_depth_control::exposure_roi_left, md_depth_control_attributes::roi_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_RIGHT, make_attribute_parser(&md_depth_control::exposure_roi_right, md_depth_control_attributes::roi_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_TOP, make_attribute_parser(&md_depth_control::exposure_roi_top, md_depth_control_attributes::roi_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_BOTTOM, make_attribute_parser(&md_depth_control::exposure_roi_bottom, md_depth_control_attributes::roi_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_EMITTER_MODE, make_attribute_parser(&md_depth_control::emitterMode, md_depth_control_attributes::emitter_mode_attribute, md_prop_offset));
-        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LED_POWER, make_attribute_parser(&md_depth_control::ledPower, md_depth_control_attributes::led_power_attribute, md_prop_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_PRIORITY, make_attribute_parser(&md_depth_control::exposure_priority, md_depth_control_attributes::exposure_priority_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_LEFT, make_attribute_parser(&md_depth_control::exposure_roi_left, md_depth_control_attributes::roi_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_RIGHT, make_attribute_parser(&md_depth_control::exposure_roi_right, md_depth_control_attributes::roi_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_TOP, make_attribute_parser(&md_depth_control::exposure_roi_top, md_depth_control_attributes::roi_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_EXPOSURE_ROI_BOTTOM, make_attribute_parser(&md_depth_control::exposure_roi_bottom, md_depth_control_attributes::roi_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_EMITTER_MODE, make_attribute_parser(&md_depth_control::emitterMode, md_depth_control_attributes::emitter_mode_attribute, md_ctl_offset));
+        depth_sensor.register_metadata(RS2_FRAME_METADATA_FRAME_LED_POWER, make_attribute_parser(&md_depth_control::ledPower, md_depth_control_attributes::led_power_attribute, md_ctl_offset));
 
         // md_configuration - will be used for internal validation only
-        md_prop_offset = metadata_raw_mode_offset + offsetof(md_depth_mode, depth_y_mode) + offsetof(md_depth_y_normal_mode, intel_configuration);
-
-        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_HW_TYPE, make_attribute_parser(&md_configuration::hw_type, md_configuration_attributes::hw_type_attribute, md_prop_offset));
-        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_SKU_ID, make_attribute_parser(&md_configuration::sku_id, md_configuration_attributes::sku_id_attribute, md_prop_offset));
-        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_FORMAT, make_attribute_parser(&md_configuration::format, md_configuration_attributes::format_attribute, md_prop_offset));
-        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_WIDTH, make_attribute_parser(&md_configuration::width, md_configuration_attributes::width_attribute, md_prop_offset));
-        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_HEIGHT, make_attribute_parser(&md_configuration::height, md_configuration_attributes::height_attribute, md_prop_offset));
+        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_HW_TYPE, make_attribute_parser(&md_configuration::hw_type, md_configuration_attributes::hw_type_attribute, md_cfg_offset));
+        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_SKU_ID, make_attribute_parser(&md_configuration::sku_id, md_configuration_attributes::sku_id_attribute, md_cfg_offset));
+        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_FORMAT, make_attribute_parser(&md_configuration::format, md_configuration_attributes::format_attribute, md_cfg_offset));
+        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_WIDTH, make_attribute_parser(&md_configuration::width, md_configuration_attributes::width_attribute, md_cfg_offset));
+        depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_HEIGHT, make_attribute_parser(&md_configuration::height, md_configuration_attributes::height_attribute, md_cfg_offset));
         depth_sensor.register_metadata((rs2_frame_metadata_value)RS2_FRAME_METADATA_ACTUAL_FPS, std::make_shared<ds_md_attribute_actual_fps>());
 
         if (_fw_version >= firmware_version("5.12.7.0"))
         {
-            depth_sensor.register_metadata(RS2_FRAME_METADATA_GPIO_INPUT_DATA, make_attribute_parser(&md_configuration::gpioInputData, md_configuration_attributes::gpio_input_data_attribute, md_prop_offset));
+            depth_sensor.register_metadata(RS2_FRAME_METADATA_GPIO_INPUT_DATA, make_attribute_parser(&md_configuration::gpioInputData, md_configuration_attributes::gpio_input_data_attribute, md_cfg_offset));
         }
 
         if (_fw_version >= hdr_firmware_version)
         {
-            // attributes of md_capture_timing
             auto md_prop_offset = metadata_raw_mode_offset + offsetof(md_depth_mode, depth_y_mode) + offsetof(md_depth_y_normal_mode, intel_configuration);
 
             depth_sensor.register_metadata(RS2_FRAME_METADATA_SEQUENCE_SIZE,
                 make_attribute_parser(&md_configuration::sub_preset_info,
-                    md_configuration_attributes::sub_preset_info_attribute, md_prop_offset,
+                    md_configuration_attributes::sub_preset_info_attribute, md_cfg_offset,
                     [](const rs2_metadata_type& param) {
                         // bit mask and offset used to get data from bitfield
                         return (param & md_configuration::SUB_PRESET_BIT_MASK_SEQUENCE_SIZE)
@@ -1108,7 +1114,7 @@ namespace librealsense
 
             depth_sensor.register_metadata(RS2_FRAME_METADATA_SEQUENCE_ID,
                 make_attribute_parser(&md_configuration::sub_preset_info,
-                    md_configuration_attributes::sub_preset_info_attribute, md_prop_offset,
+                    md_configuration_attributes::sub_preset_info_attribute, md_cfg_offset,
                     [](const rs2_metadata_type& param) {
                         // bit mask and offset used to get data from bitfield
                         return (param & md_configuration::SUB_PRESET_BIT_MASK_SEQUENCE_ID)
@@ -1117,7 +1123,7 @@ namespace librealsense
 
             depth_sensor.register_metadata(RS2_FRAME_METADATA_SEQUENCE_NAME,
                 make_attribute_parser(&md_configuration::sub_preset_info,
-                    md_configuration_attributes::sub_preset_info_attribute, md_prop_offset,
+                    md_configuration_attributes::sub_preset_info_attribute, md_cfg_offset,
                     [](const rs2_metadata_type& param) {
                         // bit mask and offset used to get data from bitfield
                         return (param & md_configuration::SUB_PRESET_BIT_MASK_ID)

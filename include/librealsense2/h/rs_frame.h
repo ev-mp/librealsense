@@ -76,6 +76,12 @@ typedef enum rs2_frame_metadata_value
     RS2_FRAME_METADATA_CRC                                  , /**< CRC checksum of the Metadata */
     RS2_FRAME_METADATA_PIPELATENCY                          , /**< HW Pipe Latency metadata attribute */
     RS2_FRAME_METADATA_READOUT,
+    RS2_FRAME_METADATA_EXPOSURE_TIME,
+    RS2_FRAME_METADATA_FRAME_INTERVAL,
+    RS2_FRAME_METADATA_HW_TIMESTAMP_STATS,
+    RS2_FRAME_METADATA_EXPOSURE_STATS,
+    RS2_FRAME_METADATA_EXPOSURE_COMP_STATS,
+    RS2_FRAME_METADATA_SENSOR_FRAMERATE_STATS,
 
     RS2_FRAME_METADATA_COUNT
 } rs2_frame_metadata_value;

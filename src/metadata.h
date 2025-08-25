@@ -95,6 +95,7 @@ namespace librealsense
      *  in md_capture_stats */
     enum class md_capture_stat_attributes : uint32_t
     {
+        
         exposure_time_attribute         = (1u << 0),
         exposure_compensation_attribute = (1u << 1),
         iso_speed_attribute             = (1u << 2),
@@ -106,7 +107,7 @@ namespace librealsense
         zoom_factor_attribute           = (1u << 8),
         scene_mode_attribute            = (1u << 9),
         sensor_framerate_attribute      = (1u << 10),
-        hw_timestamp_attribute          = (1u << 11)
+        hw_timestamp_attribute          = (1u << 11),
     };
 
     /**\brief md_depth_control_attributes - bit mask to find active attributes,

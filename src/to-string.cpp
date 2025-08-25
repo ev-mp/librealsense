@@ -650,6 +650,12 @@ std::string const & get_string( rs2_frame_metadata_value value )
         CASE( CRC )
         CASE( PIPELATENCY )
         CASE( READOUT )
+        CASE( EXPOSURE_TIME )
+        CASE( FRAME_INTERVAL )
+        CASE( HW_TIMESTAMP_STATS )
+        CASE( EXPOSURE_STATS )
+        CASE( EXPOSURE_COMP_STATS )
+        CASE( SENSOR_FRAMERATE_STATS )
 #undef CASE
             return arr;
     }();
