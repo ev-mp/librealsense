@@ -21,6 +21,11 @@
 #include <rsutils/lazy.h>
 
 #include <src/embedded-filter-interface.h>
+#include <src/composite-option-interface.h>
+#include <src/ds/structured-xu-control.h>
+#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+
+#include <map>
 
 
 namespace librealsense
@@ -32,6 +37,7 @@ namespace librealsense
         , public video_sensor_interface
         , public depth_stereo_sensor
         , public roi_sensor_base
+        , public composite_option_interface
     {
     public:
         explicit d500_depth_sensor( d500_device * owner, std::shared_ptr< uvc_sensor > uvc_sensor );
@@ -59,6 +65,13 @@ namespace librealsense
         // assigned to matching profiles (by stream type + index) during init_stream_profiles.
         void add_stream( std::shared_ptr< stream_interface > stream ) { _extra_streams.push_back( stream ); }
 
+        // PROTOTYPE / DEMO: generic composite-option dispatch (see composite_option_interface).
+        // Each call performs EXACTLY ONE UVC control transaction. Which registered
+        // xu_structured_control handles the call is selected by option_id at runtime via
+        // _structured_controls - there is no per-feature method here, only registration.
+        void set_composite_option( rs2_composite_option_id option_id, const void * data, uint32_t data_size ) override;
+        void get_composite_option( rs2_composite_option_id option_id, void * data, uint32_t * data_size ) const override;
+
     protected:
         d500_device * _owner;
         mutable std::atomic< float > _depth_units;
@@ -67,6 +80,11 @@ namespace librealsense
     private:
         embedded_filters _embedded_filters;
         std::vector< std::shared_ptr< stream_interface > > _extra_streams;
+
+        // PROTOTYPE / DEMO: registry of every composite option this sensor exposes, keyed by
+        // id. Populated once in the constructor (see d500-device.cpp). Adding a new composite
+        // option to this sensor means adding one entry here, not a new class/method.
+        std::map< rs2_composite_option_id, xu_structured_control > _structured_controls;
     };
 
     class ds_thermal_monitor;

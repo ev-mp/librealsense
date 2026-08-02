@@ -129,6 +129,48 @@ namespace librealsense
         , _owner(owner)
         , _depth_units(-1)
     {
+        // PROTOTYPE / DEMO: register this sensor's composite options. Adding another one here
+        // is the ONLY per-feature footprint - set_composite_option/get_composite_option below
+        // are fully generic and never change.
+        _structured_controls.emplace(
+            RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
+            xu_structured_control( ds::depth_xu, ds::DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( rs2_temporal_filter_dpp_config ) ) );
+    }
+
+    // PROTOTYPE / DEMO: generic composite-option dispatch - single atomic UVC transaction (one
+    // set_xu / one get_xu call) - see src/ds/structured-xu-control.h for the rationale.
+    void d500_depth_sensor::set_composite_option( rs2_composite_option_id option_id, const void * data, uint32_t data_size )
+    {
+        auto it = _structured_controls.find( option_id );
+        if( it == _structured_controls.end() )
+            throw invalid_value_exception( rsutils::string::from()
+                                            << "composite option id " << (int)option_id << " is not supported by this sensor" );
+
+        auto raw_depth_sensor = _owner->get_raw_depth_sensor();
+        if( ! raw_depth_sensor )
+            throw wrong_api_call_sequence_exception( "composite option is not available: no raw depth sensor" );
+
+        auto & control = it->second;
+        raw_depth_sensor->invoke_powered(
+            [&control, data, data_size]( platform::uvc_device & dev ) { control.set_raw( dev, data, data_size ); } );
+    }
+
+    void d500_depth_sensor::get_composite_option( rs2_composite_option_id option_id, void * data, uint32_t * data_size ) const
+    {
+        auto it = _structured_controls.find( option_id );
+        if( it == _structured_controls.end() )
+            throw invalid_value_exception( rsutils::string::from()
+                                            << "composite option id " << (int)option_id << " is not supported by this sensor" );
+
+        auto raw_depth_sensor = _owner->get_raw_depth_sensor();
+        if( ! raw_depth_sensor )
+            throw wrong_api_call_sequence_exception( "composite option is not available: no raw depth sensor" );
+
+        auto & control = it->second;
+        uint32_t wire_size = control.wire_size();
+        raw_depth_sensor->invoke_powered(
+            [&control, data, data_size]( platform::uvc_device & dev ) { control.get_raw( dev, data, *data_size ); } );
+        *data_size = wire_size;
     }
 
     processing_blocks d500_depth_sensor::get_recommended_processing_blocks() const
