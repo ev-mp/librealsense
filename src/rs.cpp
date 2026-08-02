@@ -63,6 +63,7 @@
 #include "color-sensor.h"
 #include "perception-sensor.h"
 #include "safety-sensor.h"
+#include "composite-option-interface.h"
 #include "depth-mapping-sensor.h"
 #include "composite-frame.h"
 #include "points.h"
@@ -1995,6 +1996,7 @@ int rs2_is_sensor_extendable_to(const rs2_sensor* sensor, rs2_extension extensio
     case RS2_EXTENSION_SAFETY_SENSOR           : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::safety_sensor)          != nullptr;
     case RS2_EXTENSION_DEPTH_MAPPING_SENSOR    : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::depth_mapping_sensor)   != nullptr;
     case RS2_EXTENSION_PERCEPTION_SENSOR       : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::perception_sensor)       != nullptr;
+    case RS2_EXTENSION_COMPOSITE_OPTIONS       : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::composite_option_interface) != nullptr;
 
     default:
         return false;
@@ -4829,6 +4831,41 @@ void rs2_set_application_config(
     safety_sensor->set_application_config(application_config_json_str);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, application_config_json_str)
+
+// PROTOTYPE / DEMO API - see include/librealsense2/h/rs_composite_option.h. ONE generic pair
+// of entry points for every composite option, keyed by rs2_composite_option_id - there is no
+// bespoke named function per feature. Each call performs EXACTLY ONE UVC control transaction
+// (one get_xu/set_xu) - the whole payload travels together, atomically.
+void rs2_set_composite_option(
+    rs2_sensor const* sensor,
+    rs2_composite_option_id option_id,
+    const void* data,
+    unsigned int data_size,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    VALIDATE_ENUM(option_id);
+    VALIDATE_NOT_NULL(data);
+    auto composite = VALIDATE_INTERFACE(sensor->sensor, librealsense::composite_option_interface);
+    composite->set_composite_option(option_id, data, data_size);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option_id, data, data_size)
+
+void rs2_get_composite_option(
+    rs2_sensor const* sensor,
+    rs2_composite_option_id option_id,
+    void* data,
+    unsigned int* data_size,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    VALIDATE_ENUM(option_id);
+    VALIDATE_NOT_NULL(data);
+    VALIDATE_NOT_NULL(data_size);
+    auto composite = VALIDATE_INTERFACE(sensor->sensor, librealsense::composite_option_interface);
+    composite->get_composite_option(option_id, data, data_size);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option_id, data, data_size)
 
 void rs2_hw_monitor_get_opcode_string(int opcode, char* buffer, size_t buffer_size,
     rs2_device* device,
