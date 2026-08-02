@@ -218,6 +218,7 @@ typedef enum rs2_extension
     RS2_EXTENSION_PERCEPTION_SENSOR,
     RS2_EXTENSION_PERCEPTION_PROFILE,
     RS2_EXTENSION_GPU_FRAME,
+    RS2_EXTENSION_COMPOSITE_OPTIONS, /**< Prototype: sensor exposes >=1 generic "composite option" (see rs_composite_option.h) */
     RS2_EXTENSION_COUNT
 } rs2_extension;
 const char* rs2_extension_type_to_string(rs2_extension type);
