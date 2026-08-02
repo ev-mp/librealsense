@@ -5,6 +5,8 @@
 #include <librealsense2/rs.hpp>
 #include <rs-config.h>
 
+#include <cstring>
+
 #include <third-party/filesystem/glob.h>
 
 #include <imgui.h>
@@ -2789,9 +2791,12 @@ namespace rs2
                         {
                             if (!sub->temporal_filter_dpp_populated)
                             {
+                                auto bytes = composite_sensor.get_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP);
+                                if (bytes.size() != sizeof(rs2_temporal_filter_dpp_config))
+                                    throw std::runtime_error("HKR Temporal Filter DPP: unexpected payload size from get_composite_option");
+
                                 rs2_temporal_filter_dpp_config cfg{};
-                                unsigned int data_size = sizeof(cfg);
-                                composite_sensor.get_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &cfg, &data_size);
+                                memcpy(&cfg, bytes.data(), sizeof(cfg));
                                 sub->temporal_filter_dpp_enabled = cfg.enabled;
                                 sub->temporal_filter_dpp_smooth_alpha = cfg.smooth_alpha;
                                 sub->temporal_filter_dpp_smooth_delta = cfg.smooth_delta;
@@ -2827,6 +2832,10 @@ namespace rs2
                         catch (const error& e)
                         {
                             error_message = error_to_string(e);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            error_message = e.what();
                         }
 
                         ImGui::TreePop();

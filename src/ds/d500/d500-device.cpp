@@ -155,7 +155,7 @@ namespace librealsense
             [&control, data, data_size]( platform::uvc_device & dev ) { control.set_raw( dev, data, data_size ); } );
     }
 
-    void d500_depth_sensor::get_composite_option( rs2_composite_option_id option_id, void * data, uint32_t * data_size ) const
+    std::vector< uint8_t > d500_depth_sensor::get_composite_option( rs2_composite_option_id option_id ) const
     {
         auto it = _structured_controls.find( option_id );
         if( it == _structured_controls.end() )
@@ -167,10 +167,8 @@ namespace librealsense
             throw wrong_api_call_sequence_exception( "composite option is not available: no raw depth sensor" );
 
         auto & control = it->second;
-        uint32_t wire_size = control.wire_size();
-        raw_depth_sensor->invoke_powered(
-            [&control, data, data_size]( platform::uvc_device & dev ) { control.get_raw( dev, data, *data_size ); } );
-        *data_size = wire_size;
+        return raw_depth_sensor->invoke_powered(
+            [&control]( platform::uvc_device & dev ) { return control.get_raw( dev ); } );
     }
 
     processing_blocks d500_depth_sensor::get_recommended_processing_blocks() const

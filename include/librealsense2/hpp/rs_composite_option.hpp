@@ -41,12 +41,29 @@ namespace rs2
             error::handle(e);
         }
 
-        // Single atomic UVC transaction (one get_xu round trip).
-        void get_composite_option(rs2_composite_option_id option_id, void* data, unsigned int* data_size) const
+        // Single atomic UVC transaction (one get_xu round trip). The SDK allocates the result
+        // (the caller has no generic way to know option_id's wire size in advance) and this
+        // wrapper hides the raw rs2_raw_data_buffer/manual-free entirely, returning a plain
+        // std::vector<uint8_t> of the option's raw payload bytes - cast/memcpy them into the
+        // typed struct that corresponds to option_id (e.g. rs2_temporal_filter_dpp_config).
+        std::vector<uint8_t> get_composite_option(rs2_composite_option_id option_id) const
         {
             rs2_error* e = nullptr;
-            rs2_get_composite_option(_sensor.get(), option_id, data, data_size, &e);
+            auto buffer = rs2_get_composite_option(_sensor.get(), option_id, &e);
+
+            std::shared_ptr<const rs2_raw_data_buffer> list(buffer, rs2_delete_raw_data);
             error::handle(e);
+
+            auto size = rs2_get_raw_data_size(list.get(), &e);
+            error::handle(e);
+
+            auto start = rs2_get_raw_data(list.get(), &e);
+            error::handle(e);
+
+            std::vector<uint8_t> result;
+            result.insert(result.begin(), start, start + size);
+
+            return result;
         }
     };
 }

@@ -56,15 +56,18 @@ void rs2_set_composite_option(const rs2_sensor* sensor, rs2_composite_option_id 
 /**
 * rs2_get_composite_option - generic composite-option getter.
 * Reads the current value from the device in ONE atomic UVC control transaction (one get_xu
-* call) into the caller-provided buffer.
-* \param[in]     sensor       Sensor that exposes the requested composite option
-* \param[in]     option_id    Which composite option to read
-* \param[out]    data         Pointer to the caller's typed payload struct (written on success)
-* \param[in,out] data_size    On input: size of the caller's buffer (must be >= the option's
-*                              wire size). On output: the number of bytes actually written.
-* \param[out]    error        If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* call). The caller has no generic way to know the wire size of an arbitrary option_id in
+* advance (only the SDK-side control for that specific id knows it), so the SDK heap-allocates
+* and returns the result as an rs2_raw_data_buffer - read its bytes with rs2_get_raw_data_size/
+* rs2_get_raw_data and free it with rs2_delete_raw_data when done (mirrors rs2_get_safety_preset).
+* \param[in]   sensor       Sensor that exposes the requested composite option
+* \param[in]   option_id    Which composite option to read
+* \param[out]  error        If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return                   SDK-allocated buffer holding the option's raw payload bytes; the
+*                            caller casts them to the typed struct that corresponds to option_id
+*                            (e.g. rs2_temporal_filter_dpp_config). Free with rs2_delete_raw_data.
 */
-void rs2_get_composite_option(const rs2_sensor* sensor, rs2_composite_option_id option_id, void* data, unsigned int* data_size, rs2_error** error);
+const rs2_raw_data_buffer* rs2_get_composite_option(const rs2_sensor* sensor, rs2_composite_option_id option_id, rs2_error** error);
 
 #ifdef __cplusplus
 }

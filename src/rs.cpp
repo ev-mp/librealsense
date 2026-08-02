@@ -4851,21 +4851,18 @@ void rs2_set_composite_option(
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option_id, data, data_size)
 
-void rs2_get_composite_option(
+const rs2_raw_data_buffer* rs2_get_composite_option(
     rs2_sensor const* sensor,
     rs2_composite_option_id option_id,
-    void* data,
-    unsigned int* data_size,
     rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(sensor);
     VALIDATE_ENUM(option_id);
-    VALIDATE_NOT_NULL(data);
-    VALIDATE_NOT_NULL(data_size);
     auto composite = VALIDATE_INTERFACE(sensor->sensor, librealsense::composite_option_interface);
-    composite->get_composite_option(option_id, data, data_size);
+    std::vector<uint8_t> vec = composite->get_composite_option(option_id);
+    return new rs2_raw_data_buffer{ std::move(vec) };
 }
-HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option_id, data, data_size)
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, sensor, option_id)
 
 void rs2_hw_monitor_get_opcode_string(int opcode, char* buffer, size_t buffer_size,
     rs2_device* device,

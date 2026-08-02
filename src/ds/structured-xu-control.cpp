@@ -8,14 +8,15 @@
 
 namespace librealsense {
 
-void xu_structured_control::get_raw( platform::uvc_device & dev, void * data, uint32_t data_size ) const
+std::vector< uint8_t > xu_structured_control::get_raw( platform::uvc_device & dev ) const
 {
-    if( data_size < _wire_size )
-        throw std::runtime_error( "xu_structured_control::get_raw: caller buffer smaller than the control's wire size" );
+    std::vector< uint8_t > data( _wire_size );
 
     // Exactly one get_xu() call - the whole payload arrives atomically.
-    if( ! dev.get_xu( _xu, _ctrl_id, reinterpret_cast< uint8_t * >( data ), (int)_wire_size ) )
+    if( ! dev.get_xu( _xu, _ctrl_id, data.data(), (int)_wire_size ) )
         throw std::runtime_error( "get_xu() failed" );
+
+    return data;
 }
 
 void xu_structured_control::set_raw( platform::uvc_device & dev, const void * data, uint32_t data_size ) const

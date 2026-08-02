@@ -12,6 +12,9 @@
 #include "core/extension.h"
 #include <librealsense2/h/rs_composite_option.h>
 
+#include <vector>
+#include <cstdint>
+
 namespace librealsense {
 
 class composite_option_interface
@@ -20,11 +23,15 @@ public:
     virtual ~composite_option_interface() = default;
 
     // Generic dispatch by option id. Each call performs EXACTLY ONE UVC control transaction
-    // (one set_xu/get_xu). data/data_size are an opaque byte blob whose layout is defined by
-    // whichever typed struct corresponds to option_id (e.g. rs2_temporal_filter_dpp_config for
+    // (one set_xu/get_xu). The bytes are an opaque blob whose layout is defined by whichever
+    // typed struct corresponds to option_id (e.g. rs2_temporal_filter_dpp_config for
     // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP) - the caller is responsible for casting.
+    //
+    // get_composite_option returns a vector sized exactly to that option's known wire size -
+    // the caller has no generic way to know that size in advance, so the SDK owns the
+    // allocation (mirrors librealsense::safety_sensor::get_safety_preset).
     virtual void set_composite_option( rs2_composite_option_id option_id, const void * data, uint32_t data_size ) = 0;
-    virtual void get_composite_option( rs2_composite_option_id option_id, void * data, uint32_t * data_size ) const = 0;
+    virtual std::vector< uint8_t > get_composite_option( rs2_composite_option_id option_id ) const = 0;
 };
 
 MAP_EXTENSION( RS2_EXTENSION_COMPOSITE_OPTIONS, librealsense::composite_option_interface );

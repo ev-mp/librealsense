@@ -11,10 +11,12 @@
 // hardware test.
 //
 // What this proves:
-//   1. Round-trip correctness: a payload sent via set_raw() comes back byte-identical via
-//      get_raw(), when cast back to the caller's typed struct (rs2_temporal_filter_dpp_config)
-//      - exactly the caller-casts-the-void* contract of the real rs2_set/get_composite_option
-//      API.
+//   1. Round-trip correctness: a payload sent via set_raw(void*, size) comes back
+//      byte-identical in the SDK-allocated vector returned by get_raw(), once memcpy'd into
+//      the caller's typed struct (rs2_temporal_filter_dpp_config) - exactly the contract of
+//      the real rs2_set_composite_option(data, data_size) / rs2_get_composite_option()
+//      (which returns an rs2_raw_data_buffer, since the caller has no generic way to know an
+//      arbitrary option_id's wire size in advance - mirrors rs2_get_safety_preset).
 //   2. Atomicity: set_raw() performs EXACTLY ONE set_xu() call, and get_raw() performs
 //      EXACTLY ONE get_xu() call - i.e. the whole payload always travels as a single UVC
 //      transaction, never as separate per-field writes/reads. This is the non-negotiable
@@ -120,11 +122,19 @@ try
     sent.smooth_delta = 20;
     sent.persistency_index = 3;
 
-    // Caller casts to/from void* - exactly the contract of rs2_set/get_composite_option.
+    // Caller casts to/from void* - exactly the contract of rs2_set/get_composite_option. SET
+    // still takes a caller-owned buffer (the caller/producer already knows sizeof() of what
+    // it's sending). GET returns an SDK-owned, correctly-sized vector - the caller has no
+    // generic way to know a given option_id's wire size in advance - mirroring
+    // rs2_get_safety_preset/rs2::safety_sensor::get_safety_preset.
     control.set_raw( dev, &sent, sizeof( sent ) );
 
+    std::vector< uint8_t > bytes = control.get_raw( dev );
+    if( bytes.size() != sizeof( rs2_temporal_filter_dpp_config ) )
+        throw std::runtime_error( "get_raw returned an unexpected payload size" );
+
     rs2_temporal_filter_dpp_config received{};
-    control.get_raw( dev, &received, sizeof( received ) );
+    std::memcpy( &received, bytes.data(), sizeof( received ) );
 
     // 1) Round-trip correctness.
     bool round_trip_ok = ( received.enabled == sent.enabled )

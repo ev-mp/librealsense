@@ -70,7 +70,7 @@ namespace librealsense
         // xu_structured_control handles the call is selected by option_id at runtime via
         // _structured_controls - there is no per-feature method here, only registration.
         void set_composite_option( rs2_composite_option_id option_id, const void * data, uint32_t data_size ) override;
-        void get_composite_option( rs2_composite_option_id option_id, void * data, uint32_t * data_size ) const override;
+        std::vector< uint8_t > get_composite_option( rs2_composite_option_id option_id ) const override;
 
     protected:
         d500_device * _owner;

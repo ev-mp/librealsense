@@ -26,6 +26,9 @@
 
 #include <src/platform/uvc-device.h>
 
+#include <vector>
+#include <cstdint>
+
 namespace librealsense {
 
 class xu_structured_control
@@ -40,8 +43,10 @@ public:
 
     uint32_t wire_size() const { return _wire_size; }
 
-    // Exactly one get_xu() call. Throws if data_size is smaller than this control's wire size.
-    void get_raw( platform::uvc_device & dev, void * data, uint32_t data_size ) const;
+    // Exactly one get_xu() call. Returns a vector sized exactly wire_size() - this class is
+    // the one place that knows the control's wire size, so it owns the allocation rather than
+    // requiring the caller to guess a buffer size upfront.
+    std::vector< uint8_t > get_raw( platform::uvc_device & dev ) const;
 
     // Exactly one set_xu() call - the whole wire_size() payload sent together. Throws if
     // data_size does not exactly match this control's wire size.
