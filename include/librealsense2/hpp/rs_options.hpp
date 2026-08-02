@@ -6,8 +6,12 @@
 
 #include "rs_types.hpp"
 #include "../h/rs_types.h"
+#include "../h/rs_composite_option.h"
 
 #include <memory>
+#include <vector>
+#include <cstdint>
+#include <cstddef>
 
 
 namespace rs2
@@ -362,6 +366,75 @@ namespace rs2
             return options_list( sptr );
         };
 
+        /**
+        * PROTOTYPE / DEMO API - see rs_composite_option.h for the underlying generic C API and
+        * the atomicity contract (single UVC transaction per call). Composite options are a
+        * completely separate identity space from ordinary rs2_option scalar options (see
+        * rs2_composite_option_id) - these four methods are the entire public C++ surface for
+        * them: no wrapper/handle type, no is<T>()/as<T>() casting - direct calls straight through
+        * to the corresponding rs2_* C function, exactly mirroring how get_option()/set_option()
+        * above do it for scalar options.
+        */
+
+        /**
+        * write new value to a composite option, atomically, in ONE UVC transaction
+        * \param[in] id     composite option id to write
+        * \param[in] data   pointer to the caller's struct matching the option's documented wire layout
+        * \param[in] size   sizeof(...) of the caller's struct
+        */
+        void set_composite_option( rs2_composite_option_id id, const void * data, size_t size ) const
+        {
+            rs2_error * e = nullptr;
+            rs2_set_composite_option( _options, id, data, static_cast< unsigned int >( size ), &e );
+            error::handle( e );
+        }
+
+        /**
+        * read a composite option's current raw payload, atomically, in ONE UVC transaction
+        * \param[in] id   composite option id to read
+        * \return         the option's current raw payload bytes - cast to a struct matching the
+        *                 option's documented wire layout
+        */
+        std::vector< uint8_t > get_composite_option( rs2_composite_option_id id ) const
+        {
+            rs2_error * e = nullptr;
+            auto buffer = rs2_get_composite_option( _options, id, &e );
+            return unwrap_raw_data_buffer( buffer, e );
+        }
+
+        /**
+        * read a composite option's supported {min,max,step,def} bounds
+        * \param[in] id   composite option id to read
+        * \return         the option's range payload bytes - cast to the range struct documented for id
+        */
+        std::vector< uint8_t > get_composite_option_range( rs2_composite_option_id id ) const
+        {
+            rs2_error * e = nullptr;
+            auto buffer = rs2_get_composite_option_range( _options, id, &e );
+            return unwrap_raw_data_buffer( buffer, e );
+        }
+
+        /**
+        * \return the list of composite option ids this options object (sensor or embedded_filter) supports
+        */
+        std::vector< rs2_composite_option_id > get_supported_composite_options() const
+        {
+            std::vector< rs2_composite_option_id > res;
+            rs2_error * e = nullptr;
+            std::shared_ptr< rs2_composite_options_list > list( rs2_get_composite_options_list( _options, &e ),
+                                                                 rs2_delete_composite_options_list );
+            error::handle( e );
+
+            auto size = rs2_get_composite_options_list_size( list.get(), &e );
+            error::handle( e );
+            for( auto i = 0; i < size; i++ )
+            {
+                res.push_back( rs2_get_composite_option_from_list( list.get(), i, &e ) );
+                error::handle( e );
+            }
+            return res;
+        }
+
         options& operator=(const options& other)
         {
             _options = other._options;
@@ -385,6 +458,27 @@ namespace rs2
         }
 
     private:
+        // Shared unwrap helper for get_composite_option()/get_composite_option_range() - the SDK
+        // heap-allocates the result (the caller has no generic way to know an arbitrary composite
+        // option's wire size in advance), so this hides the raw rs2_raw_data_buffer/manual-free
+        // entirely (mirrors rs2::safety_sensor::get_safety_preset's exact unwrap pattern).
+        static std::vector< uint8_t > unwrap_raw_data_buffer( const rs2_raw_data_buffer * buffer, rs2_error * e )
+        {
+            std::shared_ptr< const rs2_raw_data_buffer > guard( buffer, rs2_delete_raw_data );
+            error::handle( e );
+
+            rs2_error * e2 = nullptr;
+            auto size = rs2_get_raw_data_size( guard.get(), &e2 );
+            error::handle( e2 );
+
+            auto start = rs2_get_raw_data( guard.get(), &e2 );
+            error::handle( e2 );
+
+            std::vector< uint8_t > result;
+            result.insert( result.begin(), start, start + size );
+            return result;
+        }
+
         rs2_options* _options;
     };
 

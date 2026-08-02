@@ -63,6 +63,7 @@
 #include "color-sensor.h"
 #include "perception-sensor.h"
 #include "safety-sensor.h"
+#include "composite-option-interface.h"
 #include "depth-mapping-sensor.h"
 #include "composite-frame.h"
 #include "points.h"
@@ -187,6 +188,14 @@ struct rs2_option_value_wrapper : rs2_option_value
 struct rs2_options_list
 {
     std::vector< rs2_option_value_wrapper const * > list;
+};
+
+// Composite-option twin of rs2_options_list - a fully separate, id-only list type (composite
+// options have no rs2_option_value-style value abstraction; callers cast the raw payload
+// bytes returned by rs2_get_composite_option instead).
+struct rs2_composite_options_list
+{
+    std::vector< rs2_composite_option_id > list;
 };
 
 struct rs2_sensor : public rs2_options
@@ -4870,6 +4879,89 @@ void rs2_set_application_config(
     safety_sensor->set_application_config(application_config_json_str);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, application_config_json_str)
+
+// PROTOTYPE / DEMO API - see include/librealsense2/h/rs_composite_option.h. ONE generic family
+// of entry points for every composite option, keyed by rs2_composite_option_id - a completely
+// separate id space from rs2_option (see that header for why: it structurally prevents generic
+// scalar-option code from ever tripping over a composite entry). Each call performs EXACTLY ONE
+// UVC control transaction (one get_xu/set_xu) - the whole payload travels together, atomically.
+// Dispatch works by looking up the id directly in the given rs2_options* container's OWN
+// composite-option registry (a sensor OR an embedded_filter - both wrap rs2_options*) - no
+// casting involved, since composite_option_interface is returned by reference straight from that
+// registry, exactly like get_option() does for scalar options.
+void rs2_set_composite_option(
+    const rs2_options* options,
+    rs2_composite_option_id option,
+    const void* data,
+    unsigned int size,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    VALIDATE_NOT_NULL(data);
+    auto & composite = options->options->get_composite_option( option );  // throws if unsupported
+    composite.set_raw(data, size);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, options, option, data, size)
+
+const rs2_raw_data_buffer* rs2_get_composite_option(
+    const rs2_options* options,
+    rs2_composite_option_id option,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & composite = options->options->get_composite_option( option );  // throws if unsupported
+    std::vector<uint8_t> vec = composite.get_raw();
+    return new rs2_raw_data_buffer{ std::move(vec) };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options, option)
+
+const rs2_raw_data_buffer* rs2_get_composite_option_range(
+    const rs2_options* options,
+    rs2_composite_option_id option,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & composite = options->options->get_composite_option( option );  // throws if unsupported
+    std::vector<uint8_t> vec = composite.get_raw_range();
+    return new rs2_raw_data_buffer{ std::move(vec) };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options, option)
+
+// Composite-option analogue of rs2_get_options_list/rs2_get_options_list_size/
+// rs2_get_option_from_list - the separate enumeration path for composite ids (never merged with
+// rs2_get_options_list's scalar rs2_option ids).
+rs2_composite_options_list* rs2_get_composite_options_list(const rs2_options* options, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    auto rs2_list = new rs2_composite_options_list;
+    rs2_list->list = options->options->get_supported_composite_options();
+    return rs2_list;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options)
+
+int rs2_get_composite_options_list_size(const rs2_composite_options_list* list, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(list);
+    return int(list->list.size());
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, list)
+
+rs2_composite_option_id rs2_get_composite_option_from_list(const rs2_composite_options_list* list, int i, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(list);
+    return list->list.at( i );
+}
+HANDLE_EXCEPTIONS_AND_RETURN(RS2_COMPOSITE_OPTION_COUNT, list, i)
+
+void rs2_delete_composite_options_list(rs2_composite_options_list* list) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(list);
+    delete list;
+}
+NOEXCEPT_RETURN(, list)
 
 void rs2_hw_monitor_get_opcode_string(int opcode, char* buffer, size_t buffer_size,
     rs2_device* device,
