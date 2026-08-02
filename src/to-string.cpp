@@ -258,6 +258,20 @@ const char * get_string( rs2_safety_mode mode )
 #undef CASE
 }
 
+// PROTOTYPE / DEMO enum - see include/librealsense2/h/rs_composite_option.h
+const char * get_string( rs2_composite_option_id id )
+{
+#define CASE( X ) STRCASE( COMPOSITE_OPTION, X )
+    switch( id )
+    {
+    CASE( HKR_TEMPORAL_FILTER_DPP )
+    default:
+        assert( ! is_valid( id ) );
+        return UNKNOWN_VALUE;
+    }
+#undef CASE
+}
+
 const char * get_string( rs2_d500_intercam_sync_mode mode )
 {
 #define CASE( X ) STRCASE( D500_INTERCAM_SYNC, X )
@@ -422,6 +436,7 @@ const char * get_string( rs2_extension value )
     CASE( PERCEPTION_SENSOR )
     CASE( PERCEPTION_PROFILE )
     CASE( GPU_FRAME )
+    CASE( COMPOSITE_OPTIONS )
     default:
         assert( ! is_valid( value ) );
         return UNKNOWN_VALUE;
@@ -1037,6 +1052,7 @@ const char * rs2_host_perf_mode_to_string( rs2_host_perf_mode mode ) { return li
 const char * rs2_emitter_frequency_mode_to_string( rs2_emitter_frequency_mode mode ) { return librealsense::get_string( mode ); }
 const char * rs2_depth_auto_exposure_mode_to_string( rs2_depth_auto_exposure_mode mode ) { return librealsense::get_string( mode ); }
 const char * rs2_safety_mode_to_string( rs2_safety_mode mode ) { return librealsense::get_string( mode ); }
+const char * rs2_composite_option_id_to_string( rs2_composite_option_id id ) { return librealsense::get_string( id ); }
 const char * rs2_d500_intercam_sync_mode_to_string( rs2_d500_intercam_sync_mode mode ) { return librealsense::get_string( mode ); }
 const char * rs2_point_cloud_label_to_string(rs2_point_cloud_label label) { return librealsense::get_string(label); }
 const char * rs2_calib_location_to_string(rs2_calib_location calib_location) { return librealsense::get_string(calib_location); }
