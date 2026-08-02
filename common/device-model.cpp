@@ -2769,6 +2769,70 @@ namespace rs2
                     }
                 }
 
+                // PROTOTYPE / DEMO: HKR Temporal Filter DPP "structured API" panel. Only
+                // rendered for a sensor that actually exposes composite options (gated the
+                // same way as other per-sensor extension features in this loop, e.g.
+                // depth_sensor above). Goes through the GENERIC rs2::composite_option_sensor
+                // get_composite_option/set_composite_option entry points, keyed by
+                // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - this viewer code is the only
+                // place that knows to cast the raw bytes to/from rs2_temporal_filter_dpp_config.
+                // All fields are sent together in ONE atomic UVC transaction when "Apply" is
+                // clicked - never as separate per-field option writes.
+                if (sub->s->is<rs2::composite_option_sensor>())
+                {
+                    auto composite_sensor = sub->s->as<rs2::composite_option_sensor>();
+
+                    label = rsutils::string::from() << "HKR Temporal Filter DPP (prototype)##" << id;
+                    if (ImGui::TreeNode(label.c_str()))
+                    {
+                        try
+                        {
+                            if (!sub->temporal_filter_dpp_populated)
+                            {
+                                rs2_temporal_filter_dpp_config cfg{};
+                                unsigned int data_size = sizeof(cfg);
+                                composite_sensor.get_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &cfg, &data_size);
+                                sub->temporal_filter_dpp_enabled = cfg.enabled;
+                                sub->temporal_filter_dpp_smooth_alpha = cfg.smooth_alpha;
+                                sub->temporal_filter_dpp_smooth_delta = cfg.smooth_delta;
+                                sub->temporal_filter_dpp_persistency_index = cfg.persistency_index;
+                                sub->temporal_filter_dpp_populated = true;
+                            }
+
+                            bool enabled_bool = (sub->temporal_filter_dpp_enabled != 0);
+                            label = rsutils::string::from() << "Enabled##temporal_filter_dpp_enabled" << id;
+                            if (ImGui::Checkbox(label.c_str(), &enabled_bool))
+                                sub->temporal_filter_dpp_enabled = enabled_bool ? 1 : 0;
+
+                            label = rsutils::string::from() << "Smooth Alpha##temporal_filter_dpp_alpha" << id;
+                            ImGui::DragFloat(label.c_str(), &sub->temporal_filter_dpp_smooth_alpha, 0.01f, 0.f, 1.f);
+
+                            label = rsutils::string::from() << "Smooth Delta##temporal_filter_dpp_delta" << id;
+                            ImGui::DragInt(label.c_str(), &sub->temporal_filter_dpp_smooth_delta, 1, 1, 100);
+
+                            label = rsutils::string::from() << "Persistency Index##temporal_filter_dpp_persistency" << id;
+                            ImGui::DragInt(label.c_str(), &sub->temporal_filter_dpp_persistency_index, 1, 0, 8);
+
+                            label = rsutils::string::from() << "Send##temporal_filter_dpp_send" << id;
+                            if (ImGui::Button(label.c_str()))
+                            {
+                                rs2_temporal_filter_dpp_config cfg{};
+                                cfg.enabled = sub->temporal_filter_dpp_enabled;
+                                cfg.smooth_alpha = sub->temporal_filter_dpp_smooth_alpha;
+                                cfg.smooth_delta = sub->temporal_filter_dpp_smooth_delta;
+                                cfg.persistency_index = sub->temporal_filter_dpp_persistency_index;
+                                composite_sensor.set_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &cfg, sizeof(cfg));
+                            }
+                        }
+                        catch (const error& e)
+                        {
+                            error_message = error_to_string(e);
+                        }
+
+                        ImGui::TreePop();
+                    }
+                }
+
                 draw_embedded_filters(sub, windows_width, window, viewer,
                     error_message, label, draw_later, update_read_only_options);
 
