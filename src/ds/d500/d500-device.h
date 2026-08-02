@@ -23,7 +23,6 @@
 #include <src/embedded-filter-interface.h>
 #include <src/composite-option-interface.h>
 #include <src/ds/structured-xu-control.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 
 #include <map>
 

@@ -40,6 +40,29 @@ constexpr bool hw_mon_over_xu = true;
 constexpr bool hw_mon_over_xu = false;
 #endif
 
+namespace {
+
+// PROTOTYPE / DEMO: internal-only wire layout for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
+// used ONLY here to compute this control's wire size when registering it below. This is a
+// private implementation detail, NOT a public SDK type - the public API ships no struct for
+// composite options at all (see include/librealsense2/h/rs_composite_option.h, which
+// documents this exact layout as a comment on the enumerator). Callers (realsense-viewer,
+// the mock example) each independently define their own local struct matching that documented
+// layout - this one is not shared with them.
+#pragma pack( push, 1 )
+struct hkr_temporal_filter_dpp_wire_layout
+{
+    int32_t enabled;
+    float smooth_alpha;
+    int32_t smooth_delta;
+    int32_t persistency_index;
+};
+#pragma pack( pop )
+static_assert( sizeof( hkr_temporal_filter_dpp_wire_layout ) == 16,
+               "must match the wire layout documented on RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP in rs_composite_option.h" );
+
+}  // namespace
+
 namespace librealsense
 {
     std::map<uint32_t, rs2_format> d500_depth_fourcc_to_rs2_format = {
@@ -134,7 +157,7 @@ namespace librealsense
         // are fully generic and never change.
         _structured_controls.emplace(
             RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-            xu_structured_control( ds::depth_xu, ds::DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( rs2_temporal_filter_dpp_config ) ) );
+            xu_structured_control( ds::depth_xu, ds::DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( hkr_temporal_filter_dpp_wire_layout ) ) );
     }
 
     // PROTOTYPE / DEMO: generic composite-option dispatch - single atomic UVC transaction (one

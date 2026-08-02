@@ -13,10 +13,14 @@
 // What this proves:
 //   1. Round-trip correctness: a payload sent via set_raw(void*, size) comes back
 //      byte-identical in the SDK-allocated vector returned by get_raw(), once memcpy'd into
-//      the caller's typed struct (rs2_temporal_filter_dpp_config) - exactly the contract of
-//      the real rs2_set_composite_option(data, data_size) / rs2_get_composite_option()
-//      (which returns an rs2_raw_data_buffer, since the caller has no generic way to know an
-//      arbitrary option_id's wire size in advance - mirrors rs2_get_safety_preset).
+//      THIS EXAMPLE'S OWN local struct (hkr_temporal_filter_dpp_layout, below) - exactly the
+//      contract of the real rs2_set_composite_option(data, data_size) /
+//      rs2_get_composite_option() (which returns an rs2_raw_data_buffer, since the caller has
+//      no generic way to know an arbitrary option_id's wire size in advance - mirrors
+//      rs2_get_safety_preset). The SDK ships NO typed struct for composite options: this
+//      example defines its own struct matching the byte layout documented as a comment on
+//      RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP in
+//      include/librealsense2/h/rs_composite_option.h.
 //   2. Atomicity: set_raw() performs EXACTLY ONE set_xu() call, and get_raw() performs
 //      EXACTLY ONE get_xu() call - i.e. the whole payload always travels as a single UVC
 //      transaction, never as separate per-field writes/reads. This is the non-negotiable
@@ -28,9 +32,9 @@
 // - only the transport (platform::uvc_device) is faked.
 
 #include <src/ds/structured-xu-control.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -38,6 +42,20 @@
 using namespace librealsense;
 
 namespace {
+
+// This example's OWN local struct - NOT an SDK type - matching the wire layout documented as
+// a comment on RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP in rs_composite_option.h. Any
+// real application would define its own copy of this exact struct the same way; the SDK does
+// not provide one.
+#pragma pack( push, 1 )
+struct hkr_temporal_filter_dpp_layout
+{
+    int32_t enabled;           // 0 = Off, 1 = On
+    float smooth_alpha;        // range [0,1], default 0.4, step 0.01
+    int32_t smooth_delta;      // range [1,100], default 20, step 1
+    int32_t persistency_index; // range [0,8], default 3, step 1
+};
+#pragma pack( pop )
 
 // Minimal fake transport standing in for the real UVC backend. Implements just enough of
 // platform::uvc_device to exercise xu_structured_control::get_raw/set_raw. Everything else is
@@ -114,9 +132,9 @@ try
 
     // Generic control, registered for exactly this one composite option's wire size - mirrors
     // how d500_depth_sensor populates its _structured_controls registry.
-    xu_structured_control control( depth_xu, DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( rs2_temporal_filter_dpp_config ) );
+    xu_structured_control control( depth_xu, DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( hkr_temporal_filter_dpp_layout ) );
 
-    rs2_temporal_filter_dpp_config sent{};
+    hkr_temporal_filter_dpp_layout sent{};
     sent.enabled = 1;
     sent.smooth_alpha = 0.4f;
     sent.smooth_delta = 20;
@@ -130,10 +148,10 @@ try
     control.set_raw( dev, &sent, sizeof( sent ) );
 
     std::vector< uint8_t > bytes = control.get_raw( dev );
-    if( bytes.size() != sizeof( rs2_temporal_filter_dpp_config ) )
+    if( bytes.size() != sizeof( hkr_temporal_filter_dpp_layout ) )
         throw std::runtime_error( "get_raw returned an unexpected payload size" );
 
-    rs2_temporal_filter_dpp_config received{};
+    hkr_temporal_filter_dpp_layout received{};
     std::memcpy( &received, bytes.data(), sizeof( received ) );
 
     // 1) Round-trip correctness.

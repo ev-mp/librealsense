@@ -9,13 +9,15 @@
 * rs2_get_composite_option) shared by every composite (multi-field, atomically-exchanged) XU
 * control, keyed by an rs2_composite_option_id. This mirrors Orbbec OrbbecSDK's
 * setStructuredData(OBPropertyID, const void*, uint32_t) / getStructuredData(...) pattern:
-* there is no bespoke named function per feature - adding a new composite option means adding
-* one enumerator here (plus its typed payload struct, e.g. rs2_temporal_filter_dpp_config in
-* rs_hkr_temporal_filter_dpp.h) and registering it internally, NOT adding new public functions.
+* there is no bespoke named function per feature, and - importantly - the SDK does NOT ship a
+* public typed struct per feature either. Adding a new composite option means adding one
+* enumerator here (with its wire layout DOCUMENTED as a comment, not as a type) and
+* registering it internally, NOT adding new public functions or public structs. Callers define
+* their own local struct matching the documented layout for whichever option_id they use.
 *
 * Each call performs EXACTLY ONE UVC control transaction (one set_xu/get_xu round trip): all
-* fields of the option's payload struct travel together, atomically - never as separate
-* per-field writes/reads.
+* fields of the option's payload travel together, atomically - never as separate per-field
+* writes/reads.
 */
 
 #ifndef LIBREALSENSE_RS2_COMPOSITE_OPTION_H
@@ -28,14 +30,26 @@ extern "C" {
 #include "rs_types.h"
 
 /**
-* Identifies which composite option (and therefore which typed payload struct) a
-* rs2_set_composite_option/rs2_get_composite_option call refers to. This enum is the ONLY
+* Identifies which composite option a rs2_set_composite_option/rs2_get_composite_option call
+* refers to. This enum (and the documented byte layout on each enumerator below) is the ONLY
 * per-feature footprint of the generic mechanism - the entry point functions themselves never
-* change.
+* change, and the SDK ships no typed struct for any of these. The caller/app is responsible
+* for defining its own local struct matching the documented layout and casting the raw bytes
+* to/from it.
 */
 typedef enum rs2_composite_option_id
 {
-    RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, /**< Prototype: HKR/D555 Depth Post-Processing Temporal Filter. Payload: rs2_temporal_filter_dpp_config (see rs_hkr_temporal_filter_dpp.h) */
+    /** Prototype: HKR/D555 Depth Post-Processing Temporal Filter.
+     * Documented wire layout (tightly packed, no padding - all fields are naturally
+     * 4-byte-aligned so no explicit packing pragma is required in the caller's struct),
+     * 16 bytes total, in this exact field order:
+     *   int32_t enabled;             0 = Off, 1 = On
+     *   float   smooth_alpha;        range [0,1], default 0.4, step 0.01
+     *   int32_t smooth_delta;        range [1,100], default 20, step 1
+     *   int32_t persistency_index;   range [0,8], default 3, step 1
+     * The SDK does not define a type for this - define your own local struct matching this
+     * layout and pass &your_struct / sizeof(your_struct) to rs2_set/get_composite_option. */
+    RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
     RS2_COMPOSITE_OPTION_COUNT
 } rs2_composite_option_id;
 const char* rs2_composite_option_id_to_string(rs2_composite_option_id id);
@@ -43,12 +57,13 @@ const char* rs2_composite_option_id_to_string(rs2_composite_option_id id);
 /**
 * rs2_set_composite_option - generic composite-option setter.
 * Writes data_size bytes from data to the device in ONE atomic UVC control transaction (one
-* set_xu call). The caller is responsible for knowing which typed struct corresponds to
-* option_id and passing its address + sizeof(...) as data/data_size.
+* set_xu call). The caller is responsible for knowing the documented wire layout for option_id
+* (see rs2_composite_option_id above) and passing a pointer to its own matching struct +
+* sizeof(...) as data/data_size. The SDK does not ship a typed struct for this.
 * \param[in]  sensor       Sensor that exposes the requested composite option
 * \param[in]  option_id    Which composite option to write
-* \param[in]  data         Pointer to the caller's typed payload struct
-* \param[in]  data_size    sizeof(...) of the caller's typed payload struct
+* \param[in]  data         Pointer to the caller's own struct matching the documented layout
+* \param[in]  data_size    sizeof(...) of the caller's struct
 * \param[out] error        If non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
 void rs2_set_composite_option(const rs2_sensor* sensor, rs2_composite_option_id option_id, const void* data, unsigned int data_size, rs2_error** error);
@@ -64,8 +79,9 @@ void rs2_set_composite_option(const rs2_sensor* sensor, rs2_composite_option_id 
 * \param[in]   option_id    Which composite option to read
 * \param[out]  error        If non-null, receives any error that occurs during this call, otherwise, errors are ignored
 * \return                   SDK-allocated buffer holding the option's raw payload bytes; the
-*                            caller casts them to the typed struct that corresponds to option_id
-*                            (e.g. rs2_temporal_filter_dpp_config). Free with rs2_delete_raw_data.
+*                            caller casts them into its own local struct matching the
+*                            documented layout for option_id (see rs2_composite_option_id
+*                            above). Free with rs2_delete_raw_data.
 */
 const rs2_raw_data_buffer* rs2_get_composite_option(const rs2_sensor* sensor, rs2_composite_option_id option_id, rs2_error** error);
 

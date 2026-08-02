@@ -23,9 +23,11 @@ public:
     virtual ~composite_option_interface() = default;
 
     // Generic dispatch by option id. Each call performs EXACTLY ONE UVC control transaction
-    // (one set_xu/get_xu). The bytes are an opaque blob whose layout is defined by whichever
-    // typed struct corresponds to option_id (e.g. rs2_temporal_filter_dpp_config for
-    // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP) - the caller is responsible for casting.
+    // (one set_xu/get_xu). The bytes are an opaque blob whose layout is documented as a
+    // comment on the corresponding rs2_composite_option_id enumerator (see
+    // rs_composite_option.h) - the SDK ships no typed struct for it. The caller is
+    // responsible for defining its own local struct matching that documented layout and
+    // casting to/from it.
     //
     // get_composite_option returns a vector sized exactly to that option's known wire size -
     // the caller has no generic way to know that size in advance, so the SDK owns the

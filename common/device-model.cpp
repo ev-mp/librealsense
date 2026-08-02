@@ -29,6 +29,25 @@ using namespace rs400;
 using rsutils::json;
 using namespace rs2::sw_update;
 
+namespace {
+
+// PROTOTYPE / DEMO: this viewer's OWN local struct matching the wire layout documented as a
+// comment on RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP in
+// include/librealsense2/h/rs_composite_option.h. The SDK ships no public type for composite
+// options - every caller (this viewer, the mock example under examples/) independently
+// defines its own copy of this struct matching the documented byte layout.
+#pragma pack( push, 1 )
+struct hkr_temporal_filter_dpp_layout
+{
+    int32_t enabled;           // 0 = Off, 1 = On
+    float smooth_alpha;        // range [0,1], default 0.4, step 0.01
+    int32_t smooth_delta;      // range [1,100], default 20, step 1
+    int32_t persistency_index; // range [0,8], default 3, step 1
+};
+#pragma pack( pop )
+
+}  // namespace
+
 namespace rs2
 {
     // RAII guard pairing BeginDisabled/EndDisabled: keeps them balanced even if an exception is
@@ -2776,10 +2795,12 @@ namespace rs2
                 // same way as other per-sensor extension features in this loop, e.g.
                 // depth_sensor above). Goes through the GENERIC rs2::composite_option_sensor
                 // get_composite_option/set_composite_option entry points, keyed by
-                // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - this viewer code is the only
-                // place that knows to cast the raw bytes to/from rs2_temporal_filter_dpp_config.
-                // All fields are sent together in ONE atomic UVC transaction when "Apply" is
-                // clicked - never as separate per-field option writes.
+                // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP. The SDK ships no struct for
+                // this - this viewer casts the raw bytes to/from its own local
+                // hkr_temporal_filter_dpp_layout (defined above), matching the layout
+                // documented as a comment on the enumerator. All fields are sent together in
+                // ONE atomic UVC transaction when "Apply" is clicked - never as separate
+                // per-field option writes.
                 if (sub->s->is<rs2::composite_option_sensor>())
                 {
                     auto composite_sensor = sub->s->as<rs2::composite_option_sensor>();
@@ -2792,10 +2813,10 @@ namespace rs2
                             if (!sub->temporal_filter_dpp_populated)
                             {
                                 auto bytes = composite_sensor.get_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP);
-                                if (bytes.size() != sizeof(rs2_temporal_filter_dpp_config))
+                                if (bytes.size() != sizeof(hkr_temporal_filter_dpp_layout))
                                     throw std::runtime_error("HKR Temporal Filter DPP: unexpected payload size from get_composite_option");
 
-                                rs2_temporal_filter_dpp_config cfg{};
+                                hkr_temporal_filter_dpp_layout cfg{};
                                 memcpy(&cfg, bytes.data(), sizeof(cfg));
                                 sub->temporal_filter_dpp_enabled = cfg.enabled;
                                 sub->temporal_filter_dpp_smooth_alpha = cfg.smooth_alpha;
@@ -2821,7 +2842,7 @@ namespace rs2
                             label = rsutils::string::from() << "Send##temporal_filter_dpp_send" << id;
                             if (ImGui::Button(label.c_str()))
                             {
-                                rs2_temporal_filter_dpp_config cfg{};
+                                hkr_temporal_filter_dpp_layout cfg{};
                                 cfg.enabled = sub->temporal_filter_dpp_enabled;
                                 cfg.smooth_alpha = sub->temporal_filter_dpp_smooth_alpha;
                                 cfg.smooth_delta = sub->temporal_filter_dpp_smooth_delta;

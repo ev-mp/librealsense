@@ -44,8 +44,10 @@ namespace rs2
         // Single atomic UVC transaction (one get_xu round trip). The SDK allocates the result
         // (the caller has no generic way to know option_id's wire size in advance) and this
         // wrapper hides the raw rs2_raw_data_buffer/manual-free entirely, returning a plain
-        // std::vector<uint8_t> of the option's raw payload bytes - cast/memcpy them into the
-        // typed struct that corresponds to option_id (e.g. rs2_temporal_filter_dpp_config).
+        // std::vector<uint8_t> of the option's raw payload bytes. The SDK ships no typed
+        // struct for this - cast/memcpy the bytes into your own local struct matching the
+        // layout documented on the corresponding rs2_composite_option_id enumerator (see
+        // rs_composite_option.h).
         std::vector<uint8_t> get_composite_option(rs2_composite_option_id option_id) const
         {
             rs2_error* e = nullptr;
