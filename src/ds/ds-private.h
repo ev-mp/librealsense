@@ -63,6 +63,12 @@ namespace librealsense
         const uint8_t DS5_DEPTH_AUTO_EXPOSURE_MODE          = 0x11;
         const uint8_t DS5_EXTERNAL_SYNC                     = 0x12;
         const uint8_t DS5_READOUT_SHAPING                   = 0x13;
+        // PROTOTYPE / DEMO control id - not a finalized production value. Backs the HKR
+        // (D555-class) Depth Post-Processing "Temporal Filter" multi-param XU control: a
+        // single control whose payload packs 4 logical fields (enabled, smooth_alpha,
+        // smooth_delta, persistency_index) exchanged atomically in one UVC transaction.
+        // See src/ds/hkr-temporal-filter-dpp-control.h.
+        const uint8_t DS5_HKR_TEMPORAL_FILTER_DPP           = 0x30;
 
         // DS5 fisheye XU identifiers
         const uint8_t FISHEYE_EXPOSURE                      = 1;
