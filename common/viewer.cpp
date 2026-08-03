@@ -2656,27 +2656,15 @@ namespace rs2
                     temp_cfg.set(configurations::viewer::settings_tab, tab);
                 }
                 ImGui::PopStyleColor(2);
+#ifdef BUILD_WITH_LIBCURL
+                // One "Online Services" tab hosting both curl-backed features (updates + usage stats);
+                // each section renders only if its feature is compiled in.
                 ImGui::SameLine();
-
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 3 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 3 ? light_grey : light_blue);
-
-                if (ImGui::Button("Updates", { 120, 30 }))
+                if (ImGui::Button("Online Services", { 160, 30 }))
                 {
                     tab = 3;
-                    config_file::instance().set(configurations::viewer::settings_tab, tab);
-                    temp_cfg.set(configurations::viewer::settings_tab, tab);
-                }
-
-                ImGui::PopStyleColor(2);
-
-#ifdef ENABLE_STATS
-                ImGui::SameLine();
-                ImGui::PushStyleColor(ImGuiCol_Text, tab != 4 ? light_grey : light_blue);
-                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 4 ? light_grey : light_blue);
-                if (ImGui::Button("Usage Statistics", { 160, 30 }))
-                {
-                    tab = 4;
                     config_file::instance().set(configurations::viewer::settings_tab, tab);
                     temp_cfg.set(configurations::viewer::settings_tab, tab);
                 }
@@ -3077,8 +3065,6 @@ namespace rs2
                 if (tab == 3)
                 {
 #ifdef CHECK_FOR_UPDATES
-                    ImGui::Separator();
-
                     ImGui::Text("%s", "SW/FW Updates From Server:");
                     if (ImGui::IsItemHovered())
                     {
@@ -3120,21 +3106,18 @@ namespace rs2
                             temp_cfg.set(configurations::update::sw_updates_url, url_str);
                         }
                     }
+
+                    ImGui::Separator();
 #endif
-                }
 
 #ifdef ENABLE_STATS
-                if (tab == 4)
-                {
                     ImGui::Text("Real User Monitoring (RUM)");
                     ImGui::Text("Anonymous usage statistics are collected locally. Cloud upload happens only with your consent.");
-                    ImGui::Separator();
 
                     bool cloud_enabled = temp_cfg.get_or_default(configurations::stats::rum_cloud_enabled, false);
                     if (ImGui::Checkbox("Enable anonymous cloud upload", &cloud_enabled))
                         temp_cfg.set(configurations::stats::rum_cloud_enabled, cloud_enabled);
 
-                    ImGui::Separator();
                     if (ImGui::Button("Export RUM data..."))
                     {
                         if (auto ret = file_dialog_open(save_file, "JSON\0*.json\0", NULL, NULL))
@@ -3169,8 +3152,8 @@ namespace rs2
                         RsImGui::CustomTooltip(consent_saved
                             ? "Send the current report now"
                             : "Enable cloud upload above and click Apply first");
-                }
 #endif
+                }
                 }
                 ImGui::EndChild();
 
