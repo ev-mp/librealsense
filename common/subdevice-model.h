@@ -230,9 +230,10 @@ namespace rs2
         bool embedded_filters_enabled = true;
 
         // PROTOTYPE / DEMO: UI state for the HKR Temporal Filter DPP "structured API" panel
-        // (gated on sub->s->is<rs2::composite_option_sensor>() - see device-model.cpp).
-        // Widget values only change locally until "Apply" is pressed; that single click issues
-        // one set_composite_option() call, i.e. one atomic UVC transaction.
+        // (gated on sub->s->option_ref(RS2_OPTION_HKR_TEMPORAL_FILTER_DPP).is<rs2::composite_option>()
+        // - see device-model.cpp). Widget values only change locally until "Apply" is pressed;
+        // that single click issues one composite_option::set() call, i.e. one atomic UVC
+        // transaction.
         bool temporal_filter_dpp_populated = false;
         int temporal_filter_dpp_enabled = 0;
         float temporal_filter_dpp_smooth_alpha = 0.4f;
