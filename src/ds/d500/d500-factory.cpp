@@ -26,6 +26,7 @@
 #include <src/ds/d500/d500-options.h>
 #include <src/ds/d500/d500-auto-calibration.h>
 #include <src/ds/features/close-range-filter-feature.h>
+#include <src/ds/features/temporal-filter-feature.h>
 
 #include <src/platform/platform-utils.h>
 
@@ -435,6 +436,17 @@ namespace librealsense
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< close_range_filter_feature >(
+                    dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
+            }
+
+            // PROTOTYPE / DEMO: HKR Temporal Filter DPP composite option - D555 only. Reuses the
+            // same FW gate as Improved Close Range Depth above as a reasonable proxy for "same
+            // SKU/FW scope" (both are depth-XU controls introduced together on this SKU); this
+            // is a prototype control id (see ds::DS5_HKR_TEMPORAL_FILTER_DPP), not a verified FW
+            // cut line of its own.
+            if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
+            {
+                register_feature( std::make_shared< temporal_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
             }
         }
