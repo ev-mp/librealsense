@@ -40,29 +40,6 @@ constexpr bool hw_mon_over_xu = true;
 constexpr bool hw_mon_over_xu = false;
 #endif
 
-namespace {
-
-// PROTOTYPE / DEMO: internal-only wire layout for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-// used ONLY here to compute this control's wire size when registering it below. This is a
-// private implementation detail, NOT a public SDK type - the public API ships no struct for
-// composite options at all (see include/librealsense2/h/rs_composite_option.h, which
-// documents this exact layout as a comment on the enumerator). Callers (realsense-viewer,
-// the mock example) each independently define their own local struct matching that documented
-// layout - this one is not shared with them.
-#pragma pack( push, 1 )
-struct hkr_temporal_filter_dpp_wire_layout
-{
-    int32_t enabled;
-    float smooth_alpha;
-    int32_t smooth_delta;
-    int32_t persistency_index;
-};
-#pragma pack( pop )
-static_assert( sizeof( hkr_temporal_filter_dpp_wire_layout ) == 16,
-               "must match the wire layout documented on RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP in rs_composite_option.h" );
-
-}  // namespace
-
 namespace librealsense
 {
     std::map<uint32_t, rs2_format> d500_depth_fourcc_to_rs2_format = {
@@ -152,46 +129,6 @@ namespace librealsense
         , _owner(owner)
         , _depth_units(-1)
     {
-        // PROTOTYPE / DEMO: register this sensor's composite options. Adding another one here
-        // is the ONLY per-feature footprint - set_composite_option/get_composite_option below
-        // are fully generic and never change.
-        _structured_controls.emplace(
-            RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-            xu_structured_control( ds::depth_xu, ds::DS5_HKR_TEMPORAL_FILTER_DPP, sizeof( hkr_temporal_filter_dpp_wire_layout ) ) );
-    }
-
-    // PROTOTYPE / DEMO: generic composite-option dispatch - single atomic UVC transaction (one
-    // set_xu / one get_xu call) - see src/ds/structured-xu-control.h for the rationale.
-    void d500_depth_sensor::set_composite_option( rs2_composite_option_id option_id, const void * data, uint32_t data_size )
-    {
-        auto it = _structured_controls.find( option_id );
-        if( it == _structured_controls.end() )
-            throw invalid_value_exception( rsutils::string::from()
-                                            << "composite option id " << (int)option_id << " is not supported by this sensor" );
-
-        auto raw_depth_sensor = _owner->get_raw_depth_sensor();
-        if( ! raw_depth_sensor )
-            throw wrong_api_call_sequence_exception( "composite option is not available: no raw depth sensor" );
-
-        auto & control = it->second;
-        raw_depth_sensor->invoke_powered(
-            [&control, data, data_size]( platform::uvc_device & dev ) { control.set_raw( dev, data, data_size ); } );
-    }
-
-    std::vector< uint8_t > d500_depth_sensor::get_composite_option( rs2_composite_option_id option_id ) const
-    {
-        auto it = _structured_controls.find( option_id );
-        if( it == _structured_controls.end() )
-            throw invalid_value_exception( rsutils::string::from()
-                                            << "composite option id " << (int)option_id << " is not supported by this sensor" );
-
-        auto raw_depth_sensor = _owner->get_raw_depth_sensor();
-        if( ! raw_depth_sensor )
-            throw wrong_api_call_sequence_exception( "composite option is not available: no raw depth sensor" );
-
-        auto & control = it->second;
-        return raw_depth_sensor->invoke_powered(
-            [&control]( platform::uvc_device & dev ) { return control.get_raw( dev ); } );
     }
 
     processing_blocks d500_depth_sensor::get_recommended_processing_blocks() const

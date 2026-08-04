@@ -67,7 +67,8 @@ namespace librealsense
         // (D555-class) Depth Post-Processing "Temporal Filter" multi-param XU control: a
         // single control whose payload packs 4 logical fields (enabled, smooth_alpha,
         // smooth_delta, persistency_index) exchanged atomically in one UVC transaction.
-        // See src/ds/hkr-temporal-filter-dpp-control.h.
+        // Registered as RS2_OPTION_HKR_TEMPORAL_FILTER_DPP via a generic composite_xu_option -
+        // see src/ds/composite-xu-option.h and src/ds/d500/d500-temporal-embedded-filter.h.
         const uint8_t DS5_HKR_TEMPORAL_FILTER_DPP           = 0x30;
 
         // DS5 fisheye XU identifiers
