@@ -5,7 +5,6 @@
 
 #include <src/basics.h>
 #include <librealsense2/hpp/rs_types.hpp>
-#include <librealsense2/h/rs_composite_option.h>
 
 
 namespace librealsense {
@@ -86,7 +85,6 @@ RS2_ENUM_HELPERS( rs2_point_cloud_label, POINT_CLOUD_LABEL )
 RS2_ENUM_HELPERS( rs2_calib_location, CALIB_LOCATION )
 RS2_ENUM_HELPERS( rs2_embedded_filter_type, EMBEDDED_FILTER_TYPE )
 RS2_ENUM_HELPERS( rs2_gyro_sensitivity, GYRO_SENSITIVITY )
-RS2_ENUM_HELPERS( rs2_composite_option_id, COMPOSITE_OPTION )
 
 
 }  // namespace librealsense

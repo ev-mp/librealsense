@@ -467,9 +467,10 @@ EXPORTS
     rs2_set_calibration_config
     rs2_get_application_config
     rs2_set_application_config
-    rs2_composite_option_id_to_string
     rs2_get_composite_option
     rs2_set_composite_option
+    rs2_get_composite_option_range
+    rs2_is_option_extendable_to
     rs2_hw_monitor_get_opcode_string
 
     rs2_eth_link_priority_to_string

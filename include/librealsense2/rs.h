@@ -25,6 +25,7 @@ extern "C" {
 #include "h/rs_safety_sensor.h"
 #include "h/rs_eth_config.h"
 #include "h/rs_composite_option.h"
+#include "h/rs_hkr_temporal_filter_dpp.h"
 
 #define RS2_API_MAJOR_VERSION    2
 #define RS2_API_MINOR_VERSION    58

@@ -140,6 +140,15 @@ extern "C" {
         RS2_OPTION_DOWNSCALE_RATIO, /**< Embedded filter: secondary-frame downscale ratio (pre-stream only) */
         RS2_OPTION_READOUT_SHAPING, /**< IR/depth sensor readout shaping [0-100%]; higher slows readout to avoid dropped frames */
         RS2_OPTION_DETECTION_DISTANCE, /**< Enable firmware calculation of per-detection distance (meters) on the object-detection stream */
+        /** PROTOTYPE / DEMO option - not a finalized production control. HKR (D555-class) Depth
+         * Post-Processing "Temporal Filter": a single multi-field control whose 4 logical fields
+         * (enabled, smooth_alpha, smooth_delta, persistency_index) are exchanged atomically, in
+         * ONE UVC transaction, via the generic composite-option entry points
+         * (rs2_set_composite_option/rs2_get_composite_option/rs2_get_composite_option_range, see
+         * rs_composite_option.h) rather than rs2_set_option/rs2_get_option. Cast the raw payload
+         * to/from rs2_temporal_filter_dpp_config / rs2_temporal_filter_dpp_range, see
+         * rs_hkr_temporal_filter_dpp.h. */
+        RS2_OPTION_HKR_TEMPORAL_FILTER_DPP,
         RS2_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
     } rs2_option;
 
@@ -441,6 +450,19 @@ extern "C" {
     * \return true if option is supported
     */
     int rs2_supports_option(const rs2_options* options, rs2_option option, rs2_error** error);
+
+    /**
+    * check whether a given option on this options container can be cast to a given extension -
+    * mirrors rs2_is_sensor_extendable_to/rs2_is_frame_extendable_to, but scoped to a single
+    * option rather than the whole container. Used, for example, to check whether an option is a
+    * RS2_EXTENSION_COMPOSITE_OPTION (see rs_composite_option.h / rs2::composite_option).
+    * \param[in] options         the options container
+    * \param[in] option          option id to be checked
+    * \param[in] extension_type  the extension to which the option should be tested if it is extendable
+    * \param[out] error          if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+    * \return true if the option can be cast to the given extension type
+    */
+    int rs2_is_option_extendable_to(const rs2_options* options, rs2_option option, rs2_extension extension_type, rs2_error** error);
 
     /**
     * retrieve the available range of values of a supported option

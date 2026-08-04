@@ -1996,7 +1996,6 @@ int rs2_is_sensor_extendable_to(const rs2_sensor* sensor, rs2_extension extensio
     case RS2_EXTENSION_SAFETY_SENSOR           : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::safety_sensor)          != nullptr;
     case RS2_EXTENSION_DEPTH_MAPPING_SENSOR    : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::depth_mapping_sensor)   != nullptr;
     case RS2_EXTENSION_PERCEPTION_SENSOR       : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::perception_sensor)       != nullptr;
-    case RS2_EXTENSION_COMPOSITE_OPTIONS       : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::composite_option_interface) != nullptr;
 
     default:
         return false;
@@ -4832,37 +4831,76 @@ void rs2_set_application_config(
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, application_config_json_str)
 
-// PROTOTYPE / DEMO API - see include/librealsense2/h/rs_composite_option.h. ONE generic pair
-// of entry points for every composite option, keyed by rs2_composite_option_id - there is no
+// PROTOTYPE / DEMO API - see include/librealsense2/h/rs_composite_option.h. ONE generic family
+// of entry points for every composite option, keyed by the real rs2_option enum - there is no
 // bespoke named function per feature. Each call performs EXACTLY ONE UVC control transaction
-// (one get_xu/set_xu) - the whole payload travels together, atomically.
+// (one get_xu/set_xu) - the whole payload travels together, atomically. Dispatch works by
+// looking up the specific rs2_option on the given rs2_options* container (a sensor OR an
+// embedded_filter - both wrap rs2_options*) and casting THAT option to
+// librealsense::composite_option_interface - not by casting the whole container/sensor, since a
+// container can (and, for this feature, does) hold ordinary scalar options side by side with a
+// composite one.
 void rs2_set_composite_option(
-    rs2_sensor const* sensor,
-    rs2_composite_option_id option_id,
+    const rs2_options* options,
+    rs2_option option,
     const void* data,
-    unsigned int data_size,
+    unsigned int size,
     rs2_error** error) BEGIN_API_CALL
 {
-    VALIDATE_NOT_NULL(sensor);
-    VALIDATE_ENUM(option_id);
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
     VALIDATE_NOT_NULL(data);
-    auto composite = VALIDATE_INTERFACE(sensor->sensor, librealsense::composite_option_interface);
-    composite->set_composite_option(option_id, data, data_size);
+    auto & opt = options->options->get_option( option );  // throws if unsupported
+    auto composite = VALIDATE_INTERFACE(&opt, librealsense::composite_option_interface);
+    composite->set_raw(data, size);
 }
-HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option_id, data, data_size)
+HANDLE_EXCEPTIONS_AND_RETURN(, options, option, data, size)
 
 const rs2_raw_data_buffer* rs2_get_composite_option(
-    rs2_sensor const* sensor,
-    rs2_composite_option_id option_id,
+    const rs2_options* options,
+    rs2_option option,
     rs2_error** error) BEGIN_API_CALL
 {
-    VALIDATE_NOT_NULL(sensor);
-    VALIDATE_ENUM(option_id);
-    auto composite = VALIDATE_INTERFACE(sensor->sensor, librealsense::composite_option_interface);
-    std::vector<uint8_t> vec = composite->get_composite_option(option_id);
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & opt = options->options->get_option( option );  // throws if unsupported
+    auto composite = VALIDATE_INTERFACE(&opt, librealsense::composite_option_interface);
+    std::vector<uint8_t> vec = composite->get_raw();
     return new rs2_raw_data_buffer{ std::move(vec) };
 }
-HANDLE_EXCEPTIONS_AND_RETURN(nullptr, sensor, option_id)
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options, option)
+
+const rs2_raw_data_buffer* rs2_get_composite_option_range(
+    const rs2_options* options,
+    rs2_option option,
+    rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & opt = options->options->get_option( option );  // throws if unsupported
+    auto composite = VALIDATE_INTERFACE(&opt, librealsense::composite_option_interface);
+    std::vector<uint8_t> vec = composite->get_raw_range();
+    return new rs2_raw_data_buffer{ std::move(vec) };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options, option)
+
+// Mirrors rs2_is_sensor_extendable_to/rs2_is_frame_extendable_to, scoped to a single option
+// rather than the whole container - used to check whether a given rs2_option is a
+// RS2_EXTENSION_COMPOSITE_OPTION (see rs2::composite_option).
+int rs2_is_option_extendable_to(const rs2_options* options, rs2_option option, rs2_extension extension_type, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    VALIDATE_ENUM(extension_type);
+    auto & opt = options->options->get_option( option );  // throws if unsupported
+    switch (extension_type)
+    {
+    case RS2_EXTENSION_COMPOSITE_OPTION: return VALIDATE_INTERFACE_NO_THROW(&opt, librealsense::composite_option_interface) != nullptr;
+    default:
+        return false;
+    }
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, options, option, extension_type)
 
 void rs2_hw_monitor_get_opcode_string(int opcode, char* buffer, size_t buffer_size,
     rs2_device* device,
