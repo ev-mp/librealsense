@@ -12,6 +12,14 @@
 
 namespace rs2
 {
+    // Defined in rs_composite_option.hpp (included later by rs.hpp, after this header) - a
+    // lightweight, non-owning (options-object, rs2_option id) reference, obtained via
+    // options::option_ref() below and cast with is<T>()/as<T>() the same way rs2::frame is cast
+    // to rs2::video_frame etc. Forward-declared here so options::option_ref() can be declared
+    // (its out-of-line definition lives in rs_composite_option.hpp, once option_handle is fully
+    // defined).
+    class option_handle;
+
     class option_value
     {
         std::shared_ptr< const rs2_option_value > _value;
@@ -319,6 +327,18 @@ namespace rs2
             error::handle( e );
             return options_list( sptr );
         };
+
+        /**
+        * Obtain a lightweight, non-owning handle identifying a single (this options object, id)
+        * pair - shares the lifetime of whichever sensor/embedded_filter this options object came
+        * from (does NOT take ownership of, or duplicate, the underlying handle). Cast it with
+        * is<T>()/as<T>() to a more specific type - e.g. is<composite_option>()/as<composite_option>()
+        * - the same way rs2::frame is cast to rs2::video_frame etc. See rs_composite_option.hpp.
+        * Named option_ref (not get_option_handle) to stay clearly distinct from the internal,
+        * same-ish-sounding options_container::get_option_handler().
+        * \param[in] id   option id to obtain a handle for
+        */
+        option_handle option_ref( rs2_option id ) const;
 
         options& operator=(const options& other)
         {
