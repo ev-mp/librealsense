@@ -52,22 +52,9 @@ struct camera_intrinsics {
 // ---------------------------------------------------------------------------
 
 struct person_center_of_mass {
-    float mean_body_depth;  // average distance to person (mm); 0 = unreliable
+    float mean_body_depth;  // Euclidean distance to person (mm); 0 = unreliable
     vec3f world_pos;        // 3D camera coords (mm); zero if intrinsics not provided
     vec2f image_pos;        // Center of Mass (COM) pixel in color/depth image; zero if intrinsics not provided
-};
-
-// Debug snapshot filled by calculate() — pass a non-null pointer to collect it.
-struct com_debug_info {
-    bool  histogram_ok   = false; // true = histogram path used; false = fallback
-    int   center_d8u     = 0;     // patch-mean depth_8u at ROI center (0 = no valid pixels)
-    int   center_d8u_cnt = 0;     // valid pixels in the 5×5 anchor patch
-    int   n_clusters     = 0;     // depth clusters found in ROI histogram
-    int   cluster_start  = 0;     // selected cluster: depth_8u range start
-    int   cluster_end    = 0;     // selected cluster: depth_8u range end
-    float cluster_fract  = 0.f;   // selected cluster: fraction of valid ROI pixels
-    float image_pos_x    = 0.f;   // raw COM pixel X before EMA
-    float image_pos_y    = 0.f;   // raw COM pixel Y before EMA
 };
 
 // ---------------------------------------------------------------------------
@@ -93,22 +80,24 @@ public:
     //   5. Builds a binary mask of pixels in the cluster and finds their spatial
     //      median (X and Y independently) → the 2D COM pixel.
     //   6. Attempts to extend the range slightly to include the head if a nearby
-    //      secondary peak exists within 10 depth_8u bins (~200 mm).
+    //      secondary peak exists within 5 depth_8u bins (~150 mm).
     //
     // Fallback path (when the ROI has too few valid depth pixels for the histogram):
-    //   Samples depth at NUM_DEPTH_SAMPLES evenly-spaced points along the vertical
-    //   center of the bbox. Picks the best reading using a max-within-tolerance
-    //   heuristic, falling back to mean±stddev filtering if no single sample wins.
+    //   Samples NUM_DEPTH_SAMPLES+3 evenly-spaced points along the vertical center of
+    //   the bbox and picks the nearest valid reading (minimum depth in column).
     //
     // If intrinsics != nullptr, also projects the COM pixel to 3D camera space
     // (result.world_pos) using the standard pinhole model.
     //
-    //   raw_depth          — aligned 16-bit depth frame (same pixel grid as color)
+    //   raw_depth          — raw 16-bit depth frame (aligned or non-aligned)
     //   depth_8u           — output of create_depth_8u() for the same frame
-    //   color_bbox         — person bounding box in color image coordinates
-    //   person_center_color — person center in color image (bbox center or tracker output)
-    //   intrinsics         — camera intrinsics; pass nullptr to skip world_pos/image_pos
-    //   result             — filled on return
+    //   color_bbox         — person bounding box (in color image or scaled-depth coords)
+    //   person_center_color — person center in the same coordinate space as color_bbox
+    //   intrinsics         — depth camera intrinsics; pass nullptr to skip world_pos/image_pos
+    //   result             — filled on return; image_pos is in the same space as color_bbox
+    //   depth_shift        — precomputed pixel offset from color space to raw-depth space
+    //                        (call rs2_project_color_pixel_to_depth_pixel at bbox center).
+    //                        Pass {0,0} for aligned depth (default).
     //
     // Returns false on invalid input (null data, zero-size image).
     //
@@ -141,7 +130,7 @@ public:
                           const vec2f&                person_center_color,
                           const camera_intrinsics*    intrinsics,
                           person_center_of_mass&      result,
-                          com_debug_info*             dbg = nullptr);
+                          vec2f                       depth_shift = {0.f, 0.f});
 
 private:
     static int  get_depth_at_color_pixel(const depth_image_16& depth, vec2f color_pt);
@@ -159,8 +148,7 @@ private:
     static bool calculate_com_with_depth_range(const depth_image_8& depth_8u,
                                                const rect& roi,
                                                float& depth_mean,
-                                               vec2i& center_mass_point,
-                                               com_debug_info* dbg = nullptr);
+                                               vec2i& center_mass_point);
 
     static float calc_hist_range_mean(const std::vector<float>& hist,
                                       int range_start, int range_end);
@@ -170,11 +158,12 @@ private:
                                     vec2i& com,
                                     int max_y = 0);  // 0 = use full height
 
-    static bool run_non_range_com_calculation_flow(const rect&                 color_rect,
-                                                   const depth_image_16&       depth,
-                                                   vec2f                       person_center,
-                                                   const camera_intrinsics*    intrinsics,
-                                                   person_center_of_mass&      result);
+    static bool run_non_range_com_calculation_flow(const rect&              color_rect,
+                                                   const depth_image_16&    depth,
+                                                   vec2f                    person_center,
+                                                   const camera_intrinsics* intrinsics,
+                                                   person_center_of_mass&   result);
+
 };
 
 } // namespace com

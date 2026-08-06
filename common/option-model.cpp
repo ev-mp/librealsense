@@ -200,17 +200,27 @@ void option_model::update_all_fields( std::string & error_message, notifications
 {
     try
     {
-        // After slider was dragged value updated using set_option, don't update value again here
-        if( last_slider_hold_stopwatch.get_elapsed_ms() < 500 )
+        // Defensive: a blank/torn option_model (null endpoint, e.g. a default-inserted map slot)
+        // would null-deref below. Skip the refresh rather than crash.
+        auto ep = endpoint;
+        if( ! ep )
             return;
 
-        value = endpoint->get_option_value( opt );
+        // Don't refresh (and snap the slider back) while dragging, or while a user set is still
+        // awaiting its FW-write confirmation. The mask is dropped on the write event (draw_option)
+        // or the 2s fallback below - not a fixed timer that can outpace a slow write/echo (GMSL).
+        if( last_slider_hold_stopwatch.get_elapsed_ms() < 500 )
+            return;
+        if( _has_user_request->load() && _user_request_stopwatch.get_elapsed_ms() < 2000 )
+            return;
+
+        value = ep->get_option_value( opt );
         _has_user_request->store( false );
         supported = value->is_valid;
         if( supported )
         {
-            range = endpoint->get_option_range( opt );
-            read_only = endpoint->is_option_read_only( opt );
+            range = ep->get_option_range( opt );
+            read_only = ep->is_option_read_only( opt );
         }
     }
     catch( const error & e )
@@ -313,7 +323,7 @@ bool option_model::draw_combobox( notifications_model & model,
             float tmp_value = range.min + range.step * selected;
             model.add_log( rsutils::string::from()
                            << "Setting " << opt << " to " << tmp_value << " (" << labels[selected] << ")" );
-            set_option_async( opt, tmp_value );
+            write_value( tmp_value, error_message );
             item_clicked = true;
         }
     }
@@ -535,7 +545,7 @@ bool option_model::draw_slider( notifications_model & model,
                 else
                 {
                     // run when the value is valid and the enter key is pressed to submit the new value
-                    set_option_async(opt, new_value);
+                    write_value( new_value, error_message );
                     model.add_log( rsutils::string::from() << "Setting " << opt << " to " << value_as_string() );
                 }
                 edit_mode = false;
@@ -655,7 +665,7 @@ bool option_model::draw_checkbox( notifications_model & model,
         model.add_log( rsutils::string::from() << "Setting " << opt << " to " << ( bool_value ? "1.0" : "0.0" ) << " ("
                                                << ( bool_value ? "ON" : "OFF" ) << ")" );
 
-        set_option_async( opt, bool_value ? 1.f : 0.f );
+        write_value( bool_value ? 1.f : 0.f, error_message );
     }
     if( ImGui::IsItemHovered() && description )
     {
@@ -666,15 +676,16 @@ bool option_model::draw_checkbox( notifications_model & model,
 
 bool option_model::slider_selected( rs2_option opt,
                                     float value,
-                                    std::string & /*error_message*/,
+                                    std::string & error_message,
                                     notifications_model & /*model*/ )
 {
-    // Dispatch every UI tick: the dispatcher action coalesces (per-option
-    // _latest_pending_value), and its try_sleep enforces the FW-write floor.
-    // set_option_async is O(atomic-CAS) when a job is already pending, so
-    // per-tick calls are cheap. Invalidate + add_log fire later from draw_option
-    // once the worker reports an actual FW write completed.
-    set_option_async( opt, value );
+    check_opt( opt, __func__ );
+    // Async (FW) path: dispatch every UI tick — the dispatcher action coalesces (per-option
+    // _latest_pending_value) and its try_sleep enforces the FW-write floor, so per-tick calls
+    // are cheap; invalidate + add_log fire later from draw_option once a write completes.
+    // Sync (software-filter) path: an integer-stepped slider only changes on step crossings, so
+    // this fires a handful of times per drag, each an instant in-process write with readback.
+    write_value( value, error_message );
     return true;
 }
 
@@ -694,6 +705,11 @@ bool option_model::draw_option(bool update_read_only_options,
     bool is_streaming,
     std::string& error_message, notifications_model& model)
 {
+    // Defensive: a blank/torn option_model (null endpoint, e.g. a default-inserted map slot) would
+    // null-deref every member access below. Skip it rather than crash.
+    if( ! endpoint )
+        return false;
+
     // Drain the async worker's cross-thread state on the UI thread:
     //  - last_error: any FW write failure — surface as an error_message that
     //    eventually drives viewer_model::popup_if_error (matching the pre-PR
@@ -707,11 +723,15 @@ bool option_model::draw_option(bool update_read_only_options,
         std::string async_err;
         bool did_write = false;
         float written_value = 0.f;
+        rs2::option_value read_back;
+        bool has_read_back = false;
         {
             std::lock_guard< std::mutex > lk( _async_state->mutex );
             async_err.swap( _async_state->last_error );
             did_write = _async_state->did_write;
             written_value = _async_state->written_value;
+            read_back = _async_state->read_back;
+            has_read_back = _async_state->has_read_back;
             _async_state->did_write = false;
         }
         if( ! async_err.empty() )
@@ -729,6 +749,16 @@ bool option_model::draw_option(bool update_read_only_options,
             if( invalidate_flag )
                 *invalidate_flag = true;
             model.add_log( rsutils::string::from() << "Setting " << opt << " to " << written_value );
+            // Event-driven mask drop: the FW write landed, so adopt the value the worker read
+            // back (no UI-thread FW call) and release the user-request mask now. Transitions the
+            // slider requested->confirmed on the write event rather than a fixed timer, which
+            // otherwise snaps back to a stale value on slow write/echo paths (e.g. GMSL).
+            if( has_read_back )
+            {
+                value = read_back;
+                supported = value->is_valid;
+            }
+            _has_user_request->store( false );
         }
     }
 
@@ -790,6 +820,39 @@ void option_model::check_opt( rs2_option opt, char const * caller ) const
         throw std::runtime_error( rsutils::string::from()
                                   << caller << " called on option_model bound to "
                                   << this->opt << " with mismatched opt=" << opt );
+}
+
+void option_model::write_value( float new_value, std::string & error_message )
+{
+    if( write_synchronously )
+    {
+        // Software post-processing filters run in-process (no FW round-trip), so a synchronous
+        // write can't freeze the UI — and unlike the async path set_option reads the value back,
+        // so the control reflects what was applied and never reverts to a stale value.
+        // Match set_option_async: back off subdevice_model::update()'s per-frame FW-option polling
+        // while the user is writing, so a filter-slider drag stays smooth on the no-change frames.
+        if( dev )
+            dev->last_user_set_stopwatch.reset();
+        // Use a local error buffer: error_message is shared across the frame's option draws, so a
+        // prior option's failure would otherwise make this write look failed. Only invalidate when
+        // THIS write succeeds (set_option swallows failures into the string), mirroring the async
+        // did_write drain; surface a real failure by propagating it out.
+        std::string write_error;
+        set_option( opt, new_value, write_error );
+        if( write_error.empty() )
+        {
+            if( invalidate_flag )
+                *invalidate_flag = true;
+        }
+        else
+        {
+            error_message = write_error;
+        }
+    }
+    else
+    {
+        set_option_async( opt, new_value );
+    }
 }
 
 void option_model::set_option_async( rs2_option opt, float value )
@@ -882,11 +945,19 @@ void option_model::set_option_async( rs2_option opt, float value )
             }
             else
             {
+                // Read the accepted value back here (worker thread) so the UI adopts it without a
+                // UI-thread FW round-trip. Non-fatal if it fails - the periodic refresh catches up.
+                rs2::option_value read_back;
+                bool have_read_back = false;
+                try { read_back = endpoint_copy->get_option_value( opt_copy ); have_read_back = true; }
+                catch( const std::exception & e ) { LOG_WARNING( "read-back of option " << opt_copy << " failed: " << e.what() ); }
                 // Record that a FW write completed so the UI thread can drive
                 // invalidate + add_log off the actual write, not off dispatch.
                 std::lock_guard< std::mutex > lk( state->mutex );
                 state->did_write     = true;
                 state->written_value = v;
+                state->read_back     = read_back;
+                state->has_read_back = have_read_back;
             }
             // FW-write floor between actions on this subdevice. 200 ms matches the
             // pre-PR `ignore_period` gate that used to live on the UI thread, so a
@@ -931,8 +1002,12 @@ void option_model::set_option_sync( float req_value )
 
 void option_model::update_value( const rs2::option_value & updated_value, notifications_model & model )
 {
-    // After slider was dragged, don't update value from outside (usually on_options_changed callback)
+    // After slider was dragged, don't update value from outside (usually on_options_changed callback).
+    // Also hold while a user set awaits its FW-write confirmation - dropped on the write event
+    // (draw_option) or the 2s fallback.
     if( last_slider_hold_stopwatch.get_elapsed_ms() < 1000 )
+        return;
+    if( _has_user_request->load() && _user_request_stopwatch.get_elapsed_ms() < 2000 )
         return;
 
     value = updated_value;

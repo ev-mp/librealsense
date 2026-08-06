@@ -8,7 +8,7 @@
   <!-- The version tag needs to be updated with each new release of librealsense -->
   <version>2.58.0</version>
   <description>
-  Library for controlling and capturing data from the Intel(R) RealSense(TM) D400 devices.
+  Library for controlling and capturing data from the RealSense depth streaming devices.
   </description>
 
   <maintainer email="rsswsdk@realsensecloud.onmicrosoft.com">LibRealSense ROS Team</maintainer>

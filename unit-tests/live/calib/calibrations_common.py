@@ -80,7 +80,7 @@ def calibration_main(config, pipeline, calib_dev, occ_calib, json_config, ground
     pipeline.wait_for_frames()  # Verify streaming started before calling calibration methods
     camera_name = conf.get_device().get_info(rs.camera_info.name)
     emitter_required = True
-    if camera_name == "Intel RealSense D415":
+    if "D415" in camera_name:
         emitter_required = False
     if emitter_required:
         depth_sensor = conf.get_device().first_depth_sensor()

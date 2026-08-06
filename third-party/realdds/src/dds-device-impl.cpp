@@ -706,6 +706,11 @@ void dds_device::impl::create_notifications_reader()
     _notifications_reader->on_data_available(
         [&]()
         {
+            // Keep the impl alive for the duration of the dispatch, so it can't be freed mid-loop
+            // if a notification handler drops the device's last reference.
+            auto self = weak_from_this().lock();
+            if( ! self )
+                return;
             topics::flexible_msg notification;
             dds_sample sample;
             while( topics::flexible_msg::take_next( *_notifications_reader, &notification, &sample ) )
@@ -738,6 +743,11 @@ void dds_device::impl::create_metadata_reader()
     _metadata_reader->on_data_available(
         [this]()
         {
+            // Keep the impl alive for the duration of the dispatch, so it can't be freed mid-loop
+            // if a metadata handler drops the device's last reference.
+            auto self = weak_from_this().lock();
+            if( ! self )
+                return;
             topics::flexible_msg message;
             while( topics::flexible_msg::take_next( *_metadata_reader, &message ) )
             {
@@ -873,7 +883,7 @@ void dds_device::impl::on_stream_header( json const & j, dds_sample const & samp
     TYPE2STREAM( color, video )
     TYPE2STREAM( motion, motion )
     TYPE2STREAM( confidence, video )
-    TYPE2STREAM( object_detection, inference )
+    TYPE2STREAM( object_detection, perception )
     DDS_THROW( runtime_error, "stream '" << stream_name << "' is of unknown type '" << stream_type << "'" );
 
 #undef TYPE2STREAM

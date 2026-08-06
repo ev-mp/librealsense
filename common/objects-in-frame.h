@@ -24,7 +24,7 @@ struct object_in_frame
     std::string name;
     float mean_depth;
     float metadata_depth;         // distance reported by the detection model (meters); 0 if unavailable
-    float com_rel_u, com_rel_v;  // Center of Mass (COM) 2D position, [0,1] relative to the detection bbox; 0.5 if unavailable
+    float com_rel_u, com_rel_v;    // COM 2D position, [0,1] relative to the color detection bbox; 0.5 if unavailable
     int   score;                  // detection confidence, 0-100
     size_t id;
     object_type type = object_type::other;

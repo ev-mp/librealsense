@@ -103,8 +103,21 @@ namespace rs2
             auto supported_options = s->get_supported_option_values();
             for( rs2::option_value option : supported_options )
             {
-                options_metadata[option->id]
-                    = create_option_model( option, opt_base_label, this, s, options_invalidated, error_message );
+                // Build the model first and insert only on success: options that cannot be
+                // queried (e.g. a MIPI color control with no V4L2 CID mapping) throw here, and
+                // map::operator[] would otherwise leave a default-constructed (null-endpoint)
+                // entry that crashes subdevice_model::update(). Isolate per option so one bad
+                // control does not drop the rest.
+                try
+                {
+                    auto model = create_option_model( option, opt_base_label, this, s, options_invalidated, error_message );
+                    options_metadata[option->id] = std::move( model );
+                }
+                catch( const std::exception & e )
+                {
+                    if( viewer.not_model )
+                        viewer.not_model->add_log( e.what(), RS2_LOG_SEVERITY_WARN );
+                }
             }
 
             s->on_options_changed( [this]( const options_list & list )
@@ -311,6 +324,31 @@ namespace rs2
             auto model = std::make_shared<embedded_filter_model>(
                 this, shared_filter->get_type(), shared_filter, viewer, error_message);
 
+            // Dual-color variants (0C01/0C04/0C07) share a depth+color sensor, so close-range runs depth-only.
+            std::string device_pid = s->supports( RS2_CAMERA_INFO_PRODUCT_ID )
+                                   ? s->get_info( RS2_CAMERA_INFO_PRODUCT_ID ) : "";
+            const bool is_dual_color = ( device_pid == "0C01" || device_pid == "0C04" || device_pid == "0C07" );
+            if( shared_filter->get_type() == RS2_EMBEDDED_FILTER_TYPE_CLOSE_RANGE && is_dual_color )
+            {
+                // Safe to capture this: the lambda lives in model which lives in embedded_filters,
+                // a member of this subdevice_model — so it cannot outlive its owner.
+                model->available_predicate = [this]()
+                {
+                    // Only a live color stream conflicts with close range; while stopped
+                    // the toggle stays available even if color is selected for the next run.
+                    if( !streaming )
+                        return true;
+                    for( auto& p : profiles )
+                    {
+                        auto it = stream_enabled.find( p.unique_id() );
+                        if( it != stream_enabled.end() && it->second && p.stream_type() == RS2_STREAM_COLOR )
+                            return false;
+                    }
+                    return true;
+                };
+                model->unavailable_tooltip = "Improved Close Range Depth cannot be activated while color streams are active";
+            }
+
             embedded_filters.push_back(model);
         }
 
@@ -359,18 +397,6 @@ namespace rs2
         {
             auto option_value = depth_colorizer->get_option(RS2_OPTION_VISUAL_PRESET);
             depth_colorizer->set_option(RS2_OPTION_VISUAL_PRESET, option_value);
-        }
-
-        // Disable histogram equalization for D585 prototype variants (0C07, 0C08).
-        // Must be applied AFTER the VISUAL_PRESET restore block above: re-setting the Dynamic
-        // preset (default) re-enables histogram equalization via its on_set callback.
-        if (s->supports(RS2_CAMERA_INFO_PRODUCT_ID))
-        {
-            std::string device_pid = s->get_info(RS2_CAMERA_INFO_PRODUCT_ID);
-            if (device_pid == "0C07" || device_pid == "0C08")
-            {
-                depth_colorizer->set_option(RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, 0.f);
-            }
         }
 
         std::stringstream ss;
@@ -534,6 +560,7 @@ namespace rs2
 
             if (ui.is_multiple_resolutions)
             {
+                apply_decimation_resolution_defaults();
                 for (auto it = ui.selected_stream_to_res.begin(); it != ui.selected_stream_to_res.end(); ++it)
                 {
                     if (!is_selected_combination_supported())
@@ -786,6 +813,11 @@ namespace rs2
 
                         if (stream_enabled[f.first])
                         {
+                            // The two imagers stream mono IR (Y8) OR Bayer color (BA81), not both,
+                            // so enabling a color stream disables IR and vice versa (depth is free).
+                            if( is_dual_color_subdevice() )
+                                enforce_dual_color_ir_exclusion(f.first);
+
                             // Find the stream type for this unique_id
                             rs2_stream stream_type = RS2_STREAM_ANY;
                             for (auto& p : profiles)
@@ -1086,6 +1118,10 @@ namespace rs2
     {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10);
         bool res = false;
+
+        // The split depth/IR resolution UI only makes sense when the embedded decimation
+        // filter is ON; re-evaluate here so toggling the filter switches modes live.
+        refresh_multiple_resolutions_state();
 
         std::string label = rsutils::string::from()
             << "Stream Selection Columns##" << dev.get_info(RS2_CAMERA_INFO_NAME)
@@ -1524,6 +1560,64 @@ namespace rs2
         return is_cal_format;
     }
 
+    bool subdevice_model::is_dual_color_subdevice() const
+    {
+        // The color<->IR imager conflict is specific to the D401 GMSL dual-RGB, where the two OV9782
+        // imagers each stream mono IR OR Bayer color (never both). Gate strictly on that product id
+        // (0xABCC == RS401_GMSL_PID, the same gate d400-device.cpp uses for the whole feature) so
+        // this stays a no-op on EVERY other camera -- standard D4xx (color on a separate sensor /
+        // single color) never reach the color>=2 check anyway, but the D500 dual-RGB (separate color
+        // sensors, 2 colors + stereo on one sensor) would, and it has no such imager conflict.
+        if (!dev.supports(RS2_CAMERA_INFO_PRODUCT_ID)
+            || std::string(dev.get_info(RS2_CAMERA_INFO_PRODUCT_ID)) != "ABCC")   // RS401_GMSL_PID
+            return false;
+
+        // Structural sanity: this subdevice actually exposes the dual-RGB config (two color streams
+        // alongside the stereo streams) rather than, say, the plain depth sensor of the same device.
+        int color_streams = 0;
+        bool has_stereo = false;
+        for (auto&& p : profiles)
+        {
+            if (p.stream_type() == RS2_STREAM_COLOR)
+                ++color_streams;
+            else if (p.stream_type() == RS2_STREAM_INFRARED || p.stream_type() == RS2_STREAM_DEPTH)
+                has_stereo = true;
+        }
+        return color_streams >= 2 && has_stereo;
+    }
+
+    void subdevice_model::enforce_dual_color_ir_exclusion(int just_enabled_unique_id)
+    {
+        // Caller gates this on is_dual_color_subdevice().
+        auto stream_type_of = [this](int unique_id) -> rs2_stream
+        {
+            for (auto&& p : profiles)
+                if (p.unique_id() == unique_id)
+                    return p.stream_type();
+            return RS2_STREAM_ANY;
+        };
+
+        auto is_color = [](rs2_stream st) { return st == RS2_STREAM_COLOR; };
+        auto is_ir    = [](rs2_stream st) { return st == RS2_STREAM_INFRARED; };
+
+        rs2_stream enabled_type = stream_type_of(just_enabled_unique_id);
+        // Only color<->IR conflict (the two imagers stream mono IR OR Bayer color, not both). Depth
+        // is a separate node - enabling it clears nothing, and it survives enabling color or IR.
+        if (!is_color(enabled_type) && !is_ir(enabled_type))
+            return;
+
+        for (auto& other : stream_enabled)
+        {
+            if (other.first == just_enabled_unique_id || !other.second)
+                continue;
+
+            rs2_stream other_type = stream_type_of(other.first);
+            if ((is_color(enabled_type) && is_ir(other_type)) ||
+                (is_ir(enabled_type) && is_color(other_type)))
+                other.second = false;   // color and IR share the imagers -> mutually exclusive
+        }
+    }
+
     bool subdevice_model::is_depth_calibration_profile() const
     {
         // Check if D555 at depth resolution of 1280x800
@@ -1565,13 +1659,100 @@ namespace rs2
 
     bool subdevice_model::is_multiple_resolutions_supported() const
     {
-        if( !dev.supports( RS2_CAMERA_INFO_PRODUCT_LINE ) || !s->supports( RS2_CAMERA_INFO_NAME ) )
+        if( ! dev.supports( RS2_CAMERA_INFO_PRODUCT_LINE ) || ! s->supports( RS2_CAMERA_INFO_NAME ) )
             return false;
+        if( std::string( dev.get_info( RS2_CAMERA_INFO_PRODUCT_LINE ) ) != "D500" ) return false;
+        if( std::string( s->get_info( RS2_CAMERA_INFO_NAME ) ) != "Stereo Module" ) return false;
 
-        std::string product_line = dev.get_info( RS2_CAMERA_INFO_PRODUCT_LINE );
-        std::string sensor_name = s->get_info( RS2_CAMERA_INFO_NAME );
+        // D585S: FW-side decimation always on, option not exposed.
+        if( dev.supports( RS2_CAMERA_INFO_PRODUCT_ID )
+            && std::string( dev.get_info( RS2_CAMERA_INFO_PRODUCT_ID ) ) == "0B6B" )
+            return true;
 
-        return product_line == "D500" && sensor_name == "Stereo Module";
+        // Other D500: show split UI only when the user-toggleable decimation is enabled.
+        // Read the cached is_enabled() (kept fresh via on_options_changed) so this stays
+        // cheap on the per-frame draw path.
+        for( auto & ef : embedded_filters )
+        {
+            auto filter = ef->get_filter();
+            if( ! filter || filter->get_type() != RS2_EMBEDDED_FILTER_TYPE_DECIMATION )
+                continue;
+            // Filter present without the ENABLED option => permanently on in FW.
+            if( ! filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
+                return true;
+            return ef->is_enabled();
+        }
+        return false;
+    }
+
+    void subdevice_model::refresh_multiple_resolutions_state()
+    {
+        const bool desired = is_multiple_resolutions_supported();
+        if( desired == ui.is_multiple_resolutions ) return;
+        // Don't toggle the mode mid-stream — the streaming pipeline was configured with
+        // the current selection layout. It will re-sync on the next stop/start.
+        if( streaming ) return;
+
+        if( desired )
+        {
+            // Switching ON: seed the per-stream map from the current single-resolution
+            // selection, then force the FW-mandated decimation defaults (depth 640x360,
+            // IR 1280x720) so the combo boxes land on values the pipeline will accept.
+            std::pair< int, int > current_res{ 0, 0 };
+            if( ui.selected_res_id >= 0 && ui.selected_res_id < static_cast< int >( res_values.size() ) )
+                current_res = res_values[ui.selected_res_id];
+
+            for( auto & res_array : resolutions_per_stream )
+            {
+                auto & options = res_array.second;
+                if( options.empty() )
+                    continue;
+                auto it = std::find( options.begin(), options.end(), current_res );
+                ui.selected_stream_to_res[res_array.first] = ( it != options.end() ) ? *it : options.back();
+            }
+            apply_decimation_resolution_defaults();
+        }
+        else
+        {
+            // Switching OFF: map depth's per-stream resolution back into res_values, so the
+            // single-resolution combo lands on the same choice the user was seeing.
+            std::pair< int, int > target{ 0, 0 };
+            auto it = ui.selected_stream_to_res.find( RS2_STREAM_DEPTH );
+            if( it != ui.selected_stream_to_res.end() )
+                target = it->second;
+
+            int idx = -1;
+            for( int i = 0; i < static_cast< int >( res_values.size() ); ++i )
+            {
+                if( res_values[i] == target ) { idx = i; break; }
+            }
+            if( idx < 0 && ! res_values.empty() )
+                idx = static_cast< int >( res_values.size() ) - 1;
+            ui.selected_res_id = idx;
+        }
+
+        ui.is_multiple_resolutions = desired;
+        last_valid_ui = ui;
+    }
+
+    void subdevice_model::apply_decimation_resolution_defaults()
+    {
+        // Viewer-only convenience for the split-resolution UI: the embedded decimation
+        // filter (FW-side) only accepts depth at 640x360 and pairs it with IR at 1280x720.
+        // Landing the combo boxes on these values here avoids the streaming-time error
+        // in avoid_streaming_on_embedded_filters_not_matching_configuration().
+        static const std::pair< int, int > DEPTH_RES{ 640, 360 };
+        static const std::pair< int, int > IR_RES{ 1280, 720 };
+
+        auto force = [&]( rs2_stream stream, const std::pair< int, int > & res ) {
+            auto it = resolutions_per_stream.find( stream );
+            if( it == resolutions_per_stream.end() ) return;
+            auto & options = it->second;
+            if( std::find( options.begin(), options.end(), res ) == options.end() ) return;
+            ui.selected_stream_to_res[stream] = res;
+        };
+        force( RS2_STREAM_DEPTH, DEPTH_RES );
+        force( RS2_STREAM_INFRARED, IR_RES );
     }
 
     std::pair<int, int> subdevice_model::get_max_resolution(rs2_stream stream) const

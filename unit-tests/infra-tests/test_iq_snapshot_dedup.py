@@ -60,11 +60,11 @@ class TestSaveFailureSnapshotDedup:
         """The Jetson scenario: D457 and D436 both fail same test -> two snapshots."""
         iq_helper.save_failure_snapshot(
             'test_basic_color.py',
-            _make_pipeline('Intel RealSense D457'),
+            _make_pipeline('RealSense D457'),
             annotated_image=_make_image())
         iq_helper.save_failure_snapshot(
             'test_basic_color.py',
-            _make_pipeline('Intel RealSense D436'),
+            _make_pipeline('RealSense D436'),
             annotated_image=_make_image())
 
         saved_paths = [c.args[0] for c in imwrite_mock.call_args_list]
@@ -76,11 +76,11 @@ class TestSaveFailureSnapshotDedup:
         """Repeated failure on the same (test, device) pair only saves once."""
         iq_helper.save_failure_snapshot(
             'test_basic_color.py',
-            _make_pipeline('Intel RealSense D457'),
+            _make_pipeline('RealSense D457'),
             annotated_image=_make_image())
         iq_helper.save_failure_snapshot(
             'test_basic_color.py',
-            _make_pipeline('Intel RealSense D457'),
+            _make_pipeline('RealSense D457'),
             annotated_image=_make_image())
 
         assert imwrite_mock.call_count == 1
@@ -89,11 +89,11 @@ class TestSaveFailureSnapshotDedup:
         """Different test files dedupe independently even when sharing a device."""
         iq_helper.save_failure_snapshot(
             'test_basic_color.py',
-            _make_pipeline('Intel RealSense D436'),
+            _make_pipeline('RealSense D436'),
             annotated_image=_make_image())
         iq_helper.save_failure_snapshot(
             'test_basic_depth.py',
-            _make_pipeline('Intel RealSense D436'),
+            _make_pipeline('RealSense D436'),
             annotated_image=_make_image())
 
         assert imwrite_mock.call_count == 2

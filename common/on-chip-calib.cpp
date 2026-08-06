@@ -1301,7 +1301,7 @@ namespace rs2
         // Emitter on by default, off for GT/FL calib and for D415 model
         float emitter_value = on_value;
         if( action == RS2_CALIB_ACTION_FL_CALIB || action == RS2_CALIB_ACTION_TARE_GROUND_TRUTH
-            || device_name_string == std::string( "Intel RealSense D415" ) )
+            || device_name_string.find( "D415" ) != std::string::npos )
             emitter_value = off_value;
         set_laser_emitter_state( emitter_value );
 

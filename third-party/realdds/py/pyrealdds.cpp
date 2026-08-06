@@ -1042,8 +1042,8 @@ PYBIND11_MODULE(NAME, m) {
     py::class_< dds_motion_stream_profile, std::shared_ptr< dds_motion_stream_profile > >( m, "motion_stream_profile", stream_profile_base )
         .def( py::init< int16_t >() );
 
-    using realdds::dds_inference_stream_profile;
-    py::class_< dds_inference_stream_profile, std::shared_ptr< dds_inference_stream_profile > >( m, "inference_stream_profile", stream_profile_base )
+    using realdds::dds_perception_stream_profile;
+    py::class_< dds_perception_stream_profile, std::shared_ptr< dds_perception_stream_profile > >( m, "perception_stream_profile", stream_profile_base )
         .def( py::init< int16_t >() );
 
     using realdds::dds_stream_base;
@@ -1115,25 +1115,25 @@ PYBIND11_MODULE(NAME, m) {
         .def( "set_accel_intrinsics", &dds_motion_stream_server::set_accel_intrinsics )
         .def( "start_streaming", &dds_motion_stream_server::start_streaming );
 
-    using realdds::dds_inference_stream_server;
-    py::class_< dds_inference_stream_server, std::shared_ptr< dds_inference_stream_server > >
-        inference_stream_server_base( m, "inference_stream_server", stream_server_base );
-    inference_stream_server_base
+    using realdds::dds_perception_stream_server;
+    py::class_< dds_perception_stream_server, std::shared_ptr< dds_perception_stream_server > >
+        perception_stream_server_base( m, "perception_stream_server", stream_server_base );
+    perception_stream_server_base
         .def( py::init< std::string const &, std::string const & >(), "stream_name"_a, "sensor_name"_a )
-        .def( "start_streaming", &dds_inference_stream_server::start_streaming )
-        .def( "publish_inference",
-              []( dds_inference_stream_server & self, std::string const & data )
+        .def( "start_streaming", &dds_perception_stream_server::start_streaming )
+        .def( "publish_perception",
+              []( dds_perception_stream_server & self, std::string const & data )
               {
                   realdds::topics::string_msg msg;
                   msg.set_data( data );
-                  self.publish_inference( msg );
+                  self.publish_perception( msg );
               },
               py::call_guard< py::gil_scoped_release >(),
               "data"_a );
 
     using realdds::dds_object_detection_stream_server;
     py::class_< dds_object_detection_stream_server, std::shared_ptr< dds_object_detection_stream_server > >(
-        m, "object_detection_stream_server", inference_stream_server_base )
+        m, "object_detection_stream_server", perception_stream_server_base )
         .def( py::init< std::string const &, std::string const & >(), "stream_name"_a, "sensor_name"_a );
 
     // To have the python code be able to modify json objects in callbacks, we need to somehow refer to the original
@@ -1181,10 +1181,12 @@ PYBIND11_MODULE(NAME, m) {
     py::class_< dds_stream, std::shared_ptr< dds_stream > > stream_client_base( m, "stream", stream_base );
     stream_client_base  //
         .def( "open", &dds_stream::open )
-        .def( "close", &dds_stream::close )
+        // close joins the reader thread, so release the GIL or it deadlocks if the thread is mid Python-callback
+        .def( "close", &dds_stream::close, py::call_guard< py::gil_scoped_release >() )
         .def( "is_open", &dds_stream::is_open )
         .def( "start_streaming", &dds_stream::start_streaming )
-        .def( "stop_streaming", &dds_stream::stop_streaming )
+        // stop_streaming only sets a flag (no join); guard is for consistency with close
+        .def( "stop_streaming", &dds_stream::stop_streaming, py::call_guard< py::gil_scoped_release >() )
         .def( "__repr__", []( dds_stream const & self ) {
             std::ostringstream os;
             os << "<" SNAME "." << self.type_string() << "_stream \"" << self.name() << "\"";
@@ -1233,19 +1235,19 @@ PYBIND11_MODULE(NAME, m) {
                       ( imu_msg && i, dds_sample && sample ),
                       callback( self, std::move( i ), std::move( sample ) ); ) );
 
-    using realdds::dds_inference_stream;
-    py::class_< dds_inference_stream, std::shared_ptr< dds_inference_stream > >
-        inference_stream_client_base( m, "inference_stream", stream_client_base );
-    inference_stream_client_base
-        .def( FN_FWD( dds_inference_stream,
+    using realdds::dds_perception_stream;
+    py::class_< dds_perception_stream, std::shared_ptr< dds_perception_stream > >
+        perception_stream_client_base( m, "perception_stream", stream_client_base );
+    perception_stream_client_base
+        .def( FN_FWD( dds_perception_stream,
                       on_data_available,
-                      ( dds_inference_stream *, std::string, dds_sample && ),
+                      ( dds_perception_stream *, std::string, dds_sample && ),
                       ( realdds::topics::string_msg && msg, dds_sample && sample ),
                       callback( self, std::string( msg.data() ), std::move( sample ) ); ) );
 
     using realdds::dds_object_detection_stream;
     py::class_< dds_object_detection_stream, std::shared_ptr< dds_object_detection_stream > >(
-        m, "object_detection_stream", inference_stream_client_base )
+        m, "object_detection_stream", perception_stream_client_base )
         .def( py::init< std::string const &, std::string const & >(), "stream_name"_a, "sensor_name"_a );
 
 
