@@ -4963,6 +4963,34 @@ void rs2_delete_composite_options_list(rs2_composite_options_list* list) BEGIN_A
 }
 NOEXCEPT_RETURN(, list)
 
+// Metadata trio for composite options, mirroring rs2_supports_option/rs2_is_option_read_only/
+// rs2_get_option_description for scalar options.
+int rs2_supports_composite_option(const rs2_options* options, rs2_composite_option_id option, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    return options->options->supports_composite_option( option ) ? 1 : 0;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, options, option)
+
+int rs2_is_composite_option_read_only(const rs2_options* options, rs2_composite_option_id option, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & composite = options->options->get_composite_option( option );  // throws if unsupported
+    return composite.is_read_only() ? 1 : 0;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, options, option)
+
+const char* rs2_get_composite_option_description(const rs2_options* options, rs2_composite_option_id option, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(options);
+    VALIDATE_ENUM(option);
+    auto & composite = options->options->get_composite_option( option );  // throws if unsupported
+    return composite.get_description();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, options, option)
+
 void rs2_hw_monitor_get_opcode_string(int opcode, char* buffer, size_t buffer_size,
     rs2_device* device,
     rs2_error** error) BEGIN_API_CALL

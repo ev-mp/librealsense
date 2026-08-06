@@ -20,12 +20,12 @@
 * Any rs2_options* handle - a sensor OR an embedded_filter, both of which wrap rs2_options* (see
 * rs2::options) - that supports a given composite option can be driven through the calls below.
 *
-* The SDK does NOT ship a public typed struct per feature's wire layout as a rule; ONE exception
-* exists for the prototype HKR Temporal Filter DPP control, whose layout is public as a
-* documentation/cast-target convenience (see rs_hkr_temporal_filter_dpp.h) - but the entry points
-* below never change shape as new composite options are added: adding one means adding an
-* enumerator to rs2_composite_option_id and registering it internally, not adding new public
-* functions.
+* The SDK does NOT ship a public typed struct per feature's wire layout as a rule; two exceptions
+* exist so far, for the prototype HKR Temporal Filter DPP and HKR/D5X5 MinZ controls, whose
+* layouts are public as documentation/cast-target convenience (see
+* rs_hkr_temporal_filter_dpp.h / rs_hkr_minz_control.h) - but the entry points below never change
+* shape as new composite options are added: adding one means adding an enumerator to
+* rs2_composite_option_id and registering it internally, not adding new public functions.
 *
 * Each call performs EXACTLY ONE UVC control transaction (one set_xu/get_xu round trip): all
 * fields of the option's payload travel together, atomically - never as separate per-field
@@ -54,6 +54,14 @@ typedef enum rs2_composite_option_id
      * to/from rs2_temporal_filter_dpp_config / rs2_temporal_filter_dpp_range, see
      * rs_hkr_temporal_filter_dpp.h. */
     RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
+    /** PROTOTYPE / DEMO option id - not a finalized production control. HKR/D5X5 MinZ control: a
+     * single multi-field control whose 5 logical fields (enable, downscale_ratio,
+     * disparity_shift, threshold, threshold_mode) are exchanged atomically, in ONE UVC
+     * transaction, via the generic composite-option entry points below. Wire layout is shared
+     * with the rest of the HKR DPP control family (dppc_header + dppc_ctl), not MinZ-specific.
+     * Cast the raw payload to/from rs2_minz_control / rs2_minz_control_range, see
+     * rs_hkr_minz_control.h. */
+    RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL,
     RS2_COMPOSITE_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
 } rs2_composite_option_id;
 
@@ -138,6 +146,35 @@ rs2_composite_option_id rs2_get_composite_option_from_list(const rs2_composite_o
 * \param[in] list  the list to delete
 */
 void rs2_delete_composite_options_list(rs2_composite_options_list* list);
+
+/**
+* check if a particular composite option is supported (and currently enabled) by this options
+* container - the composite-option analogue of rs2_supports_option.
+* \param[in]  options  Options container (sensor or embedded_filter)
+* \param[in]  option   composite option id to check
+* \param[out] error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return true if the composite option is supported
+*/
+int rs2_supports_composite_option(const rs2_options* options, rs2_composite_option_id option, rs2_error** error);
+
+/**
+* check if a composite option is read-only - the composite-option analogue of rs2_is_option_read_only.
+* \param[in]  options  Options container (sensor or embedded_filter) that exposes this composite option
+* \param[in]  option   composite option id to check
+* \param[out] error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return true if the composite option is read-only
+*/
+int rs2_is_composite_option_read_only(const rs2_options* options, rs2_composite_option_id option, rs2_error** error);
+
+/**
+* get a composite option's human-readable description - the composite-option analogue of
+* rs2_get_option_description.
+* \param[in]  options  Options container (sensor or embedded_filter) that exposes this composite option
+* \param[in]  option   composite option id to describe
+* \param[out] error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
+* \return human-readable composite option description
+*/
+const char* rs2_get_composite_option_description(const rs2_options* options, rs2_composite_option_id option, rs2_error** error);
 
 #ifdef __cplusplus
 }

@@ -59,5 +59,6 @@ add_subdirectory(eth-config)
 add_subdirectory(embedded-filters)
 add_subdirectory(object-detection)
 add_subdirectory(hkr-temporal-filter-dpp-mock)
+add_subdirectory(composite-option-walkthrough)
 
 unset_security_flags_for_executable()

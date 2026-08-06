@@ -476,6 +476,9 @@ EXPORTS
     rs2_get_composite_options_list_size
     rs2_get_composite_option_from_list
     rs2_delete_composite_options_list
+    rs2_supports_composite_option
+    rs2_is_composite_option_read_only
+    rs2_get_composite_option_description
     rs2_hw_monitor_get_opcode_string
 
     rs2_eth_link_priority_to_string
