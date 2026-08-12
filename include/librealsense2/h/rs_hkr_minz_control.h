@@ -17,6 +17,17 @@
 * Wire is little-endian; #pragma pack(1) is required because the header's odd 6-byte size would
 * otherwise leave the compiler inserting 2 bytes of padding before params[0].
 *
+* Header field values (version=0x01, flags=0x01, ctl_id=0x0008) were taken from the former
+* close_range_xu_option implementation (since removed - see below) and independently confirmed
+* against a real-hardware FW validation tool - NOT from the Confluence page's own wire-layout
+* table, which states ctl_id=0x0004 and is stale on that point.
+*
+* This control replaces what used to be exposed as the scalar, enable-only "Improved Close Range
+* Depth" option (RS2_OPTION_EMBEDDED_FILTER_ENABLED via close_range_xu_option) - both addressed
+* the SAME physical XU control (unit 3, selector 0x14). PROTOTYPE/DEMO PR: that scalar option has
+* been removed and consolidated onto this composite option, which exposes full read/write access
+* to all 5 fields instead of just enable.
+*
 * These structs exist purely so callers do not need to hand-roll and keep in sync their own copy
 * of the documented wire layout; the SDK does not expose any function named after them - cast the
 * raw bytes returned by rs2_get_composite_option/rs2_get_composite_option_range to/from these
@@ -43,7 +54,10 @@ typedef struct rs2_minz_control
     /* --- dppc_header: shared by the whole HKR DPP control family, not MinZ-specific --- */
     uint8_t  version;             /**< Wire struct version, per dppc_header. Currently 0x01 */
     uint8_t  flags;                /**< Bitwise control-status mask (active/read-only), per dppc_header */
-    uint16_t ctl_id;               /**< dpp_ctrl_list entry identifying this control. dpp_minz_filter = 0x0004 */
+    uint16_t ctl_id;               /**< dpp_ctrl_list entry identifying this control. dpp_minz_filter = 0x0008 -
+                                    * confirmed against the FW validation tool and the existing
+                                    * close_range_xu_option implementation; an earlier doc pass on this
+                                    * file incorrectly said 0x0004. */
 
     /* --- dppc_ctl parameter block header --- */
     uint8_t  param_count;          /**< Populated param slots below. 5 for MinZ */

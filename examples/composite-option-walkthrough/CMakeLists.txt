@@ -21,3 +21,13 @@ set_property(TARGET rs-composite-option-walkthrough PROPERTY CXX_STANDARD 14)
 target_link_libraries(rs-composite-option-walkthrough PRIVATE ${LRS_TARGET})
 set_target_properties (rs-composite-option-walkthrough PROPERTIES FOLDER Examples)
 install(TARGETS rs-composite-option-walkthrough RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# PROTOTYPE / DEMO: HKR MinZ Control, one call at a time, against a REAL connected device (no
+# fake transport) - see rs-minz-control-walkthrough.cpp.
+add_executable(rs-minz-control-walkthrough
+    rs-minz-control-walkthrough.cpp
+)
+set_property(TARGET rs-minz-control-walkthrough PROPERTY CXX_STANDARD 14)
+target_link_libraries(rs-minz-control-walkthrough PRIVATE ${LRS_TARGET})
+set_target_properties (rs-minz-control-walkthrough PROPERTIES FOLDER Examples)
+install(TARGETS rs-minz-control-walkthrough RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

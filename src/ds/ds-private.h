@@ -71,6 +71,14 @@ namespace librealsense
         // see src/ds/composite-xu-option.h and src/ds/d500/d500-temporal-embedded-filter.h.
         const uint8_t DS5_HKR_TEMPORAL_FILTER_DPP           = 0x30;
 
+        // PROTOTYPE / DEMO control id - not a finalized production value. Backs
+        // RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL via a generic composite_xu_option - see
+        // src/ds/d500/d500-minz-embedded-filter.h/.cpp. This is the SAME physical XU control
+        // (unit 3, selector 0x14) formerly exposed as the scalar, enable-only "Improved Close
+        // Range Depth" option (close_range_xu_option / RS2_OPTION_EMBEDDED_FILTER_ENABLED, since
+        // removed) - consolidated onto this composite option, which exposes all 5 fields.
+        const uint8_t DS5_HKR_MINZ_CONTROL                  = 0x14;
+
         // DS5 fisheye XU identifiers
         const uint8_t FISHEYE_EXPOSURE                      = 1;
 
