@@ -325,24 +325,35 @@ namespace rs2
 
         auto path = rsutils::os::get_special_folder( rsutils::os::special_folder::user_documents );
         path += "librealsense2/presets/";
-        try
+        // glob_rec() (third-party/filesystem/glob.h) throws whenever opendir() fails - which is
+        // the common, expected case here (most machines have never created this folder). Check
+        // first instead of relying on the exception: avoids a first-chance throw/catch on nearly
+        // every device refresh, which was showing up as debugger noise unrelated to any real bug.
+        if( isDir( path, nullptr ) )
         {
-            std::string name = dev.get_info(RS2_CAMERA_INFO_NAME);
-            std::smatch match;
-            if( ! std::regex_search( name, match, std::regex( "^RealSense (\\S+)" ) ) )
-                throw std::runtime_error( "cannot parse device name from '" + name + "'" );
+            try
+            {
+                std::string name = dev.get_info(RS2_CAMERA_INFO_NAME);
+                std::smatch match;
+                if( ! std::regex_search( name, match, std::regex( "^RealSense (\\S+)" ) ) )
+                    throw std::runtime_error( "cannot parse device name from '" + name + "'" );
 
-            glob(
-                path,
-                std::string( match[1] ) + " *.preset",
-                [&]( std::string const & file ) {
-                    advanced_mode_settings_file_names.insert( path + file );
-                },
-                false );  // recursive
+                glob(
+                    path,
+                    std::string( match[1] ) + " *.preset",
+                    [&]( std::string const & file ) {
+                        advanced_mode_settings_file_names.insert( path + file );
+                    },
+                    false );  // recursive
+            }
+            catch( const std::exception & e )
+            {
+                LOG_WARNING( "Exception caught trying to detect presets: " << e.what() );
+            }
         }
-        catch( const std::exception & e )
+        else
         {
-            LOG_WARNING( "Exception caught trying to detect presets: " << e.what() );
+            LOG_INFO( "Presets folder not found under " << path << ", skipping detection");
         }
     }
 
@@ -3252,6 +3263,16 @@ namespace rs2
                             int font_size = window.get_font_size();
                             const ImVec2 button_size = { font_size * 2.f, font_size * 1.5f };
 
+                            // While this filter's composite editor (e.g. MinZ) has a debounced
+                            // commit pending, tint the toggle with the exact same gold->blue ramp
+                            // the editor's own framed box fades through (before it snaps to idle
+                            // on commit), so the row header echoes "about to send" instead of
+                            // just sitting in its last on/off color.
+                            float dirty_progress = 0.0f;
+                            const bool composite_dirty = pb->has_pending_composite_commit(dirty_progress);
+                            ImVec4 dirty_tint = composite_control_dirty_blend(dirty_progress);
+                            dirty_tint.w = 1.0f;   // full opacity for text - the fill's own alpha ramp doesn't apply here
+
                             if (!pb->is_enabled())
                             {
                                 std::string label = rsutils::string::from()
@@ -3259,8 +3280,9 @@ namespace rs2
                                     << sub->s->get_info(RS2_CAMERA_INFO_NAME) << ","
                                     << pb->get_name();
 
-                                ImGui::PushStyleColor(ImGuiCol_Text, redish);
-                                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, redish + 0.1f);
+                                const ImVec4 text_color = composite_dirty ? dirty_tint : redish;
+                                ImGui::PushStyleColor(ImGuiCol_Text, text_color);
+                                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, text_color + 0.1f);
 
                                 if (ImGui::Button(label.c_str(), button_size))
                                 {
@@ -3279,8 +3301,9 @@ namespace rs2
                                     << " " << textual_icons::toggle_on << "##" << id << ","
                                     << sub->s->get_info(RS2_CAMERA_INFO_NAME) << ","
                                     << pb->get_name();
-                                ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
-                                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_blue + 0.1f);
+                                const ImVec4 text_color = composite_dirty ? dirty_tint : light_blue;
+                                ImGui::PushStyleColor(ImGuiCol_Text, text_color);
+                                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, text_color + 0.1f);
 
                                 if (ImGui::Button(label.c_str(), button_size))
                                 {

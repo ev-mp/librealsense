@@ -4,8 +4,11 @@
 #pragma once
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_hkr_minz_control.h>
+#include "composite-control-editor.h"
 #include <functional>
 #include <string>
+#include <vector>
 
 
 namespace rs2
@@ -37,6 +40,13 @@ namespace rs2
                            bool is_streaming,
                            std::string & error_message );
 
+        // PROTOTYPE / DEMO: hardcoded editor for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL
+        // specifically, called from draw_options() when that id is among _composite_option_ids.
+        // There is no generic per-field composite-option editor (would need per-struct schema
+        // knowledge generic view code doesn't have) - this special-cases the one struct by id,
+        // same way application code is expected to (see rs_hkr_minz_control.h).
+        void draw_minz_control_editor( std::string & error_message );
+
         std::shared_ptr<rs2::embedded_filter> get_filter() { return _embedded_filter; }
 
         void enable( bool e = true )
@@ -57,6 +67,16 @@ namespace rs2
 
         bool is_available() const { return !available_predicate || available_predicate(); }
 
+        // PROTOTYPE / DEMO: mirrors _minz_editor's own pending-auto-commit state (see
+        // composite_control_editor<T>::try_get_progress()) so the row header's enable toggle,
+        // drawn elsewhere (device-model.cpp's draw_embedded_filters()), can visually echo the
+        // same "about to send" fade the framed MinZ editor box shows. Hardcoded to MinZ same as
+        // draw_minz_control_editor() - false for every other embedded filter.
+        bool has_pending_composite_commit( float & progress ) const
+        {
+            return _minz_editor.try_get_progress( progress );
+        }
+
         void embedded_filter_enable_disable(bool actual);
 
     protected:
@@ -65,6 +85,19 @@ namespace rs2
         bool _enabled = true;
         std::shared_ptr<rs2::embedded_filter> _embedded_filter;
         std::map< rs2_option, option_model > _options_id_to_model;
+        // Composite options are a completely separate identity/registry space from scalar
+        // rs2_option (see rs_composite_option.h) - enumerated and drawn through their own loop
+        // in populate_options()/draw_options() rather than folded into _options_id_to_model.
+        // There is no generic per-field editing UI for these yet (that would need per-struct
+        // schema knowledge no generic view code has) - draw_options() shows read-only metadata
+        // only (description, byte size).
+        std::vector< rs2_composite_option_id > _composite_option_ids;
         std::string _name;
+
+        // PROTOTYPE / DEMO: debounced auto-commit editor for the MinZ control, built on the
+        // reusable composite_control_editor<T> mechanism (see composite-control-editor.h) - any
+        // other multi-param composite option can get the same touch/fade/reset/commit behavior
+        // by holding its own composite_control_editor<its-struct-type> the same way.
+        composite_control_editor< rs2_minz_control > _minz_editor;
     };
 }
