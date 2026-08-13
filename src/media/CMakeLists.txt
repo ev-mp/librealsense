@@ -30,6 +30,8 @@ if(BUILD_ROSBAG2)
     target_include_directories(${LRS_TARGET} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types")
     set(ROS2_SOURCE_FILES
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_file_format.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_image_codec.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_image_codec.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_writer.h"
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_writer.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2_reader_base.h"
@@ -55,6 +57,14 @@ if(BUILD_ROSBAG2)
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/sensor_msgs/msg/RegionOfInterest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/sensor_msgs/msg/CameraInfo.h"
         "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/sensor_msgs/msg/CameraInfo.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/sensor_msgs/msg/CompressedImage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/sensor_msgs/msg/CompressedImage.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/geometry_msgs/msg/Transform.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/geometry_msgs/msg/Transform.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/geometry_msgs/msg/TransformStamped.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/geometry_msgs/msg/TransformStamped.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/tf2_msgs/msg/TFMessage.h"
+        "${CMAKE_CURRENT_LIST_DIR}/ros2/ros2-msg-types/tf2_msgs/msg/TFMessage.cpp"
     )
 
     # libdeflate: portable PNG (zlib) compression for CompressedImage topics —
