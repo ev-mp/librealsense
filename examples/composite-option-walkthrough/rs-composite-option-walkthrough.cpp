@@ -1,258 +1,417 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO reference sample - "how do I use the composite-option API" walkthrough, NOT
-// a hardware test (see rs-hkr-temporal-filter-dpp-mock for the round-trip/atomicity proof this
-// sample complements). No physical HKR/D555 device is required, present, or touched - this uses
-// the same fake-transport approach as that example (a minimal in-memory
-// librealsense::composite_option_interface implementation standing in for
-// librealsense::composite_xu_option), wrapped in the same rs2_options C-struct a real
-// rs2::sensor/rs2::embedded_filter wraps, so every call below goes through the REAL public API
-// exactly as application code would.
+// PROTOTYPE / DEMO reference sample - "how do I use the composite-option API" walkthrough,
+// against REAL connected devices - no fake/mock transport. Full sequence:
 //
-// Composite options are a completely separate identity/registry space from ordinary rs2_option
-// scalar options (see include/librealsense2/h/rs_composite_option.h) - there is no per-id
-// dispatch inside the SDK for what a composite option's payload *means*; the SDK only moves
-// opaque bytes atomically. It is the APPLICATION's job to know, for whichever
-// rs2_composite_option_id it cares about, what struct that id's payload casts to (documented per
-// id - e.g. RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP casts to rs2_temporal_filter_dpp_config /
-// rs2_temporal_filter_dpp_range, see rs_hkr_temporal_filter_dpp.h). This sample walks through
-// exactly that application-side cast, step by step:
+//   1) rs2::context::query_devices()          - enumerate connected devices
+//   2) dev.query_sensors() + is<depth_sensor>() - find each device's depth sensor(s)
+//   3) sensor.query_embedded_filters()         - composite options live on a sensor's EMBEDDED
+//      FILTERs, each its OWN independent options registry - NOT on the depth sensor's own
+//      registry directly (see src/ds/d500/d500-minz-embedded-filter.cpp/
+//      d500-temporal-embedded-filter.cpp's register_composite_option calls). Calling
+//      get_supported_composite_options() straight on the sensor always comes back empty; querying
+//      only ONE embedded filter only ever shows that filter's own id(s), never another filter's -
+//      every filter must be walked to see every composite option a sensor exposes.
+//   4) ef.get_supported_composite_options()    - per filter, whichever composite option(s) it
+//      registers (zero is a valid, expected outcome for filters with scalar options only)
+//   5) for each id found, the FULL per-id application walkthrough below - dispatched to a typed
+//      handler because there is no generic "any composite option" cast (the SDK ships no per-id
+//      dispatch; the caller must know each id's documented wire struct, see
+//      include/librealsense2/h/rs_composite_option.h):
+//        - Get (before)   - get_composite_option(id), cast to the documented struct
+//        - Set            - read-modify-write: start from what was just read, change only the
+//                           fields this walkthrough means to change, send the WHOLE struct back
+//                           as one atomic transaction
+//        - Get (after)    - confirm against what was sent
+//        - Get range      - get_composite_option_range(id), cast to the documented range struct
+//        - Query info     - is_composite_option_read_only() / get_composite_option_description()
 //
-//   1) Enumeration    - rs2::options::get_supported_composite_options()
-//   2) Set            - rs2::options::set_composite_option(id, &cfg, sizeof(cfg))
-//   3) Get            - rs2::options::get_composite_option(id), cast bytes -> rs2_temporal_filter_dpp_config
-//   4) Get range      - rs2::options::get_composite_option_range(id), cast bytes -> rs2_temporal_filter_dpp_range
-//   5) Query info     - supports_composite_option()/is_composite_option_read_only()/get_composite_option_description()
+// Each id's walkthrough is wrapped in its own try/catch: a registered-but-non-functional control
+// (a real possibility - supports_composite_option()/get_supported_composite_options() only
+// reflect that the SDK's device-class code chose to register this id, never a live "does the
+// real firmware actually respond to it" check, see composite_xu_option::is_enabled() always
+// returning true) is reported as a per-id FAILED line rather than aborting the whole walkthrough,
+// so one broken control doesn't prevent seeing results for every other one.
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hkr_minz_control.h>
 
-#include <src/composite-option-interface.h>
-#include <src/core/options-interface.h>
-#include <src/proc/synthetic-stream.h>
-
+#include <algorithm>
 #include <cstdint>
-#include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
-using namespace librealsense;
-
-namespace {
-
-// Minimal fake composite option standing in for librealsense::composite_xu_option (which would
-// talk to real HKR/D555 hardware over UVC XU - see src/ds/composite-xu-option.h). Implements
-// ONLY composite_option_interface - no relationship to librealsense::option whatsoever, matching
-// the real class exactly.
-class fake_temporal_filter_dpp_option : public composite_option_interface
+namespace
 {
-public:
-    bool is_enabled() const override { return true; }
-    bool is_read_only() const override { return false; }
-    const char * get_description() const override
+    const char * composite_option_name( rs2_composite_option_id id )
     {
-        return "HKR Temporal Filter DPP (prototype) - a 4-field composite control exchanged "
-               "atomically; see rs_hkr_temporal_filter_dpp.h for the wire layout.";
+        switch( id )
+        {
+        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
+        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        return "HKR_MINZ_CONTROL";
+        default:                                           return "UNKNOWN";
+        }
     }
 
-    // The "wire": one call per logical get/set, whole payload atomically - exactly the contract
-    // librealsense::composite_xu_option::get_raw()/set_raw() implement via one get_xu()/set_xu()
-    // call each against the real device.
-    std::vector< uint8_t > get_raw() const override { return _storage; }
-
-    void set_raw( const void * data, size_t size ) override
+    // Prints a composite option's raw payload as a byte array - the untyped form
+    // get_composite_option() returns, before any application-side cast. Short buffers (e.g. a
+    // single ~38-byte value) print on one line; long ones (e.g. a ~156-byte range payload - four
+    // bounds packed together) wrap into a rectangular grid instead of one unwieldy line. The
+    // per-line width is chosen per call, not fixed at 32, so the LAST row isn't a ragged
+    // leftover: pick the fewest rows that keep every row's width <= 64, then divide the buffer
+    // evenly across that many rows - every row (including the last) lands somewhere in [32,64]
+    // and, whenever the size divides evenly, all rows come out the same width. E.g. 156 bytes ->
+    // 3 rows of 52, not 4 rows of 32 + one ragged row of 28.
+    void print_bytes( const char * label, const std::vector< uint8_t > & raw )
     {
-        auto p = reinterpret_cast< const uint8_t * >( data );
-        _storage.assign( p, p + size );
+        constexpr size_t wrap_threshold = 60;
+        constexpr size_t max_bytes_per_line = 64;
+
+        std::cout << label << " bytes (" << raw.size() << "):" << std::hex << std::setfill( '0' );
+
+        if( raw.size() <= wrap_threshold )
+        {
+            for( size_t i = 0; i < raw.size(); ++i )
+                std::cout << ' ' << std::setw( 2 ) << (int)raw[i];
+        }
+        else
+        {
+            size_t num_lines = ( raw.size() + max_bytes_per_line - 1 ) / max_bytes_per_line;
+            size_t bytes_per_line = ( raw.size() + num_lines - 1 ) / num_lines;
+            for( size_t i = 0; i < raw.size(); ++i )
+            {
+                std::cout << ( i % bytes_per_line == 0 ? "\n        " : " " ) << std::setw( 2 ) << (int)raw[i];
+            }
+        }
+
+        // std::setfill (unlike std::setw) is sticky - it stays in effect on the stream until
+        // explicitly changed again, so it must be restored here or every later std::setw(...)
+        // call on std::cout (e.g. field_printer's name-column padding) silently inherits '0'
+        // instead of the default space.
+        std::cout << std::dec << std::setfill( ' ' ) << '\n';
     }
 
-    // Fixed, documented {min,max,step,def} bounds for this prototype control (see
-    // rs2_temporal_filter_dpp_range in rs_hkr_temporal_filter_dpp.h) - a real
-    // composite_xu_option would instead issue one get_xu_range() call to the device.
-    std::vector< uint8_t > get_raw_range() const override
-    {
-        rs2_temporal_filter_dpp_range range{};
-        range.version = 1;
-        range.min = { 0, 0.f, 1, 0 };
-        range.max = { 1, 1.f, 100, 8 };
-        range.step = { 1, 0.01f, 1, 1 };
-        range.def = { 0, 0.4f, 20, 3 };
+    // ---- Generic "print any struct's fields" machinery -------------------------------------
+    //
+    // Same shape as librealsense::md_attribute_parser_base / md_uvc_header_parser<St, Attribute>
+    // in src/metadata-parser.h: a pointer-to-member (Attribute S::*) is captured once, at
+    // construction, behind a common NON-TEMPLATED base interface - that's what lets a list of
+    // these be iterated generically without the iterating code ever knowing S or Attribute.
+    // print_struct() below has zero field names hardcoded in it and works for ANY struct type;
+    // only the small per-type static table (minz_fields()/temporal_filter_dpp_fields()) needs to
+    // name each field, exactly once, ever.
 
-        std::vector< uint8_t > bytes( sizeof( range ) );
-        std::memcpy( bytes.data(), &range, sizeof( range ) );
-        return bytes;
+    // uint8_t/int8_t stream as characters via the default operator<< - not useful for a byte-
+    // sized numeric field like rs2_minz_control::version - so route those through an int cast.
+    // Every other type (int32_t, float, uint16_t, ...) uses the generic overload as-is.
+    inline void stream_value( std::ostream & os, uint8_t v ) { os << (unsigned int)v; }
+    inline void stream_value( std::ostream & os, int8_t v ) { os << (int)v; }
+    template< class T >
+    void stream_value( std::ostream & os, const T & v ) { os << v; }
+
+    class field_printer_base
+    {
+    public:
+        virtual const char * name() const = 0;
+        // name_width is the widest field name in this print_struct() call's whole table,
+        // computed once up front - every row pads its name to that same width (spaces, not a
+        // literal '\t') so "=" lands in the same column on every line regardless of how each
+        // individual field name's length happens to fall relative to the terminal's tab stops.
+        virtual void print( std::ostream & os, const void * struct_ptr, size_t name_width ) const = 0;
+        // Just this field's value, no name/no newline - used by print_range() to lay several
+        // struct instances (min/max/def/step) out on one row instead of one block per struct.
+        virtual void print_value( std::ostream & os, const void * struct_ptr ) const = 0;
+        virtual ~field_printer_base() = default;
+    };
+
+    template< class S, class Attribute >
+    class field_printer : public field_printer_base
+    {
+    public:
+        field_printer( const char * name, Attribute S::* field ) : _name( name ), _field( field ) {}
+
+        const char * name() const override { return _name; }
+
+        void print( std::ostream & os, const void * struct_ptr, size_t name_width ) const override
+        {
+            auto & s = *reinterpret_cast< const S * >( struct_ptr );
+            os << "        " << std::left << std::setw( (int)name_width ) << _name << std::right << " = ";
+            stream_value( os, s.*_field );
+            os << '\n';
+        }
+
+        void print_value( std::ostream & os, const void * struct_ptr ) const override
+        {
+            auto & s = *reinterpret_cast< const S * >( struct_ptr );
+            stream_value( os, s.*_field );
+        }
+
+    private:
+        const char * _name;
+        Attribute S::* _field;
+    };
+
+    template< class S, class Attribute >
+    std::shared_ptr< field_printer_base > make_field_printer( const char * name, Attribute S::* field )
+    {
+        return std::make_shared< field_printer< S, Attribute > >( name, field );
     }
 
-private:
-    std::vector< uint8_t > _storage = []()
+    // The one fully generic entry point - takes whichever field table matches S, no per-struct
+    // code here at all.
+    template< class S >
+    void print_struct( std::ostream & os, const std::vector< std::shared_ptr< field_printer_base > > & fields,
+                        const S & value )
     {
-        // Seed with the documented defaults so get_composite_option() has something sensible to
-        // return even before this walkthrough's own "Set" step runs.
-        rs2_temporal_filter_dpp_config def{ 0, 0.4f, 20, 3 };
-        std::vector< uint8_t > bytes( sizeof( def ) );
-        std::memcpy( bytes.data(), &def, sizeof( def ) );
-        return bytes;
-    }();
-};
+        size_t name_width = 0;
+        for( auto & f : fields )
+            name_width = std::max( name_width, std::string( f->name() ).size() );
 
-// Minimal fake options container - implements librealsense::options_interface directly (no
-// scalar rs2_option registered at all), exposing exactly one composite option:
-// RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP. Mirrors rs-hkr-temporal-filter-dpp-mock's
-// fake_options_container.
-class fake_options_container : public options_interface
-{
-public:
-    explicit fake_options_container( std::shared_ptr< fake_temporal_filter_dpp_option > opt )
-        : _opt( std::move( opt ) )
-    {
+        for( auto & f : fields )
+            f->print( os, &value, name_width );
     }
 
-    option & get_option( rs2_option ) override { throw std::runtime_error( "fake_options_container: no scalar options" ); }
-    const option & get_option( rs2_option ) const override { throw std::runtime_error( "fake_options_container: no scalar options" ); }
-    bool supports_option( rs2_option ) const override { return false; }
-    std::vector< rs2_option > get_supported_options() const override { return {}; }
-    std::string const & get_option_name( rs2_option ) const override { return _name; }
+    // One header line naming the columns, then one row per field: name = [ min, max, default, step ].
+    // Same field table as print_struct() - no per-struct code here either.
+    template< class S >
+    void print_range( std::ostream & os, const std::vector< std::shared_ptr< field_printer_base > > & fields,
+                       const S & min_v, const S & max_v, const S & def_v, const S & step_v )
+    {
+        size_t name_width = 0;
+        for( auto & f : fields )
+            name_width = std::max( name_width, std::string( f->name() ).size() );
 
-    composite_option_interface & get_composite_option( rs2_composite_option_id id ) override
-    {
-        return const_cast< composite_option_interface & >(
-            const_cast< const fake_options_container * >( this )->get_composite_option( id ) );
-    }
-    const composite_option_interface & get_composite_option( rs2_composite_option_id id ) const override
-    {
-        if( id != RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP )
-            throw std::runtime_error( "fake_options_container: unsupported composite option id" );
-        return *_opt;
-    }
-    bool supports_composite_option( rs2_composite_option_id id ) const override
-    {
-        return id == RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP;
-    }
-    std::vector< rs2_composite_option_id > get_supported_composite_options() const override
-    {
-        return { RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP };
-    }
-    std::string const & get_composite_option_name( rs2_composite_option_id ) const override { return _name; }
-
-    rsutils::subscription register_options_changed_callback( options_watcher::callback && ) override
-    {
-        return rsutils::subscription();
+        os << "        " << std::left << std::setw( (int)name_width ) << "" << std::right
+           << " [ min, max, default, step ]\n";
+        for( auto & f : fields )
+        {
+            os << "        " << std::left << std::setw( (int)name_width ) << f->name() << std::right << " = [ ";
+            f->print_value( os, &min_v );
+            os << ", ";
+            f->print_value( os, &max_v );
+            os << ", ";
+            f->print_value( os, &def_v );
+            os << ", ";
+            f->print_value( os, &step_v );
+            os << " ]\n";
+        }
     }
 
-    void create_snapshot( std::shared_ptr< options_interface > & snapshot ) const override { snapshot.reset(); }
-    void enable_recording( std::function< void( const options_interface & ) > ) override {}
-
-private:
-    std::shared_ptr< fake_temporal_filter_dpp_option > _opt;
-    std::string _name = "HKR Temporal Filter DPP";
-};
-
-// Lets this standalone sample call the protected rs2::options(rs2_options*) constructor - the
-// same one rs2::sensor/rs2::embedded_filter use internally.
-class fake_options_handle : public rs2::options
-{
-public:
-    explicit fake_options_handle( rs2_options * o )
-        : options( o )
+    const std::vector< std::shared_ptr< field_printer_base > > & minz_fields()
     {
+        static const std::vector< std::shared_ptr< field_printer_base > > fields = {
+            make_field_printer( "version", &rs2_minz_control::version ),
+            make_field_printer( "flags", &rs2_minz_control::flags ),
+            make_field_printer( "ctl_id", &rs2_minz_control::ctl_id ),
+            make_field_printer( "param_count", &rs2_minz_control::param_count ),
+            make_field_printer( "param_type", &rs2_minz_control::param_type ),
+            make_field_printer( "enable", &rs2_minz_control::enable ),
+            make_field_printer( "downscale_ratio", &rs2_minz_control::downscale_ratio ),
+            make_field_printer( "disparity_shift", &rs2_minz_control::disparity_shift ),
+            make_field_printer( "threshold", &rs2_minz_control::threshold ),
+            make_field_printer( "threshold_mode", &rs2_minz_control::threshold_mode ),
+        };
+        return fields;
     }
-};
 
-}  // namespace
+    const std::vector< std::shared_ptr< field_printer_base > > & temporal_filter_dpp_fields()
+    {
+        static const std::vector< std::shared_ptr< field_printer_base > > fields = {
+            make_field_printer( "enabled", &rs2_temporal_filter_dpp_config::enabled ),
+            make_field_printer( "smooth_alpha", &rs2_temporal_filter_dpp_config::smooth_alpha ),
+            make_field_printer( "smooth_delta", &rs2_temporal_filter_dpp_config::smooth_delta ),
+            make_field_printer( "persistency_index", &rs2_temporal_filter_dpp_config::persistency_index ),
+        };
+        return fields;
+    }
+    // ---- end generic struct-printing machinery ---------------------------------------------
 
+    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
+    void exercise_temporal_filter_dpp( rs2::options & opts, rs2_composite_option_id id )
+    {
+        // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
+        // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
+        // separate real GETs (device round trips), shown side by side purely to illustrate both
+        // APIs - production code would normally only need the typed one.
+        print_bytes( "Get efore)", opts.get_composite_option( id ) );
+        auto current = opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
+        std::cout << "      Get (before):\n";
+        print_struct( std::cout, temporal_filter_dpp_fields(), current );
+
+        rs2_temporal_filter_dpp_config cfg_to_send = current;
+        cfg_to_send.enabled = 1;
+        cfg_to_send.smooth_alpha = 0.55f;
+        cfg_to_send.smooth_delta = 35;
+        cfg_to_send.persistency_index = 5;
+        opts.set_composite_option_from( id, cfg_to_send );
+        std::cout << "      Set (read-modify-write): enabled=1 smooth_alpha=0.55 smooth_delta=35 persistency_index=5\n";
+
+        print_bytes( "Get (after)", opts.get_composite_option( id ) );
+        auto cfg = opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
+        std::cout << "      Get (after):\n";
+        print_struct( std::cout, temporal_filter_dpp_fields(), cfg );
+        // Real firmware may quantize/clamp on write - unlike an in-memory mock, an exact
+        // mismatch here isn't necessarily a bug, so this is reported, not asserted/thrown on.
+        bool matches = cfg.enabled == cfg_to_send.enabled && cfg.smooth_alpha == cfg_to_send.smooth_alpha
+            && cfg.smooth_delta == cfg_to_send.smooth_delta && cfg.persistency_index == cfg_to_send.persistency_index;
+        std::cout << "     sdfsfd (" << ( matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
+                  << ")\n";
+
+        print_bytes( "Get Range", opts.get_composite_option_range( id ) );
+        auto range = opts.get_composite_option_range_as< rs2_temporal_filter_dpp_range >( id );
+        std::cout << "      Range (version=" << range.version << "): enabled[" << range.min.enabled << ".."
+                  << range.max.enabled << "] smooth_alpha[" << range.min.smooth_alpha << ".." << range.max.smooth_alpha
+                  << "] smooth_delta[" << range.min.smooth_delta << ".." << range.max.smooth_delta
+                  << "] persistency_index[" << range.min.persistency_index << ".." << range.max.persistency_index
+                  << "]\n";
+
+        std::cout << "      Read-only: " << ( opts.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
+        std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
+    }
+
+    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL.
+    void exercise_minz_control( rs2::options & opts, rs2_composite_option_id id )
+    {
+        // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
+        // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
+        // separate real GETs (device round trips), shown side by side purely to illustrate both
+        // APIs - production code would normally only need the typed one.
+        
+        print_bytes( "Get Raw Data:", opts.get_composite_option( id ) );
+        auto current = opts.get_composite_option_as< rs2_minz_control >( id );
+        std::cout << "Get Structured Data:\n";
+        print_struct( std::cout, minz_fields(), current );
+
+        // Read-modify-write: wire header (version/flags/ctl_id/param_count/param_type) carried
+        // over untouched from what the device just reported, not zero-initialized - only the
+        // logical fields below are the ones this walkthrough means to change.
+        rs2_minz_control cfg_to_send = current;
+        cfg_to_send.enable = int(!cfg_to_send.enable);        
+        opts.set_composite_option_from( id, cfg_to_send );
+        std::cout << "Set Structured Data: enable => !enable - writing to device\n";
+
+        print_bytes( "Get Raw Data", opts.get_composite_option( id ) );
+        auto cfg = opts.get_composite_option_as< rs2_minz_control >( id );
+        std::cout << "Get modified Structure Data:\n";
+        print_struct( std::cout, minz_fields(), cfg );
+        // Only `enable` was deliberately changed above (toggled) - check IT against what was
+        // sent, and separately check every OTHER field against `current` (what was actually on
+        // the device before this Set) to confirm the read-modify-write really did carry the rest
+        // through untouched rather than accidentally stomping them.
+        bool modified_field_matches = cfg.enable == cfg_to_send.enable;
+        bool rest_intact = cfg.version == current.version && cfg.flags == current.flags
+            && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
+            && cfg.param_type == current.param_type && cfg.downscale_ratio == current.downscale_ratio
+            && cfg.disparity_shift == current.disparity_shift && cfg.threshold == current.threshold
+            && cfg.threshold_mode == current.threshold_mode;
+        std::cout << " Struct.enable field" << ( modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
+                  << "; all other fields " << ( rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" )
+                  << ")\n";
+
+        // range.version is a range-WRAPPER schema version the SDK itself hardcodes to 1 when
+        // packing the reply (see composite_xu_option::get_raw_range()) - it is NOT read from the
+        // device. range.min/max/step/def are each a FULL rs2_minz_control - the same struct as
+        // `current`/`cfg` above, header fields included - and those bytes ARE exactly what the
+        // device's real get_xu_range() call returned. Reusing print_struct()/minz_fields() here
+        // (rather than the old hand-written line, which only showed 4 of the 10 fields) shows
+        // every field of every bound, including whether the header sub-fields came back
+        // meaningfully populated or all-zero too.
+        print_bytes( "Get Range", opts.get_composite_option_range( id ) );
+        auto range = opts.get_composite_option_range_as< rs2_minz_control_range >( id );
+        std::cout << "      Range (version=" << range.version << "):\n";
+        print_range( std::cout, minz_fields(), range.min, range.max, range.def, range.step );
+
+        std::cout << "      Read-only: " << ( opts.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
+        std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
+    }
+
+    // Dispatches to the right typed walkthrough - there is no generic "any composite option"
+    // mechanism by design (see file header); a new composite option id needs a case added here.
+    // Returns true on success, false if this id has no typed walkthrough registered (not a
+    // failure, just unhandled) - actual device-transaction failures propagate as exceptions for
+    // the caller to catch per-id.
+    bool exercise_composite_option( rs2::options & opts, rs2_composite_option_id id )
+    {
+        switch( id )
+        {
+        //case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true; Evgeni - TODO
+        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        exercise_minz_control( opts, id ); return true;
+        default:
+            std::cout << "      (no typed walkthrough registered for this composite option id)\n";
+            return false;
+        }
+    }
+}
 
 int main()
 try
 {
-    auto fake_opt = std::make_shared< fake_temporal_filter_dpp_option >();
-    fake_options_container container( fake_opt );
-    rs2_options wrapper( &container );
-    fake_options_handle sensor( &wrapper );
+    rs2::context ctx;
+    auto devices = ctx.query_devices();
+    std::cout << "=== Composite-option API walkthrough ===\n";
+    std::cout << "Found " << devices.size() << " device(s)\n";
 
-    std::cout << "=== Composite-option API walkthrough (HKR Temporal Filter DPP prototype) ===\n\n";
+    int attempted = 0, succeeded = 0, skipped = 0;
 
-    // -----------------------------------------------------------------------------------------
-    // 1) Enumeration - composite options are a SEPARATE list from get_supported_options()
-    //    (scalar rs2_option ids); this sensor legitimately has zero of those in this sample.
-    // -----------------------------------------------------------------------------------------
-    std::cout << "[1] Enumeration: get_supported_composite_options()\n";
-    auto supported = sensor.get_supported_composite_options();
-    for( auto id : supported )
-        std::cout << "    - composite option id " << (int)id
-                   << ( id == RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP ? " (RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP)" : "" )
-                   << '\n';
-    if( supported.empty() )
-        throw std::runtime_error( "expected at least one supported composite option" );
-    std::cout << '\n';
+    for( auto && dev : devices )
+    {
+        std::string dev_name = dev.supports( RS2_CAMERA_INFO_NAME ) ? dev.get_info( RS2_CAMERA_INFO_NAME ) : "Unknown device";
+        std::string dev_sn = dev.supports( RS2_CAMERA_INFO_SERIAL_NUMBER ) ? dev.get_info( RS2_CAMERA_INFO_SERIAL_NUMBER ) : "N/A";
+        std::cout << "\nDevice: " << dev_name << " (S/N " << dev_sn << ")\n";
 
-    auto const id = RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP;
+        for( auto && sensor : dev.query_sensors() )
+        {
+            if( ! sensor.is< rs2::depth_sensor >() )
+                continue;
 
-    // -----------------------------------------------------------------------------------------
-    // 2) Set - build the application's own copy of the documented wire-layout struct and send
-    //    it as one atomic transaction. The SDK never inspects these bytes - it is pure payload.
-    // -----------------------------------------------------------------------------------------
-    std::cout << "[2] Set: set_composite_option(id, &cfg, sizeof(cfg))\n";
-    rs2_temporal_filter_dpp_config cfg_to_send{};
-    cfg_to_send.enabled = 1;
-    cfg_to_send.smooth_alpha = 0.55f;
-    cfg_to_send.smooth_delta = 35;
-    cfg_to_send.persistency_index = 5;
-    sensor.set_composite_option( id, &cfg_to_send, sizeof( cfg_to_send ) );
-    std::cout << "    sent: enabled=" << cfg_to_send.enabled << " smooth_alpha=" << cfg_to_send.smooth_alpha
-              << " smooth_delta=" << cfg_to_send.smooth_delta
-              << " persistency_index=" << cfg_to_send.persistency_index << "\n\n";
+            std::string sensor_name = sensor.supports( RS2_CAMERA_INFO_NAME ) ? sensor.get_info( RS2_CAMERA_INFO_NAME ) : "Depth Sensor";
+            std::cout << "  Depth sensor: " << sensor_name << '\n';
 
-    // -----------------------------------------------------------------------------------------
-    // 3) Get / query value - get_composite_option() returns opaque bytes; the SDK ships no
-    //    per-id dispatch, so the APPLICATION casts them to the struct it knows this id uses.
-    // -----------------------------------------------------------------------------------------
-    std::cout << "[3] Get: get_composite_option(id), cast to rs2_temporal_filter_dpp_config\n";
-    std::vector< uint8_t > raw_value = sensor.get_composite_option( id );
-    if( raw_value.size() != sizeof( rs2_temporal_filter_dpp_config ) )
-        throw std::runtime_error( "unexpected payload size from get_composite_option" );
-    rs2_temporal_filter_dpp_config cfg{};
-    std::memcpy( &cfg, raw_value.data(), sizeof( cfg ) );  // <-- the application-side cast
-    std::cout << "    received: enabled=" << cfg.enabled << " smooth_alpha=" << cfg.smooth_alpha
-              << " smooth_delta=" << cfg.smooth_delta << " persistency_index=" << cfg.persistency_index
-              << '\n';
-    if( cfg.enabled != cfg_to_send.enabled || cfg.smooth_alpha != cfg_to_send.smooth_alpha
-        || cfg.smooth_delta != cfg_to_send.smooth_delta || cfg.persistency_index != cfg_to_send.persistency_index )
-        throw std::runtime_error( "round-trip mismatch between set and get" );
-    std::cout << "    (matches what was sent in step 2)\n\n";
+            // Composite options live on the sensor's EMBEDDED FILTERs, not the sensor's own
+            // registry - every filter must be explored, not just the first one.
+            for( auto && ef : sensor.query_embedded_filters() )
+            {
+                std::cout << "    Embedded filter: " << rs2_embedded_filter_type_to_string(ef.get_type()) << '\n';
+                auto composite_ids = ef.get_supported_composite_options();
+                if( composite_ids.empty() )
+                    continue;
 
-    // -----------------------------------------------------------------------------------------
-    // 4) Get range - same "opaque bytes + application-side cast" story, this time to the
-    //    per-id range struct (one instance of the config struct per bound: min/max/step/def).
-    // -----------------------------------------------------------------------------------------
-    std::cout << "[4] Get range: get_composite_option_range(id), cast to rs2_temporal_filter_dpp_range\n";
-    std::vector< uint8_t > raw_range = sensor.get_composite_option_range( id );
-    if( raw_range.size() != sizeof( rs2_temporal_filter_dpp_range ) )
-        throw std::runtime_error( "unexpected payload size from get_composite_option_range" );
-    rs2_temporal_filter_dpp_range range{};
-    std::memcpy( &range, raw_range.data(), sizeof( range ) );  // <-- the application-side cast
-    std::cout << "    version=" << range.version << '\n';
-    std::cout << "    enabled:           min=" << range.min.enabled << " max=" << range.max.enabled
-               << " step=" << range.step.enabled << " def=" << range.def.enabled << '\n';
-    std::cout << "    smooth_alpha:      min=" << range.min.smooth_alpha << " max=" << range.max.smooth_alpha
-               << " step=" << range.step.smooth_alpha << " def=" << range.def.smooth_alpha << '\n';
-    std::cout << "    smooth_delta:      min=" << range.min.smooth_delta << " max=" << range.max.smooth_delta
-               << " step=" << range.step.smooth_delta << " def=" << range.def.smooth_delta << '\n';
-    std::cout << "    persistency_index: min=" << range.min.persistency_index << " max=" << range.max.persistency_index
-               << " step=" << range.step.persistency_index << " def=" << range.def.persistency_index << '\n';
-    std::cout << '\n';
+                for( auto id : composite_ids )
+                {
+                    std::cout << "    - " << composite_option_name( id ) << ":\n";
+                    ++attempted;
+                    try
+                    {
+                        if(exercise_composite_option( ef, id ) )
+                            ++succeeded;
+                    }
+                    catch( const rs2::error & e )
+                    {
+                        // Registered but not actually functional on this device/FW (see file
+                        // header - supports_composite_option()/get_supported_composite_options()
+                        // only reflect static registration, never a live capability check) - skip
+                        // it and keep going rather than treating this as a failure.
+                        ++skipped;
+                        std::cout << "      SKIPPED (registered but not functional on this device/FW): " << e.what() << '\n';
+                    }
+                    catch( const std::exception & e )
+                    {
+                        ++skipped;
+                        std::cout << "      SKIPPED: " << e.what() << '\n';
+                    }
+                }
+            }
+        }
+    }
 
-    // -----------------------------------------------------------------------------------------
-    // 5) Query info - metadata about the composite option itself (not its payload value).
-    // -----------------------------------------------------------------------------------------
-    std::cout << "[5] Query info: supports_composite_option() / is_composite_option_read_only() / get_composite_option_description()\n";
-    std::cout << "    supports_composite_option:    " << ( sensor.supports_composite_option( id ) ? "true" : "false" ) << '\n';
-    std::cout << "    is_composite_option_read_only: " << ( sensor.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
-    std::cout << "    description: \"" << sensor.get_composite_option_description( id ) << "\"\n\n";
-
-    std::cout << "PASS: composite-option API walkthrough completed - enumeration, set, get (with "
-                 "application-side cast), get_range (with application-side cast), and metadata "
-                 "queries all exercised through the real public API."
-              << std::endl;
+    std::cout << "\n=== Summary: " << attempted << " composite option(s) found, " << succeeded << " walked "
+                 "successfully end-to-end, " << skipped << " skipped (registered but non-functional on this "
+                 "device/FW) ===\n";
     return 0;
 }
 catch( const rs2::error & e )

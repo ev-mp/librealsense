@@ -99,5 +99,14 @@ namespace rs2
         // other multi-param composite option can get the same touch/fade/reset/commit behavior
         // by holding its own composite_control_editor<its-struct-type> the same way.
         composite_control_editor< rs2_minz_control > _minz_editor;
+
+        // Per-field manual-entry toggle state for the Disparity Shift / Threshold sliders (see
+        // draw_minz_control_editor()) - mirrors option_model's own edit_mode/edit_value pattern
+        // (common/option-model.cpp) rather than relying on ImGui's native SliderInt Ctrl+Click/
+        // double-click text-input, which turned out not to be reliably discoverable/usable here.
+        bool _minz_shift_edit_mode = false;
+        std::string _minz_shift_edit_buf;
+        bool _minz_threshold_edit_mode = false;
+        std::string _minz_threshold_edit_buf;
     };
 }

@@ -107,8 +107,23 @@ namespace rs2
         }
 
         // Call once a field's edit is finalized (slider released, or immediately after a
-        // checkbox/radio click). Schedules the real auto-commit commit_delay seconds out.
-        void finalize() { _commit_deadline = ImGui::GetTime() + commit_delay; }
+        // checkbox/radio click). Schedules the auto-commit out by commit_delay seconds, or by
+        // the much shorter fast_commit_delay when use_fast_delay is set - the caller's own way
+        // of saying "this particular edit came from a keyboard arrow-key nudge, not a mouse
+        // click/drag," which should feel closer to immediate feedback than the deliberate,
+        // give-me-a-moment-to-change-my-mind pause a mouse edit gets.
+        void finalize( bool use_fast_delay = false )
+        {
+            _commit_deadline = ImGui::GetTime() + ( use_fast_delay ? fast_commit_delay : commit_delay );
+            // A discrete edit (radio/checkbox click, keyboard arrow-key nudge) calls touch()+
+            // finalize() together, synchronously, within the SAME frame as the
+            // end_frame_and_maybe_commit() call below that just set this deadline - unlike a
+            // mouse drag, which spans several frames with the widget genuinely active in
+            // between, giving the focus-loss shortcut no chance to fire on that exact frame.
+            // Suppress it for this one frame so it can't immediately collapse the deadline it
+            // was never meant to see yet.
+            _just_finalized = true;
+        }
 
         // Side-effect-free readout of the same progress end_frame_and_maybe_commit() animates
         // with: false if nothing is pending, true with `progress` in [0,1] (0 = just
@@ -185,9 +200,11 @@ namespace rs2
             // normal quiet gap between finishing one field and touching the next one in THIS
             // group, and must NOT cut the wait short). When that happens, don't make the user
             // wait out the rest of the countdown - finish it now, same as if it had lapsed
-            // naturally.
-            if( _dirty && ! any_field_active_this_frame && ImGui::IsAnyItemActive() )
+            // naturally. Skipped on the one frame finalize() just ran on (see its comment) - a
+            // discrete edit's own deadline must survive at least until the NEXT frame.
+            if( _dirty && ! any_field_active_this_frame && ImGui::IsAnyItemActive() && ! _just_finalized )
                 _commit_deadline = ImGui::GetTime();
+            _just_finalized = false;
 
             // Fires once the countdown elapses quietly - checked every frame, so any fresh
             // touch() (which re-parks the deadline at +infinity) naturally defers this for as
@@ -212,8 +229,10 @@ namespace rs2
     private:
         bool _dirty = false;
         double _commit_deadline = std::numeric_limits< double >::max();
+        bool _just_finalized = false;
 
         static constexpr double commit_delay = 1.7;          // seconds of quiet before auto-sending
+        static constexpr double fast_commit_delay = 0.1;     // ditto, for keyboard arrow-key nudges
         static constexpr float border_start_scale = 4.0f;    // 400% of normal width, right after an edit
         static constexpr float border_end_scale = 2.5f;      // 250% of normal width, right before commit
     };
