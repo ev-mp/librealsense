@@ -94,7 +94,7 @@ namespace librealsense
         void write_compressed_video_frame(const device_serializer::stream_identifier& stream_id,
                                           const nanoseconds& timestamp,
                                           frame_interface* frame);
-        std::vector<uint8_t> compress_zstd(const uint8_t* data, size_t size);
+        void compress_zstd(const uint8_t* data, size_t size, std::vector<uint8_t>& out);
 
         static uint8_t is_big_endian();
         std::string m_file_path;
@@ -102,6 +102,7 @@ namespace librealsense
         // Reused across calls. Safe only while _storage->write() stays synchronous
         // (sqlite binds SQLITE_STATIC and drops the ref in execute_and_reset).
         std::shared_ptr<rcutils_uint8_array_t> _cdr_buf;
+        std::vector<uint8_t> _frame_buf;
         std::map< std::string, rosbag2_storage::TopicMetadata > _topics; // created topics cache
         std::shared_ptr< rosbag2_storage::storage_interfaces::ReadWriteInterface > _storage;
         std::map<uint32_t, std::set<rs2_option>> m_written_options_descriptions;

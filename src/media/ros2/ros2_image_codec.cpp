@@ -60,26 +60,9 @@ namespace librealsense
             const size_t row = width * bpp;
             scanlines.resize((row + 1) * height);
 
-            std::vector<uint8_t> rgb_row;
-            if (layout.bgr_order)
-                rgb_row.resize(row);
-
             for (size_t y = 0; y < height; ++y)
             {
                 const uint8_t* src = pixels + y * stride;
-                if (layout.bgr_order)
-                {
-                    for (size_t x = 0; x < width; ++x)
-                    {
-                        const uint8_t* p = src + x * bpp;
-                        uint8_t* q = rgb_row.data() + x * bpp;
-                        q[0] = p[2]; q[1] = p[1]; q[2] = p[0];
-                        if (layout.num_channels == 4)
-                            q[3] = p[3];
-                    }
-                    src = rgb_row.data();
-                }
-
                 uint8_t* dst = scanlines.data() + y * (row + 1);
                 if (layout.bytes_per_channel == 2)
                 {
@@ -90,17 +73,29 @@ namespace librealsense
                         dst[1 + i + 1] = src[i];
                     }
                 }
-                else
+                else if (!layout.bgr_order)
                 {
                     dst[0] = 1; // Sub filter
                     for (size_t i = 0; i < row; ++i)
                         dst[1 + i] = uint8_t(src[i] - (i >= bpp ? src[i - bpp] : 0));
                 }
+                else
+                {
+                    // BGR→RGB is a fixed per-pixel permutation (BGR formats are always
+                    // 1 byte/channel) — fold it into the Sub-filter pass
+                    dst[0] = 1; // Sub filter
+                    for (size_t i = 0; i < row; i += bpp)
+                        for (size_t c = 0; c < bpp; ++c)
+                        {
+                            size_t j = i + (c < 3 ? 2 - c : c);
+                            dst[1 + i + c] = uint8_t(src[j] - (i ? src[j - bpp] : 0));
+                        }
+                }
             }
         }
 
-        std::vector<uint8_t> encode_png(const png_layout& layout, const uint8_t* pixels,
-                                        size_t width, size_t height, size_t stride)
+        void encode_png(const png_layout& layout, const uint8_t* pixels,
+                        size_t width, size_t height, size_t stride, std::vector<uint8_t>& out)
         {
             if (!pixels)
                 throw invalid_value_exception("null pixel buffer");
@@ -115,17 +110,19 @@ namespace librealsense
             if (!compressor)
                 throw io_exception("Failed to allocate libdeflate compressor");
 
-            std::vector<uint8_t> scanlines;
+            // scratch buffers keep their capacity across frames, like the compressor above
+            static thread_local std::vector<uint8_t> scanlines;
+            static thread_local std::vector<uint8_t> compressed;
             build_scanlines(layout, pixels, width, height, stride, scanlines);
 
-            std::vector<uint8_t> compressed(libdeflate_zlib_compress_bound(compressor.get(), scanlines.size()));
+            compressed.resize(libdeflate_zlib_compress_bound(compressor.get(), scanlines.size()));
             size_t csize = libdeflate_zlib_compress(compressor.get(), scanlines.data(), scanlines.size(),
                                                     compressed.data(), compressed.size());
             if (!csize)
                 throw io_exception("PNG encoding failed: zlib compression error");
 
-            std::vector<uint8_t> png;
-            png.reserve(csize + 128);
+            auto& png = out;
+            png.reserve(png.size() + csize + 128);
             static const uint8_t magic[8] = { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
             png.insert(png.end(), magic, magic + 8);
 
@@ -139,7 +136,6 @@ namespace librealsense
             put_chunk(png, "IHDR", ihdr, 13);
             put_chunk(png, "IDAT", compressed.data(), csize);
             put_chunk(png, "IEND", nullptr, 0);
-            return png;
         }
 
         std::vector<uint8_t> decode_png(const uint8_t* png_data, size_t png_size,

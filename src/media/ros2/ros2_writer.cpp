@@ -84,16 +84,15 @@ namespace librealsense
         _topics.emplace(name, md);
     }
 
-    std::vector<uint8_t> ros2_writer::compress_zstd(const uint8_t* data, size_t size)
+    void ros2_writer::compress_zstd(const uint8_t* data, size_t size, std::vector<uint8_t>& out)
     {
-        std::vector<uint8_t> out(ZSTD_compressBound(size));
+        out.resize(ZSTD_compressBound(size));
 
         // Level 1 is the fastest zstd level with good-enough ratio; comparable in speed to LZ4 used by rosbag1
         auto compressed_size = ZSTD_compress(out.data(), out.size(), data, size, 1);
         if (ZSTD_isError(compressed_size))
             throw std::runtime_error(rsutils::string::from() << "Zstd compression failed: " << ZSTD_getErrorName(compressed_size));
         out.resize(compressed_size);
-        return out;
     }
 
     // Decoded PNGs surface as BGR-ordered mats on the ROS side (cv::imdecode); the format
@@ -143,37 +142,37 @@ namespace librealsense
 
         ros2_image_codec::png_layout layout{};
         bool png_ok = ros2_image_codec::png_layout_for_format(format, layout);
+        _frame_buf.clear();
         if (png_ok)
         {
-            auto png = ros2_image_codec::encode_png(layout, pixels, width, height, stride);
             if (layout.is_depth)
             {
                 // compressed_depth_image_transport expects a ConfigHeader before the PNG
                 ros2_image_codec::config_header hdr;
-                std::vector<uint8_t> payload(sizeof(hdr) + png.size());
-                std::memcpy(payload.data(), &hdr, sizeof(hdr));
-                std::memcpy(payload.data() + sizeof(hdr), png.data(), png.size());
-                msg.data(std::move(payload));
+                auto hdr_bytes = reinterpret_cast<const uint8_t*>(&hdr);
+                _frame_buf.insert(_frame_buf.end(), hdr_bytes, hdr_bytes + sizeof(hdr));
                 msg.format(rsutils::string::from() << layout.ros_encoding << "; compressedDepth png");
             }
             else
             {
-                msg.data(std::move(png));
                 msg.format(rsutils::string::from() << layout.ros_encoding << "; png compressed "
                                                    << decoded_png_encoding(layout));
             }
+            ros2_image_codec::encode_png(layout, pixels, width, height, stride, _frame_buf);
         }
         else
         {
             // Formats PNG can't represent losslessly (YUYV-class packed formats):
             // zstd the raw pixels; the format string carries the layout for external consumers.
-            msg.data(compress_zstd(pixels, size_t(stride) * height));
+            compress_zstd(pixels, size_t(stride) * height, _frame_buf);
             msg.format(rsutils::string::from() << rs2_format_to_string(format) << "; zstd; "
                                                << width << "x" << height << " step=" << stride);
         }
+        msg.data(std::move(_frame_buf));
 
         write_message(ros2_topic::compressed_frame_data_topic(stream_id, png_ok && layout.is_depth),
                       "sensor_msgs/msg/CompressedImage", timestamp, msg);
+        _frame_buf = std::move(msg.data()); // reclaim the buffer's capacity for the next frame
         write_additional_frame_messages(stream_id, timestamp, frame);
     }
 

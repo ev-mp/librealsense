@@ -40,13 +40,16 @@ namespace librealsense
         // PNG cannot represent losslessly (YUYV, UYVY, MJPEG, ...).
         bool png_layout_for_format(rs2_format format, png_layout& out);
 
-        // Encodes raw pixels into a standard PNG. 16-bit input is host-endian and is
-        // converted to the big-endian samples PNG requires. Throws on encoder failure.
-        std::vector<uint8_t> encode_png(const png_layout& layout,
-                                        const uint8_t* pixels,
-                                        size_t width,
-                                        size_t height,
-                                        size_t stride);
+        // Encodes raw pixels into a standard PNG appended to `out` (existing content,
+        // e.g. a compressedDepth ConfigHeader, is preserved). 16-bit input is little-endian
+        // (as on every supported host) and is byte-swapped to the big-endian samples PNG
+        // requires. Throws on encoder failure.
+        void encode_png(const png_layout& layout,
+                        const uint8_t* pixels,
+                        size_t width,
+                        size_t height,
+                        size_t stride,
+                        std::vector<uint8_t>& out);
 
         // Decodes a standard PNG back to raw host-endian pixels; sets the channel
         // count found in the stream. Throws on malformed input.

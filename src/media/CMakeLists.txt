@@ -69,7 +69,7 @@ if(BUILD_ROSBAG2)
 
     # libdeflate: portable PNG (zlib) compression for CompressedImage topics —
     # byte-identical output on every architecture
-    include(${CMAKE_SOURCE_DIR}/CMake/external_libdeflate.cmake)
+    include(${PROJECT_SOURCE_DIR}/CMake/external_libdeflate.cmake)
     set(LIBDEFLATE_DIR "${LIBDEFLATE_SOURCE_DIR}")
     set(LIBDEFLATE_SOURCES
         "${LIBDEFLATE_DIR}/lib/adler32.c"
