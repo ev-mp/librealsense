@@ -114,11 +114,16 @@ struct rs2_option_value_wrapper : rs2_option_value
     // Add a reference count to control lifetime
     mutable std::atomic< int > ref_count;
 
+    int has_range;
+    rs2_option_range range;
+
     rs2_option_value_wrapper( rs2_option option_id,
                               rs2_option_type option_type,
                               std::shared_ptr< const json > const & p_json_value )
         : ref_count( 1 )
         , p_json( p_json_value )
+        , has_range( 0 )
+        , range{}
     {
         id = option_id;
         type = option_type;
@@ -1042,6 +1047,21 @@ rs2_options_list* rs2_get_options_list(const rs2_options* options, rs2_error** e
         if( option.is_enabled() )
             value = std::make_shared< const json >( option.get_value() );
         auto wrapper = new rs2_option_value_wrapper( option_id, option.get_value_type(), value );
+        // In addition to the option, read its range here (if exists) while the UVC sensor is powered
+        try
+        {
+            auto const range = option.get_range();
+            wrapper->range = { range.min, range.max, range.def, range.step };
+            wrapper->has_range = 1;
+        }
+        catch( std::exception const & e )
+        {
+            LOG_DEBUG( "failed to query range of " << get_string( option_id ) << ": " << e.what() );
+        }
+        catch( ... )
+        {
+            LOG_DEBUG( "failed to query range of " << get_string( option_id ) );
+        }
         rs2_list->list.push_back( wrapper );
     }
     return rs2_list;
@@ -1077,6 +1097,18 @@ rs2_option_value const * rs2_get_option_value_from_list( const rs2_options_list 
     return p_option_value;
 }
 HANDLE_EXCEPTIONS_AND_RETURN( nullptr, options, i )
+
+int rs2_get_option_range_from_list( const rs2_options_list * options, int i, rs2_option_range * out_range, rs2_error ** error ) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL( options );
+    VALIDATE_NOT_NULL( out_range );
+    auto const p_option_value = options->list.at( i );
+    if( ! p_option_value->has_range )
+        return 0;
+    *out_range = p_option_value->range;
+    return 1;
+}
+HANDLE_EXCEPTIONS_AND_RETURN( 0, options, i )
 
 void rs2_delete_options_list(rs2_options_list* list) BEGIN_API_CALL
 {
@@ -3054,13 +3086,22 @@ rs2_processing_block* rs2_create_decimation_filter_block(rs2_error** error) BEGI
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
-rs2_processing_block* rs2_create_rotation_filter_block( rs2_streams_list streams_to_rotate, rs2_error ** error ) BEGIN_API_CALL
+rs2_processing_block* rs2_create_rotation_filter_block( const rs2_stream * streams_to_rotate, int stream_count, rs2_error ** error ) BEGIN_API_CALL
 {
-    auto block = std::make_shared< librealsense::rotation_filter >( streams_to_rotate.list );
+    VALIDATE_LE( 0, stream_count );
+
+    std::vector< rs2_stream > streams;
+    if( stream_count > 0 )
+    {
+        VALIDATE_NOT_NULL( streams_to_rotate );
+        streams.assign( streams_to_rotate, streams_to_rotate + stream_count );
+    }
+
+    auto block = std::make_shared< librealsense::rotation_filter >( std::move( streams ) );
 
     return new rs2_processing_block{ block };
 }
-NOARGS_HANDLE_EXCEPTIONS_AND_RETURN( nullptr )
+HANDLE_EXCEPTIONS_AND_RETURN( nullptr, streams_to_rotate, stream_count )
 
 rs2_processing_block* rs2_create_temporal_filter_block(rs2_error** error) BEGIN_API_CALL
 {
@@ -5102,12 +5143,16 @@ void rs2_get_frame_object_detection(const rs2_frame* frame, unsigned int index, 
                                         std::to_string(od_frame->get_detection_count()) + ")" );
 
     const auto & entry = od_frame->get_detection( index );
-    detection->class_id       = entry.detection_type;
-    detection->score          = entry.confidence;
-    detection->top_left_x     = entry.top_left_x;
-    detection->top_left_y     = entry.top_left_y;
-    detection->bottom_right_x = entry.bottom_right_x;
-    detection->bottom_right_y = entry.bottom_right_y;
-    detection->depth          = entry.distance;
+    detection->class_id           = entry.detection_type;
+    detection->score              = entry.confidence;
+    detection->top_left_x         = entry.top_left_x;
+    detection->top_left_y         = entry.top_left_y;
+    detection->bottom_right_x     = entry.bottom_right_x;
+    detection->bottom_right_y     = entry.bottom_right_y;
+    detection->depth              = entry.distance;
+    detection->world_position     = entry.world_position;
+    detection->center_of_mass_x   = entry.image_x;
+    detection->center_of_mass_y   = entry.image_y;
+    detection->center_of_mass_valid = entry.com_valid ? 1 : 0;
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, frame, index, output_arg(detection))

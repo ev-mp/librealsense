@@ -24,6 +24,13 @@ namespace librealsense
             _read_endpoint = inf->first_endpoint(platform::RS2_USB_ENDPOINT_DIRECTION_READ);
 
             _read_buff_length = UVC_PAYLOAD_MAX_HEADER_LENGTH + _context.control->dwMaxVideoFrameSize;
+            // Compressed streams have a variable payload length. Perception stream does too.
+            // Scope the exception to perception interface so regular Y8 images retain strict frame-size validation.
+            // Streaming MI is control MI + 1 (control MI 9, confirmed with the HKR firmware team).
+            constexpr uint8_t perception_streaming_mi = 10;
+            _allow_variable_length_payload
+                = val_in_range( _context.profile.format, { 0x4d4a5047U, 0x5a313648U } )  // MJPEG, Z16H
+               || context.control->bInterfaceNumber == perception_streaming_mi;
             LOG_INFO("endpoint " << (int)_read_endpoint->get_address() << " read buffer size: " << std::dec <<_read_buff_length);
 
             _action_dispatcher.start();
@@ -118,9 +125,9 @@ namespace librealsense
                       return;
 
                     auto al = r->get_actual_length();
-                    // Relax the frame size constrain for compressed streams
-                    bool is_compressed = val_in_range(_context.profile.format, { 0x4d4a5047U , 0x5a313648U}); // MJPEG, Z16H
-                    if(al > 0L && ((al == r->get_buffer().data()[0] + _context.control->dwMaxVideoFrameSize) || is_compressed ))
+                    if( al > 0L
+                        && ( al == r->get_buffer().data()[0] + _context.control->dwMaxVideoFrameSize
+                             || _allow_variable_length_payload ) )
                     {
                         auto f = backend_frame_ptr(_frames_archive->allocate(), &cleanup_frame);
                         if(f)
@@ -170,7 +177,7 @@ namespace librealsense
 
                 _publish_frame_thread->start();
 
-            }, [this](){ return _running; });
+            }, [this](){ return _running; }, true);
         }
 
         void uvc_streamer::stop()
@@ -205,7 +212,7 @@ namespace librealsense
                     _stopped_cv.notify_one();
                 }
 
-            }, [this](){ return !_running; });
+            }, [this](){ return !_running; }, true);
         }
 
         void uvc_streamer::flush()

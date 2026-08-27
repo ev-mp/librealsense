@@ -69,6 +69,7 @@
 #pragma GCC diagnostic ignored "-Woverflow"
 
 const double DEFAULT_KPI_FRAME_DROPS_PERCENTAGE = 0.05;
+constexpr std::chrono::milliseconds DISCONNECT_RETRY_DELAY( 100 );
 
 
 #ifdef ANDROID
@@ -353,8 +354,14 @@ namespace librealsense
             else
             {
                 //_length += (V4L2_BUF_TYPE_VIDEO_CAPTURE==type) ? MAX_META_DATA_SIZE : 0;
+#ifdef RS2_USE_CUDA_ZEROCOPY
+                // USERPTR: GPU-visible buffer so a zero-copy frame aliasing it stays GPU-resident (as MMAP/RSUSB do).
+                _start = static_cast<uint8_t*>(rs_frame_zc_alloc( _length ));
+                if (!_start) throw linux_backend_exception("rs_frame_zc_alloc for USERPTR buffer failed!");
+#else
                 _start = static_cast<uint8_t*>(malloc( _length));
                 if (!_start) throw linux_backend_exception("User_p allocation failed!");
+#endif
                 memset(_start, 0, _length);
             }
         }
@@ -394,7 +401,11 @@ namespace librealsense
             }
             else
             {
+#ifdef RS2_USE_CUDA_ZEROCOPY
+               rs_frame_zc_free( _start );
+#else
                free(_start);
+#endif
             }
         }
 
@@ -1257,12 +1268,17 @@ namespace librealsense
                 v4l2_fmtdesc pixel_format = {};
                 pixel_format.type = _dev.buf_type;
 
+                _variable_frame_size = false;
                 while (ioctl(_fd, VIDIOC_ENUM_FMT, &pixel_format) == 0)
                 {
                     v4l2_frmsizeenum frame_size = {};
                     frame_size.pixel_format = pixel_format.pixelformat;
 
                     uint32_t fourcc = (const big_endian<int> &)pixel_format.pixelformat;
+
+                    // V4L2_FMT_FLAG_COMPRESSED means in v4l2 if the frame size isn't fixed - sizeimage is a maximum, not exact
+                    if (fourcc == profile.format)
+                        _variable_frame_size = (pixel_format.flags & V4L2_FMT_FLAG_COMPRESSED) != 0;
 
                     if (pixel_format.pixelformat == 0)
                     {
@@ -1439,8 +1455,29 @@ namespace librealsense
             return oss.str();
         }
 
+        bool v4l_uvc_device::handle_enodev_on_dqbuf(const char* fd_label, int fd)
+        {
+            if (errno != ENODEV)
+                return false;
+            _device_disconnected = true;
+            LOG_WARNING("Device disconnected: DQBUF failed with ENODEV for " << fd_label << " " << fd);
+            return true;
+        }
+
         void v4l_uvc_device::poll()
         {
+            // A prior iteration observed ENODEV on a real DQBUF/QBUF call (set explicitly at the point of
+            // failure, never inferred from ambient errno). Throttle retries until the device-removal
+            // notification unwinds streaming, instead of spinning select() on an fd the kernel already dropped.
+            // Both flags are read into locals before the check below, so neither is left unconsumed by the ||.
+            bool device_disconnected = _device_disconnected.exchange(false);
+            bool syncer_disconnected = _video_md_syncer.consume_device_disconnected();
+            if (device_disconnected || syncer_disconnected)
+            {
+                std::this_thread::sleep_for(DISCONNECT_RETRY_DELAY);
+                return;
+            }
+
              fd_set fds{};
              FD_ZERO(&fds);
              for (auto fd : _fds)
@@ -1523,6 +1560,10 @@ namespace librealsense
                         // Relax the required frame size for compressed formats, i.e. MJPG, Z16H
                         bool compressed_format = val_in_range(_profile.format, { 0x4d4a5047U , 0x5a313648U});
 
+                        // Compressed and kernel-reported variable-size formats deliver frames shorter than the buffer,
+                        // so the size check doesn't apply - this covers the perception stream too.
+                        bool skip_partial_frame_check = compressed_format || _variable_frame_size;
+
                         // METADATA STREAM
                         // Read metadata. Metadata node performs a blocking call to ensure video and metadata sync
                         acquire_metadata(buf_mgr,fds,compressed_format);
@@ -1548,6 +1589,8 @@ namespace librealsense
                             }
                             if(xioctl(_fd, VIDIOC_DQBUF, &buf) < 0)
                             {
+                                if (handle_enodev_on_dqbuf("fd", _fd))
+                                    return;
                                 LOG_DEBUG_V4L("Dequeued empty buf for fd " << std::dec << _fd);
                             }
                             LOG_DEBUG_V4L("Dequeued buf " << std::dec << buf.index << " for fd " << _fd << " seq " << buf.sequence);
@@ -1568,7 +1611,7 @@ namespace librealsense
                                 }
 
                                 // Drop partial and overflow frames (assumes D4XX metadata only)
-                                bool partial_frame = (!compressed_format && (buf.bytesused < buffer->get_full_length() - MAX_META_DATA_SIZE));
+                                bool partial_frame = (!skip_partial_frame_check && (buf.bytesused < buffer->get_full_length() - MAX_META_DATA_SIZE));
                                 bool overflow_frame = (buf.bytesused ==  buffer->get_length_frame_only() + MAX_META_DATA_SIZE);
                                 if (_dev.buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
                                     /* metadata size is one line of profile, temporary disable validation */
@@ -1671,11 +1714,11 @@ namespace librealsense
                                                 uint8_t md_size = buf_mgr.metadata_size();
                                                 void* md_start = buf_mgr.metadata_start();
 
-                                                // D457 development - hid over uvc - md size for IMU is 64
+                                                // IMU node (mi=4) delivers data with no metadata node, synthesize the metadata from the payload.
+                                                // Frame size is 64 bytes on D400 but 256 on D500.
                                                 metadata_hid_raw meta_data{};
-                                                if (md_size == 0 && buffer->get_length_frame_only() <= 64)
+                                                if (md_size == 0 && _info.mi == 4)
                                                 {
-                                                    // Populate HID IMU data - Header
                                                     populate_imu_data(meta_data, buffer->get_frame_start(), md_size, &md_start);
                                                 }
 
@@ -1900,7 +1943,10 @@ namespace librealsense
                                               << static_cast< int >( control ));
             }
 
-            assert(size<=len);
+            if( size > len )
+                throw linux_backend_exception( rsutils::string::from()
+                    << "get_xu_range: UVC_GET_LEN size " << size << " > requested " << len
+                    << " on control " << static_cast< int >( control ) );
 
             std::vector<uint8_t> buf;
             auto buf_size = std::max((size_t)len,sizeof(__u32));
@@ -2632,6 +2678,8 @@ namespace librealsense
                 // W/O multiplexing this will create a blocking call for metadata node
                 if(xioctl(_md_fd, VIDIOC_DQBUF, &buf) < 0)
                 {
+                    if (handle_enodev_on_dqbuf("md fd", _md_fd))
+                        return;
                     LOG_DEBUG_V4L("Dequeued empty buf for md fd " << std::dec << _md_fd);
                 }
 
@@ -3030,14 +3078,23 @@ namespace librealsense
             return false;
         }
 
-        void v4l2_video_md_syncer::enqueue_buffer_before_throwing_it(const sync_buffer& sb) const
+        void v4l2_video_md_syncer::report_qbuf_failure(int fd)
+        {
+            if (errno == ENODEV)
+            {
+                _qbuf_device_disconnected = true;
+                LOG_WARNING("Device disconnected: QBUF failed with ENODEV for fd " << fd);
+                return;
+            }
+            LOG_ERROR("xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: " << fd << " error: " << strerror(errno));
+        }
+
+        void v4l2_video_md_syncer::enqueue_buffer_before_throwing_it(const sync_buffer& sb)
         {
             // Enqueue of buffer before throwing its content away
             LOG_DEBUG_V4L("video_md_syncer - Enqueue buf " << std::dec << sb._buffer_index << " for fd " << sb._fd << " before dropping it");
             if (xioctl(sb._fd, VIDIOC_QBUF, sb._v4l2_buf.get()) < 0)
-            {
-                LOG_ERROR("xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: " << sb._fd << " error: " << strerror(errno));
-            }
+                report_qbuf_failure(sb._fd);
         }
 
         void v4l2_video_md_syncer::enqueue_front_buffer_before_throwing_it(std::queue<sync_buffer>& sync_queue)
@@ -3045,9 +3102,7 @@ namespace librealsense
             // Enqueue of buffer before throwing its content away
             LOG_DEBUG_V4L("video_md_syncer - Enqueue buf " << std::dec << sync_queue.front()._buffer_index << " for fd " << sync_queue.front()._fd << " before dropping it");
             if (xioctl(sync_queue.front()._fd, VIDIOC_QBUF, sync_queue.front()._v4l2_buf.get()) < 0)
-            {
-                LOG_ERROR("xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: " << sync_queue.front()._fd << " error: " << strerror(errno));
-            }
+                report_qbuf_failure(sync_queue.front()._fd);
             sync_queue.pop();
         }
 

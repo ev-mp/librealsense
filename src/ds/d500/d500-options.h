@@ -109,7 +109,7 @@ namespace librealsense
         virtual bool is_read_only() const override;
         const char * get_description() const override
         {
-            return "Inter-camera synchronization mode: 0:No sync, 1:RGB Master, 2:PWM Master, 3:External Master";
+            return "Inter-camera synchronization mode: 2:Internal, 3:External";
         }
         const char * get_value_description( float val ) const override;
 

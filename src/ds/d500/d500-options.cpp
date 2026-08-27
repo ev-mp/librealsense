@@ -147,10 +147,10 @@ namespace librealsense
         , _sensor( ep )
         , _description_per_value( description_per_value )
     {
-        _range = { RS2_D500_INTERCAM_SYNC_NONE,
+        _range = { RS2_D500_INTERCAM_SYNC_PWM_MASTER,
                    RS2_D500_INTERCAM_SYNC_EXTERNAL_MASTER,
                    1,
-                   RS2_D500_INTERCAM_SYNC_NONE };
+                   RS2_D500_INTERCAM_SYNC_PWM_MASTER };
     }
 
     void d500_external_sync_mode::set( float value )
@@ -162,7 +162,7 @@ namespace librealsense
         if( strong_sensor->is_streaming() )
             throw std::runtime_error( "Cannot change external sync mode while streaming!" );
 
-        if( ! is_valid( static_cast < rs2_d500_intercam_sync_mode >( value ) ) )
+        if( value != RS2_D500_INTERCAM_SYNC_PWM_MASTER && value != RS2_D500_INTERCAM_SYNC_EXTERNAL_MASTER )
             throw invalid_value_exception( rsutils::string::from()
                                            << "d500_external_sync_mode::set invalid value " << value );
 
