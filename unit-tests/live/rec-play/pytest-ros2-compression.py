@@ -152,12 +152,15 @@ def _deserialize_blob(blob, lane="depth_png"):
         assert img is not None, "cv2.imdecode failed on recorded PNG"
         assert img.dtype == np.uint16, f"expected 16-bit depth PNG, got {img.dtype}"
         return img.tobytes()
-    if lane == "color_png":
+    if lane in ("color_png_bgr", "color_png_rgb"):
         assert "png compressed bgr8" in fmt, f"unexpected format string: '{fmt}'"
         assert payload[:8] == PNG_MAGIC, f"expected PNG magic, got {payload[:8].hex()}"
         img = cv2.imdecode(np.frombuffer(payload, np.uint8), cv2.IMREAD_UNCHANGED)
         assert img is not None, "cv2.imdecode failed on recorded PNG"
-        # cv2.imdecode returns BGR-ordered channels — byte-identical to the BGR8 input
+        # cv2.imdecode returns BGR-ordered channels — byte-identical to BGR8 input,
+        # channel-swapped relative to RGB8 input
+        if lane == "color_png_rgb":
+            img = img[:, :, ::-1]
         return img.tobytes()
     # zstd fallback lane: the "; zstd; " marker couples writer and reader by exact
     # string; pixel content is verified through SDK playback (which decompresses)
@@ -193,7 +196,8 @@ def _playback_frames(filename, stream_type):
 
 @pytest.mark.parametrize("stream_type,fmt,bpp,lane,stream_name,topic_suffix", [
     (rs.stream.depth, rs.format.z16, 2, "depth_png", "Depth_0", DEPTH_DATA_TOPIC_SUFFIX),
-    (rs.stream.color, rs.format.bgr8, 3, "color_png", "Color_0", "/Color_0/image/data/compressed"),
+    (rs.stream.color, rs.format.bgr8, 3, "color_png_bgr", "Color_0", "/Color_0/image/data/compressed"),
+    (rs.stream.color, rs.format.rgb8, 3, "color_png_rgb", "Color_0", "/Color_0/image/data/compressed"),
     (rs.stream.color, rs.format.yuyv, 2, "zstd", "Color_0", "/Color_0/image/data/compressed"),
 ])
 def test_compressed_frames_match_playback(tmp_path, stream_type, fmt, bpp, lane, stream_name, topic_suffix):
