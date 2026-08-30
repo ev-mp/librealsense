@@ -2,6 +2,9 @@
 // Copyright(c) 2025 RealSense, Inc. All Rights Reserved.
 
 #include "ros2_reader.h"
+#include "ros2_image_codec.h"
+#include <sensor_msgs/msg/CompressedImage.h>
+#include <zstd.h>
 #include "image.h"
 #include "ds/ds-device-common.h"
 #include "ds/d400/d400-private.h"
@@ -158,6 +161,49 @@ namespace librealsense
         return std::make_shared<serialized_end_of_file>();
     }
 
+    // Reverses write_compressed_video_frame: zstd payloads carry the raw pixels; PNG payloads
+    // (optionally behind a compressedDepth ConfigHeader) are decoded and restored to the
+    // source channel order.
+    static std::vector<uint8_t> decode_compressed_image(const sensor_msgs::msg::CompressedImage& ci)
+    {
+        auto const& format = ci.format();
+        auto const& payload = ci.data();
+
+        if (format.find("; zstd; ") != std::string::npos)
+        {
+            auto size = ros2_reader_base::zstd_frame_content_size(payload.data(), payload.size());
+            std::vector<uint8_t> out(size);
+            auto result = ZSTD_decompress(out.data(), out.size(), payload.data(), payload.size());
+            if (ZSTD_isError(result))
+                throw std::runtime_error(rsutils::string::from()
+                    << "Zstd decompression failed: " << ZSTD_getErrorName(result));
+            out.resize(result);
+            return out;
+        }
+
+        auto png = payload.data();
+        auto png_size = payload.size();
+        if (format.find("compressedDepth") != std::string::npos)
+        {
+            if (png_size <= sizeof(ros2_image_codec::config_header))
+                throw std::runtime_error("compressedDepth payload too small");
+            png += sizeof(ros2_image_codec::config_header);
+            png_size -= sizeof(ros2_image_codec::config_header);
+        }
+
+        size_t channels;
+        auto pixels = ros2_image_codec::decode_png(png, png_size, channels);
+
+        // PNG stores RGB order; BGR-sourced formats need their channels restored
+        auto ros_encoding = format.substr(0, format.find(';'));
+        if ((ros_encoding == "bgr8" || ros_encoding == "bgra8") && channels >= 3)
+        {
+            for (size_t i = 0; i + channels <= pixels.size(); i += channels)
+                std::swap(pixels[i], pixels[i + 2]);
+        }
+        return pixels;
+    }
+
     std::shared_ptr< serialized_frame > ros2_reader::create_frame(const std::shared_ptr<rosbag2_storage::SerializedBagMessage>& msg)
     {
         nanoseconds timestamp(msg->time_stamp);
@@ -169,10 +215,16 @@ namespace librealsense
 
         bool is_imu_topic       = (msg->topic_name.find("/" + std::string(ros2_topic::ros_imu_type_str())              + "/") != std::string::npos);
         bool is_perception_topic = (msg->topic_name.find("/" + std::string(ros2_topic::ros_object_detection_type_str()) + "/") != std::string::npos);
+        bool is_compressed_topic = (msg->topic_name.find("/data/compressed") != std::string::npos);
 
         std::vector<uint8_t> data;
 
-        if (is_perception_topic)
+        if (is_compressed_topic)
+        {
+            auto ci = deserialize_message<sensor_msgs::msg::CompressedImage>(msg);
+            data = decode_compressed_image(ci);
+        }
+        else if (is_perception_topic)
         {
             // Perception frames are stored as a JSON string (std_msgs/msg/String).
             // Re-parse using the same format written by ros2_writer and construct the binary payload.
@@ -871,10 +923,10 @@ namespace librealsense
         if (topic.find("/device_") != 0)
             return false;
 
-        // Frame data topics end with /data (e.g., .../image/data, .../imu/data)
-        auto data_suffix = std::string("/data");
-        if (topic.size() < data_suffix.size()
-            || topic.compare(topic.size() - data_suffix.size(), data_suffix.size(), data_suffix) != 0)
+        // Frame data topics end with /data (e.g., .../image/data, .../imu/data);
+        // compressed recordings add an image_transport leaf under /data
+        static const std::regex data_suffix_re(R"(/data(/compressed|/compressedDepth)?$)");
+        if (!std::regex_search(topic, data_suffix_re))
             return false;
 
         try
@@ -1051,8 +1103,9 @@ namespace librealsense
 
     std::vector<std::string> ros2_reader::get_stream_topics() const
     {
-        // /device_N/sensor_N/StreamType_Idx/<ros_type>/(data|metadata)
-        auto re = std::regex((rsutils::string::from() << "^/device_" << get_device_index() << "/sensor_\\d+/[^/]+/[^/]+/(data|metadata)$").str());
+        // /device_N/sensor_N/StreamType_Idx/<ros_type>/(data|metadata), with compressed
+        // frame data on an image_transport-convention leaf under /data
+        auto re = std::regex((rsutils::string::from() << "^/device_" << get_device_index() << "/sensor_\\d+/[^/]+/[^/]+/(data(/compressed|/compressedDepth)?|metadata)$").str());
         return filter_topics_by_regex(re);
     }
 
