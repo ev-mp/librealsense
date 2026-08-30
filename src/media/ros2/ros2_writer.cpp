@@ -149,8 +149,8 @@ namespace librealsense
             {
                 // compressed_depth_image_transport expects a ConfigHeader before the PNG
                 ros2_image_codec::config_header hdr;
-                auto hdr_bytes = reinterpret_cast<const uint8_t*>(&hdr);
-                _frame_buf.insert(_frame_buf.end(), hdr_bytes, hdr_bytes + sizeof(hdr));
+                _frame_buf.resize(sizeof(hdr));
+                std::memcpy(_frame_buf.data(), &hdr, sizeof(hdr));
                 msg.format(rsutils::string::from() << layout.ros_encoding << "; compressedDepth png");
             }
             else
