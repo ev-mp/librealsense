@@ -240,7 +240,7 @@ namespace
         // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
         // separate real GETs (device round trips), shown side by side purely to illustrate both
         // APIs - production code would normally only need the typed one.
-        print_bytes( "Get efore)", opts.get_composite_option( id ) );
+        print_bytes( "Get (before)", opts.get_composite_option( id ) );
         auto current = opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
         std::cout << "      Get (before):\n";
         print_struct( std::cout, temporal_filter_dpp_fields(), current );
@@ -261,7 +261,7 @@ namespace
         // mismatch here isn't necessarily a bug, so this is reported, not asserted/thrown on.
         bool matches = cfg.enabled == cfg_to_send.enabled && cfg.smooth_alpha == cfg_to_send.smooth_alpha
             && cfg.smooth_delta == cfg_to_send.smooth_delta && cfg.persistency_index == cfg_to_send.persistency_index;
-        std::cout << "     sdfsfd (" << ( matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
+        std::cout << "      All fields (" << ( matches ? "match what was sent" : "differ - FW may quantize/clamp on write" )
                   << ")\n";
 
         print_bytes( "Get Range", opts.get_composite_option_range( id ) );
