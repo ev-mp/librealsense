@@ -19,18 +19,16 @@
 // there in the first place (see options_container::get_supported_composite_options(), a
 // completely separate registry).
 //
-// WRAPS (composition, not inheritance) a uvc_xu_option<T> instance for the underlying transport
-// plumbing (reuses that existing class as-is, purely for its device/xu/ctrl_id plumbing
-// conventions). get_raw()/set_raw()/get_raw_range() perform the actual wire transaction directly
-// (their own single get_xu()/set_xu()/get_xu_range() call each) against the device, rather than
-// through the wrapped uvc_xu_option<T>, since that class's own set/query are hardwired to
-// sizeof(T) (a single scalar), not this control's full, caller-supplied wire_size.
+// get_raw()/set_raw()/get_raw_range() perform the actual wire transaction directly (their own
+// single get_xu()/set_xu()/get_xu_range() call each) against the device via the locked
+// uvc_sensor's invoke_powered() - there is no wrapped/underlying option object of any kind:
+// uvc_xu_option<T>'s own set/query are hardwired to sizeof(T) (a single scalar), not this
+// control's full, caller-supplied wire_size, so it would have bought nothing here.
 
 #pragma once
 
 #include <src/composite-option-interface.h>
 #include <src/uvc-sensor.h>
-#include <src/platform/uvc-option.h>
 #include <src/platform/uvc-device.h>
 
 #include <memory>
@@ -70,11 +68,6 @@ private:
     uint8_t _ctrl_id;
     uint32_t _wire_size;
     std::string _description;
-
-    // Composition, not inheritance (see file header) - T is an arbitrary fixed-size placeholder;
-    // this class never marshals a value through it, only reuses it for its device/xu/ctrl_id
-    // transport plumbing conventions.
-    uvc_xu_option< uint8_t > _underlying;
 };
 
 }  // namespace librealsense

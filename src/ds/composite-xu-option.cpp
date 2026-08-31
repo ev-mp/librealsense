@@ -18,7 +18,6 @@ composite_xu_option::composite_xu_option( std::weak_ptr< uvc_sensor > ep,
     , _ctrl_id( ctrl_id )
     , _wire_size( wire_size )
     , _description( description )
-    , _underlying( ep, xu, ctrl_id, description )
 {
 }
 
