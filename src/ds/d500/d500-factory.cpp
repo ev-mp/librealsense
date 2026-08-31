@@ -138,8 +138,11 @@ namespace librealsense
             // HKR Improved Close Range Control composite option - USB toggle. Formerly
             // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
             // consolidated onto the generic composite-option mechanism - see improved-close-range-filter-feature.h.
-            register_feature( std::make_shared< improved_close_range_filter_feature >(
-                    dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+            // Gated on FW: older firmware still speaks the old scalar-only semantics at this same
+            // XU control id (0x14), not the new composite/dpp_header wire format.
+            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
+                register_feature( std::make_shared< improved_close_range_filter_feature >(
+                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
@@ -193,8 +196,10 @@ namespace librealsense
             // HKR Improved Close Range Control composite option - USB toggle. Formerly
             // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
             // consolidated onto the generic composite-option mechanism - see improved-close-range-filter-feature.h.
-            // Skipped on MIPI: the V4L2 backend has no CID for the depth-XU selector (0x14).
-            if( ! _is_mipi_device )
+            // Skipped on MIPI: the V4L2 backend has no CID for the depth-XU selector (0x14). Also
+            // gated on FW: older firmware still speaks the old scalar-only semantics at this same
+            // XU control id, not the new composite/dpp_header wire format.
+            if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< improved_close_range_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
@@ -248,6 +253,13 @@ namespace librealsense
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
+
+            // HKR Improved Close Range Control composite option - USB toggle. Gated on FW: older
+            // firmware still speaks the old scalar-only "Improved Close Range Depth" semantics at
+            // this same XU control id (0x14), not the new composite/dpp_header wire format.
+            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
+                register_feature( std::make_shared< improved_close_range_filter_feature >(
+                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
@@ -269,7 +281,7 @@ namespace librealsense
             tags.push_back({ RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_OBJECT_DETECTION, -1, -1, -1, RS2_FORMAT_Y8, -1, profile_tag::PROFILE_TAG_SUPERSET });
-            
+
             return tags;
         };
     };
