@@ -276,45 +276,74 @@ namespace
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
     }
 
-    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL.
+    // Prints one verdict line for a just-completed Set - shared by every step below.
+    void verify_minz_fields_written( const char * step_label, const rs2_minz_control & written, bool matches )
+    {
+        std::cout << "Set (" << step_label << "): "
+                  << ( matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" ) << '\n';
+        print_struct( std::cout, minz_fields(), written );
+    }
+
+    // Full read-modify-write + range + metadata walkthrough. Exercises both of the struct's
+    // conditional axes (filter_type -> downscale_ratio/shift_mode+shift_pixels, threshold_mode ->
+    // threshold_mm) instead of a single-field toggle, then restores the original value.
     void exercise_minz_control( rs2::options & opts, rs2_composite_option_id id )
     {
-        // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
-        // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
-        // separate real GETs (device round trips), shown side by side purely to illustrate both
-        // APIs - production code would normally only need the typed one.
-        
+        // Raw bytes and the typed cast, shown side by side to illustrate both APIs.
         print_bytes( "Get Raw Data:", opts.get_composite_option( id ) );
-        auto current = opts.get_composite_option_as< rs2_minz_control >( id );
+        auto original = opts.get_composite_option_as< rs2_minz_control >( id );
         std::cout << "Get Structured Data:\n";
-        print_struct( std::cout, minz_fields(), current );
+        print_struct( std::cout, minz_fields(), original );
 
         // Read-modify-write: wire header (version/flags/ctl_id/param_count/param_type) carried
-        // over untouched from what the device just reported, not zero-initialized - only the
-        // logical fields below are the ones this walkthrough means to change.
-        rs2_minz_control cfg_to_send = current;
-        cfg_to_send.enable = int(!cfg_to_send.enable);        
-        opts.set_composite_option_from( id, cfg_to_send );
-        std::cout << "Set Structured Data: enable => !enable - writing to device\n";
+        // over untouched from what the device just reported, not zero-initialized, on every Set
+        // below.
+        rs2_minz_control cfg = original;
+        cfg.enable = 1;
 
-        print_bytes( "Get Raw Data", opts.get_composite_option( id ) );
-        auto cfg = opts.get_composite_option_as< rs2_minz_control >( id );
-        std::cout << "Get modified Structure Data:\n";
-        print_struct( std::cout, minz_fields(), cfg );
-        // Only `enable` was deliberately changed above (toggled) - check IT against what was
-        // sent, and separately check every OTHER field against `current` (what was actually on
-        // the device before this Set) to confirm the read-modify-write really did carry the rest
-        // through untouched rather than accidentally stomping them.
-        bool modified_field_matches = cfg.enable == cfg_to_send.enable;
-        bool rest_intact = cfg.version == current.version && cfg.flags == current.flags
-            && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
-            && cfg.param_type == current.param_type && cfg.filter_type == current.filter_type
-            && cfg.downscale_ratio == current.downscale_ratio && cfg.shift_mode == current.shift_mode
-            && cfg.shift_pixels == current.shift_pixels && cfg.threshold_mode == current.threshold_mode
-            && cfg.threshold_mm == current.threshold_mm;
-        std::cout << " Struct.enable field" << ( modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
-                  << "; all other fields " << ( rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" )
-                  << ")\n";
+        // 1) Lookup Shift + Manual shift pixels - exercises filter_type together with the
+        // (shift_mode, shift_pixels) pair it selects.
+        cfg.filter_type = 1;   // Lookup Shift
+        cfg.shift_mode = 2;    // Manual
+        cfg.shift_pixels = 100;
+        opts.set_composite_option_from( id, cfg );
+        auto after_shift = opts.get_composite_option_as< rs2_minz_control >( id );
+        verify_minz_fields_written( "filter_type=Lookup Shift, shift_mode=Manual, shift_pixels=100", after_shift,
+            after_shift.filter_type == cfg.filter_type && after_shift.shift_mode == cfg.shift_mode
+                && after_shift.shift_pixels == cfg.shift_pixels );
+
+        // 2) Downscale + x4 ratio - exercises the OTHER branch filter_type selects between.
+        cfg.filter_type = 0;   // Downscale
+        cfg.downscale_ratio = 2;   // x4
+        opts.set_composite_option_from( id, cfg );
+        auto after_downscale = opts.get_composite_option_as< rs2_minz_control >( id );
+        verify_minz_fields_written( "filter_type=Downscale, downscale_ratio=x4", after_downscale,
+            after_downscale.filter_type == cfg.filter_type && after_downscale.downscale_ratio == cfg.downscale_ratio );
+
+        // 3) Cycle threshold_mode through all three rungs - threshold_mm only matters for Manual,
+        // exercising that same selects-a-field-pair pattern on the other axis of this struct.
+        for( int mode : { 0, 1, 2 } )
+        {
+            cfg.threshold_mode = mode;
+            cfg.threshold_mm = ( mode == 2 ) ? 300 : 0;
+            opts.set_composite_option_from( id, cfg );
+            auto after_threshold = opts.get_composite_option_as< rs2_minz_control >( id );
+            std::string step_label = "threshold_mode=" + std::to_string( mode );
+            verify_minz_fields_written( step_label.c_str(), after_threshold,
+                after_threshold.threshold_mode == cfg.threshold_mode );
+        }
+
+        // Restore the original value read at the very start - this walkthrough exercises real,
+        // consequential state changes (unlike the old single-field toggle), so leaving no lasting
+        // effect on the device matters more here.
+        opts.set_composite_option_from( id, original );
+        auto restored = opts.get_composite_option_as< rs2_minz_control >( id );
+        std::cout << "Restore original value: "
+                  << ( restored.filter_type == original.filter_type && restored.downscale_ratio == original.downscale_ratio
+                           && restored.shift_mode == original.shift_mode && restored.shift_pixels == original.shift_pixels
+                           && restored.threshold_mode == original.threshold_mode && restored.threshold_mm == original.threshold_mm
+                       ? "ok" : "FAILED to restore - device may be left in the walkthrough's last test state" )
+                  << '\n';
 
         // range.version is a range-WRAPPER schema version the SDK itself hardcodes to 1 when
         // packing the reply (see composite_xu_option::get_raw_range()) - it is NOT read from the

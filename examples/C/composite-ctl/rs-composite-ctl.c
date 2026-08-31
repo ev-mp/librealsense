@@ -100,29 +100,53 @@ static void print_minz_range( const rs2_minz_control_range * r )
 #undef MINZ_RANGE_ROW
 }
 
-/* Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL -
-   the C99 equivalent of exercise_minz_control() in rs-composite-option-demo.cpp. Same 5
-   operations, in the same order:
-     1) Get (before)  - raw bytes, then the manual cast to rs2_minz_control
-     2) Set            - read-modify-write: only `enable` is toggled, everything else carried
-                          through untouched from what was just read
-     3) Get (after)    - confirm `enable` against what was sent, and every OTHER field against
-                          what was on the device before the Set
-     4) Get range      - raw bytes, then the manual cast to rs2_minz_control_range
-     5) Query info      - read-only flag, human-readable description
-   A registered-but-non-functional control is a real possibility on real hardware (see the file
-   header note in rs-composite-option-demo.cpp) - reported as SKIPPED via `goto skipped`
-   rather than aborting the whole program, the closest C99 equivalent of that walkthrough's
-   per-id try/catch. Returns 1 if every step succeeded, 0 if skipped partway through. */
+/* Sets *cfg and reads it back into *after. Returns 1 on success, 0 (SKIPPED message printed) on
+   failure. */
+static int minz_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
+                                   const rs2_minz_control * cfg, rs2_minz_control * after )
+{
+    rs2_error * e = NULL;
+    const rs2_raw_data_buffer * raw;
+    const unsigned char * bytes;
+
+    rs2_set_composite_option( opts, id, cfg, sizeof( *cfg ), &e );
+    if( e )
+        goto failed;
+
+    raw = rs2_get_composite_option( opts, id, &e );
+    if( e )
+        goto failed;
+    bytes = rs2_get_raw_data( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto failed;
+    }
+    memcpy( after, bytes, sizeof( *after ) );
+    rs2_delete_raw_data( raw );
+    return 1;
+
+failed:
+    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
+    rs2_free_error( e );
+    return 0;
+}
+
+/* Full read-modify-write + range + metadata walkthrough - the C99 equivalent of
+   exercise_minz_control() in rs-composite-option-demo.cpp. Exercises both conditional axes
+   (filter_type -> downscale_ratio/shift_mode+shift_pixels, threshold_mode -> threshold_mm) then
+   restores the original value. Returns 1 if every step succeeded, 0 if skipped partway through -
+   a registered-but-non-functional control reports SKIPPED via `goto skipped` rather than
+   aborting. */
 static int exercise_minz_control( const rs2_options * opts, rs2_composite_option_id id )
 {
     rs2_error * e = NULL;
     const rs2_raw_data_buffer * raw;
     const unsigned char * bytes;
     int size;
-    rs2_minz_control current, cfg_to_send, cfg;
+    rs2_minz_control current, cfg, after;
     rs2_minz_control_range range;
-    int modified_field_matches, rest_intact;
+    int mode;
 
     /* 1) Get (before) - both forms of the read, same as the C++ walkthrough: the raw untyped
        bytes get_composite_option() returns, and (here, by hand) the typed cast. */
@@ -153,56 +177,59 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
     printf( "      Get Structured Data:\n" );
     print_minz_struct( &current );
 
-    /* 2) Set - read-modify-write: wire header and every other field carried over untouched from
-       `current`, not zero-initialized - only `enable` is the field this walkthrough means to
-       change. */
-    cfg_to_send = current;
-    cfg_to_send.enable = ! cfg_to_send.enable;
-    rs2_set_composite_option( opts, id, &cfg_to_send, sizeof( cfg_to_send ), &e );
-    if( e )
-        goto skipped;
-    printf( "      Set Structured Data: enable => !enable - writing to device\n" );
+    /* 2) Set + Get, wire header and every other field carried over untouched from `current`, not
+       zero-initialized, on every step below. */
+    cfg = current;
+    cfg.enable = 1;
 
-    /* 3) Get (after) - confirm. */
-    raw = rs2_get_composite_option( opts, id, &e );
-    if( e )
+    /* Lookup Shift + Manual shift pixels - exercises filter_type together with the
+       (shift_mode, shift_pixels) pair it selects. */
+    cfg.filter_type = 1;
+    cfg.shift_mode = 2;
+    cfg.shift_pixels = 100;
+    if( ! minz_set_and_readback( opts, id, &cfg, &after ) )
         goto skipped;
-    size = rs2_get_raw_data_size( raw, &e );
-    if( e )
+    printf( "      Set (filter_type=Lookup Shift, shift_mode=Manual, shift_pixels=100): %s\n",
+            ( after.filter_type == cfg.filter_type && after.shift_mode == cfg.shift_mode
+              && after.shift_pixels == cfg.shift_pixels )
+                ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
+    print_minz_struct( &after );
+
+    /* Downscale + x4 ratio - exercises the OTHER branch filter_type selects between. */
+    cfg.filter_type = 0;
+    cfg.downscale_ratio = 2;
+    if( ! minz_set_and_readback( opts, id, &cfg, &after ) )
+        goto skipped;
+    printf( "      Set (filter_type=Downscale, downscale_ratio=x4): %s\n",
+            ( after.filter_type == cfg.filter_type && after.downscale_ratio == cfg.downscale_ratio )
+                ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
+    print_minz_struct( &after );
+
+    /* Cycle threshold_mode through all three rungs - threshold_mm only matters for Manual. */
+    for( mode = 0; mode <= 2; ++mode )
     {
-        rs2_delete_raw_data( raw );
-        goto skipped;
+        cfg.threshold_mode = mode;
+        cfg.threshold_mm = ( mode == 2 ) ? 300 : 0;
+        if( ! minz_set_and_readback( opts, id, &cfg, &after ) )
+            goto skipped;
+        printf( "      Set (threshold_mode=%d): %s\n", mode,
+                ( after.threshold_mode == cfg.threshold_mode )
+                    ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
+        print_minz_struct( &after );
     }
-    bytes = rs2_get_raw_data( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
+
+    /* Restore the original value read in step 1 - this walkthrough exercises real, consequential
+       state changes (unlike the old single-field toggle), so leaving no lasting effect on the
+       device matters more here. */
+    if( ! minz_set_and_readback( opts, id, &current, &after ) )
         goto skipped;
-    }
-    print_bytes( "      Get Raw Data", bytes, size );
-    memcpy( &cfg, bytes, sizeof( cfg ) );
-    rs2_delete_raw_data( raw );
-    printf( "      Get modified Structure Data:\n" );
-    print_minz_struct( &cfg );
+    printf( "      Restore original value: %s\n",
+            ( after.filter_type == current.filter_type && after.downscale_ratio == current.downscale_ratio
+              && after.shift_mode == current.shift_mode && after.shift_pixels == current.shift_pixels
+              && after.threshold_mode == current.threshold_mode && after.threshold_mm == current.threshold_mm )
+                ? "ok" : "FAILED to restore - device may be left in the walkthrough's last test state" );
 
-    /* Only `enable` was deliberately changed above (toggled) - check IT against what was sent,
-       and separately check every OTHER field against `current` (what was actually on the device
-       before this Set) to confirm the read-modify-write really did carry the rest through
-       untouched rather than accidentally stomping them. Real firmware may quantize/clamp on
-       write - unlike an in-memory mock, a mismatch here isn't necessarily a bug, so it is
-       reported, not treated as fatal. */
-    modified_field_matches = ( cfg.enable == cfg_to_send.enable );
-    rest_intact = cfg.version == current.version && cfg.flags == current.flags
-        && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
-        && cfg.param_type == current.param_type && cfg.filter_type == current.filter_type
-        && cfg.downscale_ratio == current.downscale_ratio && cfg.shift_mode == current.shift_mode
-        && cfg.shift_pixels == current.shift_pixels && cfg.threshold_mode == current.threshold_mode
-        && cfg.threshold_mm == current.threshold_mm;
-    printf( "      enable field %s; all other fields %s\n",
-            modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write",
-            rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" );
-
-    /* 4) Get range - raw bytes, then the manual cast to rs2_minz_control_range (4 full copies of
+    /* 3) Get range - raw bytes, then the manual cast to rs2_minz_control_range (4 full copies of
        the struct - min/max/step/def, header fields included - see rs_hkr_minz_control.h). */
     raw = rs2_get_composite_option_range( opts, id, &e );
     if( e )
@@ -234,7 +261,7 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
     printf( "      Range (version=%u):\n", range.version );
     print_minz_range( &range );
 
-    /* 5) Query info. */
+    /* 4) Query info. */
     printf( "      Read-only: %s\n", rs2_is_composite_option_read_only( opts, id, &e ) ? "true" : "false" );
     if( e )
         goto skipped;
