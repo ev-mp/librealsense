@@ -15,17 +15,11 @@ namespace librealsense {
 
 // HKR/D5X5 MinZ control, registered via the generic composite-option mechanism (see
 // src/ds/composite-xu-option.h) under RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL, in this filter's OWN
-// options container (inherited via embedded_filter_base) - NOT directly on d500_depth_sensor.
-// Mirrors d500_temporal_embedded_filter's registration pattern exactly.
+// options container - NOT directly on d500_depth_sensor.
 //
-// This addresses the SAME physical XU control (unit 3, selector 0x14) that used to be exposed as
-// "Improved Close Range Depth" - a scalar, enable-only RS2_OPTION_EMBEDDED_FILTER_ENABLED option
-// (close_range_xu_option, since removed). Consolidated onto this composite option instead, which
-// exposes all 5 fields (enable, downscale_ratio, disparity_shift, threshold, threshold_mode)
-// atomically rather than just enable. PROTOTYPE/DEMO PR: note this means
-// RS2_OPTION_EMBEDDED_FILTER_ENABLED is no longer registered for this filter, so any generic
-// caller that assumed every embedded filter has it (e.g. common/embedded-filter-model.cpp in the
-// viewer) will throw for this one - a known, accepted consequence of the consolidation.
+// Replaces the old scalar-only "Improved Close Range Depth" option (same physical XU control)
+// with the 7-field composite one. RS2_OPTION_EMBEDDED_FILTER_ENABLED is no longer registered for
+// this filter as a result - a generic caller that assumes every filter has it will throw here.
 class d500_minz_embedded_filter : public close_range_embedded_filter
 {
 public:

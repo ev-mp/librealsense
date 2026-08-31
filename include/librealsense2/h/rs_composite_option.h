@@ -55,10 +55,8 @@ typedef enum rs2_composite_option_id
      * rs_hkr_temporal_filter_dpp.h. */
     RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
     /** PROTOTYPE / DEMO option id - not a finalized production control. HKR/D5X5 MinZ control: a
-     * single multi-field control whose 5 logical fields (enable, downscale_ratio,
-     * disparity_shift, threshold, threshold_mode) are exchanged atomically, in ONE UVC
-     * transaction, via the generic composite-option entry points below. Wire layout is shared
-     * with the rest of the HKR DPP control family (dppc_header + dppc_ctl), not MinZ-specific.
+     * single multi-field control whose 7 logical fields (post-design-review layout) are exchanged
+     * atomically, in ONE UVC transaction, via the generic composite-option entry points below.
      * Cast the raw payload to/from rs2_minz_control / rs2_minz_control_range, see
      * rs_hkr_minz_control.h. */
     RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL,

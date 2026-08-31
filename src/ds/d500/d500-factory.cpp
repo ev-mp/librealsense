@@ -401,12 +401,8 @@ namespace librealsense
             }
 
             // PROTOTYPE / DEMO: HKR MinZ Control composite option - D555 only, same FW gate as
-            // above. Formerly "Improved Close Range Depth", a scalar enable-only option
-            // (close_range_filter_feature); consolidated onto the generic composite-option
-            // mechanism instead - see rs_hkr_minz_control.h - which exposes all 5 fields
-            // (enable, downscale_ratio, disparity_shift, threshold, threshold_mode) atomically
-            // rather than just enable. PROTOTYPE/DEMO PR: the scalar path is retired, not kept
-            // alongside this one.
+            // above. Replaces the old scalar-only "Improved Close Range Depth" option with the
+            // 7-field composite one (see rs_hkr_minz_control.h); the scalar path is retired.
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< minz_filter_feature >(
