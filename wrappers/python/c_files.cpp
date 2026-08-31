@@ -58,6 +58,12 @@ void init_c_files(py::module &m) {
 
     m.def( "option_from_string", &rs2_option_from_string );
 
+    // PROTOTYPE / DEMO: rs2_composite_option_id is a completely separate identity space from
+    // rs2_option above (see rs_composite_option.h) - a multi-field control's own id, not a
+    // scalar option. No from_string() reverse lookup exists for it (see
+    // rs2_composite_option_id_to_string()'s own doc comment).
+    BIND_ENUM(m, rs2_composite_option_id, RS2_COMPOSITE_OPTION_COUNT, "Identifies a composite (multi-field, atomically-exchanged) control - a completely separate identity space from rs2_option.")
+
     BIND_ENUM(m, rs2_option_type, RS2_OPTION_TYPE_COUNT, "The different types option values can take on")
     BIND_ENUM(m, rs2_l500_visual_preset, RS2_L500_VISUAL_PRESET_COUNT, "For L500 devices: provides optimized settings (presets) for specific types of usage.")
     BIND_ENUM(m, rs2_rs400_visual_preset, RS2_RS400_VISUAL_PRESET_COUNT, "For D400 devices: provides optimized settings (presets) for specific types of usage.")

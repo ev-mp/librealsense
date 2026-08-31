@@ -3,12 +3,76 @@
 
 #include "pyrealsense2.h"
 #include <librealsense2/hpp/rs_options.hpp>
+#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 
 using rsutils::json;
 
 
 void init_options(py::module &m) {
     /** rs_options.hpp **/
+
+    // PROTOTYPE / DEMO: typed struct bindings for the two known composite-option wire layouts,
+    // bound directly against the real C structs (rs_hkr_minz_control.h /
+    // rs_hkr_temporal_filter_dpp.h) via pointer-to-member - same mechanism as
+    // rs2_intrinsics/rs2_extrinsics/rs2_vector above (see c_files.cpp) - so there is exactly ONE
+    // place, on each side, that names a field: the C++ struct itself, and this binding (which
+    // reads its types straight from it). If the struct's shape ever changes, this binding fails
+    // to compile instead of a hand-duplicated Python struct.unpack() format string silently
+    // misinterpreting the new bytes.
+    py::class_< rs2_minz_control >(
+        m, "minz_control", "HKR MinZ Control composite option payload (PROTOTYPE / DEMO) - see rs_hkr_minz_control.h." )
+        .def( py::init<>() )
+        .def_readwrite( "version", &rs2_minz_control::version )
+        .def_readwrite( "flags", &rs2_minz_control::flags )
+        .def_readwrite( "ctl_id", &rs2_minz_control::ctl_id )
+        .def_readwrite( "param_count", &rs2_minz_control::param_count )
+        .def_readwrite( "param_type", &rs2_minz_control::param_type )
+        .def_readwrite( "enable", &rs2_minz_control::enable )
+        .def_readwrite( "filter_type", &rs2_minz_control::filter_type )
+        .def_readwrite( "downscale_ratio", &rs2_minz_control::downscale_ratio )
+        .def_readwrite( "shift_mode", &rs2_minz_control::shift_mode )
+        .def_readwrite( "shift_pixels", &rs2_minz_control::shift_pixels )
+        .def_readwrite( "threshold_mode", &rs2_minz_control::threshold_mode )
+        .def_readwrite( "threshold_mm", &rs2_minz_control::threshold_mm )
+        .def( "__repr__",
+              []( rs2_minz_control const & v )
+              {
+                  std::ostringstream ss;
+                  ss << "<minz_control enable=" << v.enable << " filter_type=" << v.filter_type
+                     << " downscale_ratio=" << v.downscale_ratio << " shift_mode=" << v.shift_mode
+                     << " shift_pixels=" << v.shift_pixels << " threshold_mode=" << v.threshold_mode
+                     << " threshold_mm=" << v.threshold_mm << ">";
+                  return ss.str();
+              } );
+
+    py::class_< rs2_minz_control_range >(
+        m, "minz_control_range", "Supported {min,max,step,default} bounds for minz_control - see rs_hkr_minz_control.h." )
+        .def( py::init<>() )
+        .def_readwrite( "version", &rs2_minz_control_range::version )
+        .def_readwrite( "min", &rs2_minz_control_range::min )
+        .def_readwrite( "max", &rs2_minz_control_range::max )
+        .def_readwrite( "step", &rs2_minz_control_range::step )
+        // 'def' is a Python keyword and cannot be used as an attribute name (obj.def is a syntax
+        // error) - exposed as "default" instead, the one place this binding's naming has to
+        // diverge from the C++ field it mirrors.
+        .def_readwrite( "default", &rs2_minz_control_range::def );
+
+    py::class_< rs2_temporal_filter_dpp_config >(
+        m, "temporal_filter_dpp_config", "HKR Temporal Filter DPP composite option payload (PROTOTYPE / DEMO) - see rs_hkr_temporal_filter_dpp.h." )
+        .def( py::init<>() )
+        .def_readwrite( "enabled", &rs2_temporal_filter_dpp_config::enabled )
+        .def_readwrite( "smooth_alpha", &rs2_temporal_filter_dpp_config::smooth_alpha )
+        .def_readwrite( "smooth_delta", &rs2_temporal_filter_dpp_config::smooth_delta )
+        .def_readwrite( "persistency_index", &rs2_temporal_filter_dpp_config::persistency_index )
+        .def( "__repr__",
+              []( rs2_temporal_filter_dpp_config const & v )
+              {
+                  std::ostringstream ss;
+                  ss << "<temporal_filter_dpp_config enabled=" << v.enabled << " smooth_alpha=" << v.smooth_alpha
+                     << " smooth_delta=" << v.smooth_delta << " persistency_index=" << v.persistency_index << ">";
+                  return ss.str();
+              } );
 
     // Expose option values as a custom struct rather than 'rs2_option_value*'
     struct option_value
@@ -128,7 +192,123 @@ void init_options(py::module &m) {
         .def( "get_supported_option_values", &rs2::options::get_supported_option_values,
               "Retrieve the supported options, each with its value and range", py::call_guard< py::gil_scoped_release >() )
         .def( "on_options_changed", &rs2::options::on_options_changed,
-              "Sets a callback to notify in case options in this container change value", "callback"_a );
+              "Sets a callback to notify in case options in this container change value", "callback"_a )
+        // PROTOTYPE / DEMO API - composite options are a completely separate identity space from
+        // ordinary rs2_option scalar options above (see rs2_composite_option_id in
+        // rs_composite_option.h). Mirrors the C++ wrapper's own "four methods, raw bytes only, no
+        // is<T>()/as<T>() casting" surface (see rs2::options::set_composite_option() and friends
+        // in rs_options.hpp) - Python has no templates either, so get/set hand back/take raw
+        // bytes for the caller to pack/unpack with the `struct` module against the documented
+        // wire layout (see e.g. rs_hkr_minz_control.h), same as the C99 sample does by hand.
+        .def(
+            "get_composite_option",
+            []( rs2::options const & self, rs2_composite_option_id id ) -> py::bytes
+            {
+                // NOT py::call_guard<gil_scoped_release>() on the whole function - constructing
+                // py::bytes below is a real Python C-API call and needs the GIL held. Release it
+                // only around the blocking device round-trip itself.
+                std::vector< uint8_t > raw;
+                {
+                    py::gil_scoped_release release;
+                    raw = self.get_composite_option( id );
+                }
+                return py::bytes( reinterpret_cast< const char * >( raw.data() ), raw.size() );
+            },
+            "Read a composite option's current raw payload, atomically, in ONE UVC transaction - "
+            "cast the returned bytes against the option's documented wire layout.",
+            "option"_a )
+        .def(
+            "set_composite_option",
+            []( rs2::options const & self, rs2_composite_option_id id, py::buffer data )
+            {
+                // data.request() touches the Python buffer protocol - must run under the GIL, so
+                // it happens before the scoped release below, not inside a call_guard.
+                auto info = data.request();
+                py::gil_scoped_release release;
+                self.set_composite_option( id, info.ptr, (size_t)( info.size * info.itemsize ) );
+            },
+            "Write new value to a composite option, atomically, in ONE UVC transaction - `data` "
+            "must match the option's documented wire layout byte-for-byte (e.g. bytes(struct.pack(...))).",
+            "option"_a,
+            "data"_a )
+        .def(
+            "get_composite_option_range",
+            []( rs2::options const & self, rs2_composite_option_id id ) -> py::bytes
+            {
+                std::vector< uint8_t > raw;
+                {
+                    py::gil_scoped_release release;
+                    raw = self.get_composite_option_range( id );
+                }
+                return py::bytes( reinterpret_cast< const char * >( raw.data() ), raw.size() );
+            },
+            "Read a composite option's supported {min,max,step,def} bounds, packed together - "
+            "cast the returned bytes against the option's documented range struct.",
+            "option"_a )
+        .def( "supports_composite_option", &rs2::options::supports_composite_option,
+              "Check if a particular composite option is supported by this options container.", "option"_a )
+        .def( "is_composite_option_read_only", &rs2::options::is_composite_option_read_only,
+              "Check if a particular composite option is read only.", "option"_a )
+        .def( "get_composite_option_description", &rs2::options::get_composite_option_description,
+              "Get a composite option's human-readable description.", "option"_a )
+        .def( "get_supported_composite_options", &rs2::options::get_supported_composite_options,
+              "Retrieve the list of composite option ids this options container supports." )
+        // Typed counterparts to get/set_composite_option() above, for the two known wire layouts
+        // bound just above - the Python equivalent of the C++ wrapper's own
+        // get_composite_option_as<T>()/set_composite_option_from<T>()/
+        // get_composite_option_range_as<TRange>() templates. Python has no templates, so each
+        // known struct gets its own named method rather than one generic one - same "no generic
+        // any-composite-option dispatch, a new id needs code added" rule every other
+        // composite-option sample in this repo already follows (see e.g.
+        // print_composite_option_value() in examples/sensor-control/api_how_to.h).
+        .def(
+            "get_minz_control",
+            []( rs2::options const & self, rs2_composite_option_id id ) -> rs2_minz_control
+            {
+                py::gil_scoped_release release;
+                return self.get_composite_option_as< rs2_minz_control >( id );
+            },
+            "Typed counterpart to get_composite_option() for HKR MinZ Control - returns a "
+            "minz_control object (bound directly against the real C struct) instead of raw bytes.",
+            "option"_a )
+        .def(
+            "set_minz_control",
+            []( rs2::options const & self, rs2_composite_option_id id, rs2_minz_control const & value )
+            {
+                py::gil_scoped_release release;
+                self.set_composite_option_from( id, value );
+            },
+            "Typed counterpart to set_composite_option() for HKR MinZ Control.",
+            "option"_a,
+            "value"_a )
+        .def(
+            "get_minz_control_range",
+            []( rs2::options const & self, rs2_composite_option_id id ) -> rs2_minz_control_range
+            {
+                py::gil_scoped_release release;
+                return self.get_composite_option_range_as< rs2_minz_control_range >( id );
+            },
+            "Typed counterpart to get_composite_option_range() for HKR MinZ Control.",
+            "option"_a )
+        .def(
+            "get_temporal_filter_dpp_config",
+            []( rs2::options const & self, rs2_composite_option_id id ) -> rs2_temporal_filter_dpp_config
+            {
+                py::gil_scoped_release release;
+                return self.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
+            },
+            "Typed counterpart to get_composite_option() for HKR Temporal Filter DPP.",
+            "option"_a )
+        .def(
+            "set_temporal_filter_dpp_config",
+            []( rs2::options const & self, rs2_composite_option_id id, rs2_temporal_filter_dpp_config const & value )
+            {
+                py::gil_scoped_release release;
+                self.set_composite_option_from( id, value );
+            },
+            "Typed counterpart to set_composite_option() for HKR Temporal Filter DPP.",
+            "option"_a,
+            "value"_a );
 
     /** end rs_options.hpp **/
 }
