@@ -342,7 +342,9 @@ namespace
     {
         switch( id )
         {
-        //case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true; Evgeni - TODO
+        // TODO: re-enable once exercise_temporal_filter_dpp() is verified against real HKR
+        // Temporal Filter DPP hardware (not available at the time this walkthrough was written).
+        //case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true;
         case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        exercise_minz_control( opts, id ); return true;
         default:
             std::cout << "      (no typed walkthrough registered for this composite option id)\n";
