@@ -41,10 +41,31 @@ namespace rs2
 
         // ImGui has no native "named enum" slider - a plain SliderInt whose format string is the
         // value's display name (instead of "%d") is the standard idiom. `names[0]` == `min_v`.
+
+        // A real device's firmware may still speak the pre-design-review wire layout, so a field
+        // can land outside its enum's legal range (confirmed against a real device - see
+        // slider_enum() below for the crash this caused). Called after every raw device read that
+        // populates a fresh rs2_minz_control, before any branching or display code uses it -
+        // clamping only at display time leaves the raw stored value inconsistent with what's
+        // shown (e.g. a garbage shift_mode of 200 displays as "Manual" but `== 2` never matches).
+        void sanitize_minz_control( rs2_minz_control & v )
+        {
+            v.filter_type = std::min( std::max( v.filter_type, 0 ), 1 );
+            v.downscale_ratio = std::min( std::max( v.downscale_ratio, 1 ), 2 );
+            v.shift_mode = std::min( std::max( v.shift_mode, 0 ), 2 );
+            v.threshold_mode = std::min( std::max( v.threshold_mode, 0 ), 2 );
+        }
+
         bool slider_enum( const char * str_id, int * value, int min_v, int max_v, const char * const names[] )
         {
-            std::string fmt = names[ *value - min_v ];
-            return ImGui::SliderInt( str_id, value, min_v, max_v, fmt.c_str() );
+            // Bounds-checked BEFORE indexing names[] (sized max_v-min_v+1) - see sanitize_minz_control()
+            // above for why *value, sourced from device data, can land outside [min_v,max_v].
+            int display_index = std::min( std::max( *value, min_v ), max_v ) - min_v;
+            // names[display_index] already points at a string literal with static storage
+            // duration - no need to copy it into a std::string just to unwrap it again via
+            // c_str() one line later.
+            const char * fmt = names[ display_index ];
+            return ImGui::SliderInt( str_id, value, min_v, max_v, fmt );
         }
     }
 
@@ -349,6 +370,7 @@ namespace rs2
                 {
                     auto range = _embedded_filter->get_composite_option_range_as< rs2_minz_control_range >( id );
                     _minz_editor.value = range.def;
+                    sanitize_minz_control( _minz_editor.value );
                     _minz_editor.touch();
                     _minz_editor.finalize();
                 }
@@ -378,6 +400,7 @@ namespace rs2
 
         if( ! _minz_editor.ensure_initialized( _embedded_filter, id, error_message, print_minz_control ) )
             return;
+        sanitize_minz_control( _minz_editor.value );
 
         // ImGui::Indent(w) ADDS w; Unindent(w) SUBTRACTS w - they only cancel out when passed the
         // SAME w, so Unindent(-5.f) below (not e.g. Unindent(4.f)) is what undoes this.
@@ -450,6 +473,7 @@ namespace rs2
             {
                 _minz_editor.value = _embedded_filter->get_composite_option_as< rs2_minz_control >(
                     RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL );
+                sanitize_minz_control( _minz_editor.value );
                 print_minz_control( _minz_editor.value );
                 _minz_editor.value.enable = actual ? 1 : 0;
                 _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL, _minz_editor.value );
@@ -518,6 +542,7 @@ namespace rs2
 
             if( _minz_editor.ensure_initialized( _embedded_filter, id, error_message, print_minz_control ) )
             {
+                sanitize_minz_control( _minz_editor.value );
                 // Composite state is the FALLBACK source of _enabled, not an override - a DDS
                 // filter that already set it from the scalar option in pass 1 keeps that value.
                 if( ! _embedded_filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
