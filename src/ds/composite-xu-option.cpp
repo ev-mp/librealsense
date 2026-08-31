@@ -42,6 +42,9 @@ std::vector< uint8_t > composite_xu_option::get_raw() const
 
 void composite_xu_option::set_raw( const void * data, size_t size )
 {
+    if( ! data )
+        throw invalid_value_exception( "composite_xu_option::set_raw: data is null" );
+
     if( size != _wire_size )
         throw invalid_value_exception( rsutils::string::from()
                                         << "composite_xu_option::set_raw: data size " << size
