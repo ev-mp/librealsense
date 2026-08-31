@@ -11,7 +11,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 # examples/composite-option's rs-composite-option-demo.cpp, through the raw C API instead - no
 # exceptions, no templates, no RAII. See rs-composite-ctl.c.
 add_executable(rs-composite-ctl rs-composite-ctl.c ../example.h)
-set_property(TARGET rs-composite-ctl PROPERTY C_STANDARD 99)
 include_directories(../../C)
 target_link_libraries(rs-composite-ctl ${DEPENDENCIES})
 set_target_properties (rs-composite-ctl PROPERTIES

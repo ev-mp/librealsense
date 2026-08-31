@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <limits>
 
 
 namespace rs2
@@ -389,6 +390,12 @@ namespace rs2
         */
         void set_composite_option( rs2_composite_option_id id, const void * data, size_t size ) const
         {
+            // The C API takes an unsigned int; guard the narrowing cast rather than silently
+            // truncating a caller-supplied size_t larger than UINT_MAX into a smaller, wrong value.
+            if( size > (std::numeric_limits< unsigned int >::max)() )
+                throw std::runtime_error( "composite option payload size (" + std::to_string( size )
+                                           + ") exceeds what the C API can represent" );
+
             rs2_error * e = nullptr;
             rs2_set_composite_option( _options, id, data, static_cast< unsigned int >( size ), &e );
             error::handle( e );

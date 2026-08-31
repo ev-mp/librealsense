@@ -79,6 +79,30 @@ namespace rs2
 
         void embedded_filter_enable_disable(bool actual);
 
+    private:
+        // Helpers used only by draw_minz_control_editor() - each renders one self-contained
+        // field/element of the MinZ editor and returns whether the user is actively interacting
+        // with it this frame (folded into draw_minz_control_editor()'s own any_field_active
+        // tracking). Split out so no single function mixes more than one field's concerns; none
+        // of these are meant to be called from anywhere else. frame_max is passed as separate
+        // x/y floats rather than ImVec2 so this header does not need to pull in imgui.h.
+        bool draw_minz_downscale_ratio_field();
+        bool draw_minz_manual_editable_field( const char * label,
+                                               const char * id,
+                                               int & value,
+                                               int min_v,
+                                               int max_v,
+                                               bool & edit_mode,
+                                               std::string & edit_buf );
+        bool draw_minz_manual_input( const char * id, int & value, int min_v, int max_v,
+                                      bool & edit_mode, std::string & edit_buf );
+        bool draw_minz_slider_with_arrows( const char * id, int & value, int min_v, int max_v );
+        bool draw_minz_threshold_mode_field();
+        bool draw_minz_reset_to_default_overlay( rs2_composite_option_id id,
+                                                  std::string & error_message,
+                                                  float frame_max_x,
+                                                  float frame_max_y );
+
     protected:
         viewer_model& _viewer;
         std::atomic<bool> _destructing;

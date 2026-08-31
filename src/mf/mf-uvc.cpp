@@ -371,7 +371,12 @@ namespace librealsense
             case KSPROPERTY_MEMBER_RANGES:
             case KSPROPERTY_MEMBER_STEPPEDRANGES:
             {
-                if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER) + 3 * sizeof(UCHAR))
+                // Must cover the two fixed headers PLUS the 3 variable-length entries (step, min,
+                // max) that follow them - not just 3 placeholder bytes - otherwise a short/
+                // malformed KS reply (DescriptionSize satisfied only for the legacy <=4-byte case)
+                // would let the memcpy calls below read past the end of the real reply.
+                if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER)
+                                                 + 3 * static_cast<size_t>(length))
                 {
                     throw std::exception("no data ksprop");
                 }
@@ -396,7 +401,10 @@ namespace librealsense
 
                 if (pHeader->Flags == KSPROPERTY_MEMBER_FLAG_DEFAULT && pHeader->MembersCount == 1)
                 {
-                    if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER) + sizeof(UCHAR))
+                    // Same reasoning as the RANGES case above - must cover the single variable-
+                    // length `def` entry, not a placeholder byte.
+                    if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER)
+                                                     + static_cast<size_t>(length))
                     {
                         throw std::exception("no data ksprop");
                     }
