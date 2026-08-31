@@ -155,6 +155,7 @@ target_sources(${LRS_TARGET}
         "${CMAKE_CURRENT_LIST_DIR}/platform-camera.h"
         "${CMAKE_CURRENT_LIST_DIR}/pose.h"
         "${CMAKE_CURRENT_LIST_DIR}/safety-sensor.h"
+        "${CMAKE_CURRENT_LIST_DIR}/composite-option-interface.h"
         "${CMAKE_CURRENT_LIST_DIR}/sensor.h"
         "${CMAKE_CURRENT_LIST_DIR}/hid-sensor.h"
         "${CMAKE_CURRENT_LIST_DIR}/uvc-sensor.h"

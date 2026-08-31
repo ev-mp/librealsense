@@ -624,6 +624,28 @@ const char * get_string( rs2_eth_link_priority value )
 #undef CASE
 }
 
+// rs2_composite_option_id: a completely separate id space from rs2_option (see
+// rs_composite_option.h) - a plain static name array, no options_registry involvement (composite
+// options have no dynamic per-device custom-name registration mechanism, unlike rs2_option
+// below). std::string const& return type mirrors rs2_option_type's get_string(), since
+// options_container::get_composite_option_name() returns std::string const&.
+std::string const & get_string( rs2_composite_option_id value )
+{
+    static auto str_array = []()
+    {
+        std::vector< std::string > arr( RS2_COMPOSITE_OPTION_COUNT );
+#define CASE( X ) STRARR( arr, COMPOSITE_OPTION, X );
+        CASE( HKR_TEMPORAL_FILTER_DPP )
+        CASE( HKR_MINZ_CONTROL )
+#undef CASE
+        return arr;
+    }();
+    if( ! is_valid( value ) )
+        return unknown_value_str;
+    return str_array[value];
+}
+
+
 std::string const & get_string( rs2_option const option )
 {
     if( options_registry::is_option_registered( option ) )
@@ -1061,3 +1083,4 @@ const char * rs2_calib_location_to_string(rs2_calib_location calib_location) { r
 const char * rs2_embedded_filter_type_to_string(rs2_embedded_filter_type embedded_filter_type) { return librealsense::get_string(embedded_filter_type); }
 const char * rs2_gyro_sensitivity_to_string( rs2_gyro_sensitivity mode ){return librealsense::get_string( mode );}
 const char * rs2_eth_link_priority_to_string( rs2_eth_link_priority priority ){return librealsense::get_string( priority );}
+const char * rs2_composite_option_id_to_string( rs2_composite_option_id id ) { return librealsense::get_string( id ).c_str(); }

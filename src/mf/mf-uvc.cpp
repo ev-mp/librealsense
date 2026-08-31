@@ -354,8 +354,16 @@ namespace librealsense
             if (pHeader->MembersCount < 1)
                 throw std::exception("no data ksprop");
 
-            // The data fields are up to four bytes
-            auto field_width = std::min(sizeof(uint32_t), (size_t)length);
+            // Each entry in the underlying KS reply is exactly `length` bytes wide (pStruct is
+            // advanced by `length` between entries below) - so the copy amount must be `length`
+            // too, not an artificial 4-byte cap. That cap was correct for classic scalar PU/CT
+            // controls (a value is genuinely at most a 4-byte int there, so length itself is <=4
+            // and this was a no-op), but silently truncated multi-field composite XU controls
+            // (e.g. HKR MinZ Control's 38-byte rs2_minz_control, RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL):
+            // the destination vector was correctly sized to the full option_range_size, but only
+            // its first 4 bytes ever got populated from the device's real response - every field
+            // past that offset silently stayed at std::vector's zero-init default, regardless of
+            // what the device actually reported.
             auto option_range_size = std::max(sizeof(uint32_t), (size_t)length);
             switch (pHeader->MembersFlags)
             {
@@ -370,13 +378,13 @@ namespace librealsense
 
                 auto pStruct = next_struct;
                 cfg.step.resize(option_range_size);
-                std::memcpy( cfg.step.data(), pStruct, field_width );
+                std::memcpy( cfg.step.data(), pStruct, length );
                 pStruct += length;
                 cfg.min.resize(option_range_size);
-                std::memcpy( cfg.min.data(), pStruct, field_width );
+                std::memcpy( cfg.min.data(), pStruct, length );
                 pStruct += length;
                 cfg.max.resize(option_range_size);
-                std::memcpy( cfg.max.data(), pStruct, field_width );
+                std::memcpy( cfg.max.data(), pStruct, length );
                 return;
             }
             case KSPROPERTY_MEMBER_VALUES:
@@ -394,7 +402,7 @@ namespace librealsense
                     }
 
                     cfg.def.resize(option_range_size);
-                    std::memcpy( cfg.def.data(), next_struct, field_width );
+                    std::memcpy( cfg.def.data(), next_struct, length );
                 }
                 return;
             }

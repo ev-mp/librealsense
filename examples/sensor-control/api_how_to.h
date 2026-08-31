@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 #include "helper.h"
 
 using namespace helper;
@@ -356,6 +358,219 @@ public:
                 // and generally the hardware might fail so it is good practice to catch exceptions from set_option
                 std::cerr << "Failed to set option " << option_type << ". (" << e.what() << ")" << std::endl;
             }
+        }
+    }
+
+    static rs2::embedded_filter get_an_embedded_filter_from_a_sensor(const rs2::sensor& sensor)
+    {
+        // Composite options (see get_a_composite_option() below) are not exposed directly on a
+        // sensor - each one lives on one of the sensor's EMBEDDED FILTERs, its own independent
+        // options registry (see rs2::embedded_filter). A sensor can have several embedded
+        // filters, and not every one of them necessarily exposes any composite option at all.
+        std::vector<rs2::embedded_filter> filters = sensor.query_embedded_filters();
+        if (filters.empty())
+            throw std::runtime_error("This sensor has no embedded filters");
+
+        std::cout << "Sensor has " << filters.size() << " embedded filter(s):\n" << std::endl;
+        int index = 0;
+        for (auto&& filter : filters)
+            std::cout << "  " << index++ << " : " << rs2_embedded_filter_type_to_string(filter.get_type()) << std::endl;
+
+        uint32_t selected_filter_index = get_user_selection("Select an embedded filter by index: ");
+        if (selected_filter_index >= filters.size())
+            throw std::out_of_range("Selected embedded filter index is out of range");
+
+        return filters[selected_filter_index];
+    }
+
+    static rs2_composite_option_id get_a_composite_option(const rs2::embedded_filter& filter)
+    {
+        // Composite options are a completely separate identity space from the ordinary
+        // (scalar) rs2_option controls seen in get_sensor_option() above: a single multi-field
+        // control whose fields are all exchanged together, atomically, in ONE UVC transaction -
+        // see rs2_composite_option_id in rs_composite_option.h.
+        std::vector<rs2_composite_option_id> ids = filter.get_supported_composite_options();
+        if (ids.empty())
+            throw std::runtime_error("This embedded filter has no composite options");
+
+        std::cout << "Embedded filter supports the following composite option(s):\n" << std::endl;
+        for (size_t i = 0; i < ids.size(); i++)
+        {
+            rs2_composite_option_id id = ids[i];
+            std::cout << "  " << i << ": " << rs2_composite_option_id_to_string(id) << std::endl;
+            std::cout << "       Read-only   : " << (filter.is_composite_option_read_only(id) ? "true" : "false") << std::endl;
+            std::cout << "       Description : " << filter.get_composite_option_description(id) << std::endl;
+        }
+
+        uint32_t selected_index = get_user_selection("Select a composite option by index: ");
+        if (selected_index >= ids.size())
+            throw std::out_of_range("Selected composite option is out of range");
+
+        return ids[selected_index];
+    }
+
+    static void print_composite_option_value(const rs2::embedded_filter& filter, rs2_composite_option_id id)
+    {
+        // Unlike get_sensor_option() above, there is no generic "any composite option" cast -
+        // the SDK ships no per-id dispatch, so the caller is expected to know each id's
+        // documented wire struct (see rs_hkr_minz_control.h / rs_hkr_temporal_filter_dpp.h) and
+        // cast accordingly via get_composite_option_as<T>(). A new composite option needs a case
+        // added here too.
+        try
+        {
+            switch (id)
+            {
+            case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
+            {
+                rs2_minz_control v = filter.get_composite_option_as<rs2_minz_control>(id);
+                std::cout << "  enable          : " << v.enable << std::endl;
+                std::cout << "  downscale_ratio : " << v.downscale_ratio << std::endl;
+                std::cout << "  disparity_shift : " << v.disparity_shift << std::endl;
+                std::cout << "  threshold       : " << v.threshold << std::endl;
+                std::cout << "  threshold_mode  : " << v.threshold_mode << std::endl;
+                break;
+            }
+            case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+            {
+                rs2_temporal_filter_dpp_config v = filter.get_composite_option_as<rs2_temporal_filter_dpp_config>(id);
+                std::cout << "  enabled           : " << v.enabled << std::endl;
+                std::cout << "  smooth_alpha      : " << v.smooth_alpha << std::endl;
+                std::cout << "  smooth_delta      : " << v.smooth_delta << std::endl;
+                std::cout << "  persistency_index : " << v.persistency_index << std::endl;
+                break;
+            }
+            default:
+                std::cout << "  (no typed printer registered for this composite option id)" << std::endl;
+            }
+        }
+        catch (const rs2::error& e)
+        {
+            // A control that is registered but not actually functional on this device/FW is a
+            // real, expected outcome - get_supported_composite_options() only reflects static
+            // registration, never a live capability check.
+            std::cerr << "Failed to read composite option " << rs2_composite_option_id_to_string(id) << ". (" << e.what() << ")" << std::endl;
+        }
+    }
+
+    static void change_composite_option(const rs2::embedded_filter& filter, rs2_composite_option_id id)
+    {
+        // Each composite option is exchanged as ONE atomic struct, unlike change_sensor_option()
+        // above (one rs2_option, one value) - so changing even a single field here still means a
+        // read-modify-write of the WHOLE struct: read the current value, change only the field
+        // the user picked, and send the entire thing back in a single set_composite_option_from() call.
+
+        if (filter.is_composite_option_read_only(id))
+        {
+            std::cerr << "This composite option is read-only" << std::endl;
+            return;
+        }
+
+        switch (id)
+        {
+        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
+        {
+            rs2_minz_control cfg;
+            try
+            {
+                cfg = filter.get_composite_option_as<rs2_minz_control>(id);
+            }
+            catch (const rs2::error& e)
+            {
+                std::cerr << "Failed to read current value: " << e.what() << std::endl;
+                return;
+            }
+
+            rs2_minz_control_range range = filter.get_composite_option_range_as<rs2_minz_control_range>(id);
+            std::cout << "Supported range:" << std::endl;
+            std::cout << "  enable          : [" << range.min.enable << ", " << range.max.enable << "]" << std::endl;
+            std::cout << "  downscale_ratio : [" << range.min.downscale_ratio << ", " << range.max.downscale_ratio << "]" << std::endl;
+            std::cout << "  disparity_shift : [" << range.min.disparity_shift << ", " << range.max.disparity_shift << "]" << std::endl;
+            std::cout << "  threshold       : [" << range.min.threshold << ", " << range.max.threshold << "]" << std::endl;
+            std::cout << "  threshold_mode  : [" << range.min.threshold_mode << ", " << range.max.threshold_mode << "]" << std::endl;
+
+            std::cout << "\nWhich field would you like to change?\n" << std::endl;
+            std::cout << "  0 : enable\n  1 : downscale_ratio\n  2 : disparity_shift\n  3 : threshold\n  4 : threshold_mode" << std::endl;
+            uint32_t field_index = get_user_selection("Select a field by index: ");
+
+            std::cout << "Enter the new value for this field: ";
+            int requested_value;
+            std::cin >> requested_value;
+            std::cout << std::endl;
+
+            switch (field_index)
+            {
+            case 0: cfg.enable = requested_value; break;
+            case 1: cfg.downscale_ratio = requested_value; break;
+            case 2: cfg.disparity_shift = requested_value; break;
+            case 3: cfg.threshold = requested_value; break;
+            case 4: cfg.threshold_mode = requested_value; break;
+            default:
+                std::cerr << "Selected field is out of range" << std::endl;
+                return;
+            }
+
+            try
+            {
+                filter.set_composite_option_from(id, cfg);
+            }
+            catch (const rs2::error& e)
+            {
+                std::cerr << "Failed to set composite option " << rs2_composite_option_id_to_string(id) << ". (" << e.what() << ")" << std::endl;
+            }
+            break;
+        }
+        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+        {
+            rs2_temporal_filter_dpp_config cfg;
+            try
+            {
+                cfg = filter.get_composite_option_as<rs2_temporal_filter_dpp_config>(id);
+            }
+            catch (const rs2::error& e)
+            {
+                std::cerr << "Failed to read current value: " << e.what() << std::endl;
+                return;
+            }
+
+            rs2_temporal_filter_dpp_range range = filter.get_composite_option_range_as<rs2_temporal_filter_dpp_range>(id);
+            std::cout << "Supported range:" << std::endl;
+            std::cout << "  enabled           : [" << range.min.enabled << ", " << range.max.enabled << "]" << std::endl;
+            std::cout << "  smooth_alpha      : [" << range.min.smooth_alpha << ", " << range.max.smooth_alpha << "]" << std::endl;
+            std::cout << "  smooth_delta      : [" << range.min.smooth_delta << ", " << range.max.smooth_delta << "]" << std::endl;
+            std::cout << "  persistency_index : [" << range.min.persistency_index << ", " << range.max.persistency_index << "]" << std::endl;
+
+            std::cout << "\nWhich field would you like to change?\n" << std::endl;
+            std::cout << "  0 : enabled\n  1 : smooth_alpha\n  2 : smooth_delta\n  3 : persistency_index" << std::endl;
+            uint32_t field_index = get_user_selection("Select a field by index: ");
+
+            std::cout << "Enter the new value for this field: ";
+            float requested_value;
+            std::cin >> requested_value;
+            std::cout << std::endl;
+
+            switch (field_index)
+            {
+            case 0: cfg.enabled = (int32_t)requested_value; break;
+            case 1: cfg.smooth_alpha = requested_value; break;
+            case 2: cfg.smooth_delta = (int32_t)requested_value; break;
+            case 3: cfg.persistency_index = (int32_t)requested_value; break;
+            default:
+                std::cerr << "Selected field is out of range" << std::endl;
+                return;
+            }
+
+            try
+            {
+                filter.set_composite_option_from(id, cfg);
+            }
+            catch (const rs2::error& e)
+            {
+                std::cerr << "Failed to set composite option " << rs2_composite_option_id_to_string(id) << ". (" << e.what() << ")" << std::endl;
+            }
+            break;
+        }
+        default:
+            std::cerr << "No typed setter registered for this composite option id" << std::endl;
         }
     }
 

@@ -325,6 +325,7 @@ typedef struct rs2_embedded_filter rs2_embedded_filter;
 typedef struct rs2_embedded_filter_list rs2_embedded_filter_list;
 typedef struct rs2_options rs2_options;
 typedef struct rs2_options_list rs2_options_list;
+typedef struct rs2_composite_options_list rs2_composite_options_list;
 typedef struct rs2_options_changed_callback rs2_options_changed_callback;
 typedef struct rs2_devices_changed_callback rs2_devices_changed_callback;
 typedef struct rs2_notification rs2_notification;
