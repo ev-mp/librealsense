@@ -620,6 +620,7 @@ std::string const & get_string( rs2_composite_option_id value )
         std::vector< std::string > arr( RS2_COMPOSITE_OPTION_COUNT );
 #define CASE( X ) STRARR( arr, COMPOSITE_OPTION, X );
         CASE( HKR_TEMPORAL_FILTER_DPP )
+        CASE( HKR_MINZ_CONTROL )
 #undef CASE
         return arr;
     }();
@@ -1065,3 +1066,4 @@ const char * rs2_calib_location_to_string(rs2_calib_location calib_location) { r
 const char * rs2_embedded_filter_type_to_string(rs2_embedded_filter_type embedded_filter_type) { return librealsense::get_string(embedded_filter_type); }
 const char * rs2_gyro_sensitivity_to_string( rs2_gyro_sensitivity mode ){return librealsense::get_string( mode );}
 const char * rs2_eth_link_priority_to_string( rs2_eth_link_priority priority ){return librealsense::get_string( priority );}
+const char * rs2_composite_option_id_to_string( rs2_composite_option_id id ) { return librealsense::get_string( id ).c_str(); }

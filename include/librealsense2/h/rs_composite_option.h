@@ -66,6 +66,15 @@ typedef enum rs2_composite_option_id
 } rs2_composite_option_id;
 
 /**
+* Returns the composite option id's name, or "UNKNOWN" otherwise - the composite-option analogue
+* of rs2_option_to_string. Unlike rs2_option, composite option ids have no from_string() reverse
+* lookup - there is no equivalent registry-based custom-name mechanism for them (see
+* rs2_option_from_string() in rs_option.h).
+* \param[in] id    the composite option identifier
+*/
+const char* rs2_composite_option_id_to_string(rs2_composite_option_id id);
+
+/**
 * rs2_set_composite_option - generic composite-option setter.
 * Writes size bytes from data to the device in ONE atomic UVC control transaction (one set_xu
 * call). The caller is responsible for knowing the documented wire layout for option (e.g. see
