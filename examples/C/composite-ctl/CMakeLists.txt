@@ -8,7 +8,7 @@ project(RealsenseExamples-CompositeCtl)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # Same full get/set/get_range/metadata walkthrough as
-# examples/composite-option's rs-composite-option-demo.cpp, through the raw C API instead - no
+# examples/composite-option's rs-composite-option.cpp, through the raw C API instead - no
 # exceptions, no templates, no RAII. See rs-composite-ctl.c.
 add_executable(rs-composite-ctl rs-composite-ctl.c ../example.h)
 include_directories(../../C)

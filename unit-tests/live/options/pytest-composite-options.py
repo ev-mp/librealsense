@@ -1,7 +1,6 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-import struct
 import pytest
 import pyrealsense2 as rs
 import logging
@@ -9,28 +8,9 @@ log = logging.getLogger(__name__)
 
 pytestmark = [
     pytest.mark.device_each("D555"),
-    pytest.mark.device_each("D585*"),
+    pytest.mark.device_each("D585"),
+    pytest.mark.device_exclude("D585S"),  # not registered on the safety-certified D585S (see d500-factory.cpp)
 ]
-
-# HKR Improved Close Range Control's documented wire layout: a dppc_header (version, flags, ctl_id, param_count,
-# param_type) shared by the whole HKR DPP control family, then Improved Close Range's 5 logical fields, then 3
-# reserved (always 0) slots - see rs_hkr_improved_close_range_control.h. Same layout used by
-# wrappers/python/examples/embedded_filters.py - there is no generic "any composite option" cast,
-# so a new composite option needs its own layout (and its own test) added, same as everywhere else
-# composite options are exercised in this repo.
-_IMPROVED_CLOSE_RANGE_FMT = '<BBHBBiiiiiiii'
-_IMPROVED_CLOSE_RANGE_FIELDS = ['version', 'flags', 'ctl_id', 'param_count', 'param_type',
-                'enable', 'downscale_ratio', 'disparity_shift', 'threshold', 'threshold_mode',
-                'reserved0', 'reserved1', 'reserved2']
-_IMPROVED_CLOSE_RANGE_ITEM_SIZE = struct.calcsize(_IMPROVED_CLOSE_RANGE_FMT)
-
-
-def _unpack_improved_close_range(raw):
-    return dict(zip(_IMPROVED_CLOSE_RANGE_FIELDS, struct.unpack(_IMPROVED_CLOSE_RANGE_FMT, raw)))
-
-
-def _pack_improved_close_range(fields):
-    return struct.pack(_IMPROVED_CLOSE_RANGE_FMT, *(fields[name] for name in _IMPROVED_CLOSE_RANGE_FIELDS))
 
 
 def _find_improved_close_range_filter(sensor):
@@ -61,37 +41,40 @@ def test_improved_close_range_control_basic_parameter_changes(test_device):
         # capability check.
         pytest.skip(f"HKR Improved Close Range Control registered but not functional on this device/FW: {e}")
 
-    original = _unpack_improved_close_range(original_raw)
-
-    range_raw = embedded_filter.get_composite_option_range(option_id)
-    # rs2_improved_close_range_control_range: 4 full copies of the struct - min, max, step, def,
-    # in that order, each _IMPROVED_CLOSE_RANGE_ITEM_SIZE bytes. Read-only, no wrapper version field.
-    min_fields = _unpack_improved_close_range(range_raw[0:_IMPROVED_CLOSE_RANGE_ITEM_SIZE])
-    max_fields = _unpack_improved_close_range(range_raw[_IMPROVED_CLOSE_RANGE_ITEM_SIZE:2 * _IMPROVED_CLOSE_RANGE_ITEM_SIZE])
+    # Typed get/set (see wrappers/python/pyrs_options.cpp) - the SDK's own bound struct, no
+    # hand-rolled struct.pack/unpack format string to keep in sync with the wire layout. Only the
+    # final restore-and-verify below uses the raw bytes, for the strongest possible guarantee
+    # (byte-exact, header and reserved fields included).
+    original = embedded_filter.get_improved_close_range_control(option_id)
+    range = embedded_filter.get_improved_close_range_control_range(option_id)
 
     changed_any = False
     try:
         # downscale_ratio and disparity_shift: real, independent min/max bounds with no
         # side-effects on `enable`/`threshold_mode` - safe to bounce within range one at a time.
         for field in ('downscale_ratio', 'disparity_shift'):
-            lo, hi = min_fields[field], max_fields[field]
+            lo, hi = getattr(range.min, field), getattr(range.max, field)
             if lo >= hi:
                 log.info(f"{field}: no room to change, range is [{lo}, {hi}]")
                 continue
-            new_value = lo if original[field] != lo else hi
+            current = getattr(original, field)
+            new_value = lo if current != lo else hi
 
-            cfg = dict(original)
-            cfg[field] = new_value
-            embedded_filter.set_composite_option(option_id, _pack_improved_close_range(cfg))
+            # Each set starts from a freshly-read struct - the header/other fields must be
+            # carried over exactly as the device just reported them, not zero-initialized.
+            cfg = embedded_filter.get_improved_close_range_control(option_id)
+            setattr(cfg, field, new_value)
+            embedded_filter.set_improved_close_range_control(option_id, cfg)
             changed_any = True
 
-            readback = _unpack_improved_close_range(embedded_filter.get_composite_option(option_id))
-            assert readback[field] == new_value, f"{field}: expected {new_value}, got {readback[field]}"
+            readback = embedded_filter.get_improved_close_range_control(option_id)
+            assert getattr(readback, field) == new_value, f"{field}: expected {new_value}, got {getattr(readback, field)}"
 
             # Restore this field immediately, before moving on to the next one, so each change is
             # independently verified and reverted rather than compounding on top of the last.
-            cfg[field] = original[field]
-            embedded_filter.set_composite_option(option_id, _pack_improved_close_range(cfg))
+            cfg = embedded_filter.get_improved_close_range_control(option_id)
+            setattr(cfg, field, current)
+            embedded_filter.set_improved_close_range_control(option_id, cfg)
 
         if not changed_any:
             pytest.skip("No writable Improved Close Range field had room to change on this device/FW")

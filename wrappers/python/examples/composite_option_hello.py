@@ -18,7 +18,7 @@ layout to fall out of sync.
 filter.get_improved_close_range_control(id) is the Python equivalent of the C++ wrapper's own
 get_composite_option_as<rs2_improved_close_range_control>(id) template call - Python has no templates, so it's a
 concretely-named method instead of a generic one, same as every other composite-option sample in
-this repo dispatches by known id (see examples/composite-option/rs-composite-option-demo.cpp).
+this repo dispatches by known id (see examples/composite-option/rs-composite-option.cpp).
 
 See wrappers/python/examples/embedded_filters.py for the untyped, raw-bytes version of this (get
 raw bytes back, unpack them yourself with `struct`) - useful for an id this wrapper hasn't bound a

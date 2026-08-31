@@ -3,7 +3,7 @@
 
 /* C99 composite-option walkthrough - the same device sweep and the same full per-id exercise
    (Get, Set read-modify-write, Get again + verify, Get range, metadata) as the C++
-   rs-composite-option-demo.cpp / rs-improved-close-range-control-walkthrough.cpp samples, through the raw C
+   rs-composite-option.cpp / rs-improved-close-range-control-walkthrough.cpp samples, through the raw C
    API instead: no exceptions (every rs2_error* is checked by hand), no templates (no
    get_composite_option_as<T>()/get_composite_option_range_as<TRange>() - every cast is a manual
    memcpy into the documented wire struct), no RAII (every list/device/sensor/filter/buffer freed
@@ -97,7 +97,7 @@ static void print_improved_close_range_range( const rs2_improved_close_range_con
 }
 
 /* Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL -
-   the C99 equivalent of exercise_improved_close_range_control() in rs-composite-option-demo.cpp. Same 5
+   the C99 equivalent of exercise_improved_close_range_control() in rs-composite-option.cpp. Same 5
    operations, in the same order:
      1) Get (before)  - raw bytes, then the manual cast to rs2_improved_close_range_control
      2) Set            - read-modify-write: only `enable` is toggled, everything else carried
@@ -107,7 +107,7 @@ static void print_improved_close_range_range( const rs2_improved_close_range_con
      4) Get range      - raw bytes, then the manual cast to rs2_improved_close_range_control_range
      5) Query info      - read-only flag, human-readable description
    A registered-but-non-functional control is a real possibility on real hardware (see the file
-   header note in rs-composite-option-demo.cpp) - reported as SKIPPED via `goto skipped`
+   header note in rs-composite-option.cpp) - reported as SKIPPED via `goto skipped`
    rather than aborting the whole program, the closest C99 equivalent of that walkthrough's
    per-id try/catch. Returns 1 if every step succeeded, 0 if skipped partway through. */
 static int exercise_improved_close_range_control( const rs2_options * opts, rs2_composite_option_id id )
