@@ -79,6 +79,33 @@ namespace rs2
 
         void embedded_filter_enable_disable(bool actual);
 
+    private:
+        // Per-field draw_minz_control_editor() helpers, each returning whether it's active this
+        // frame. Not meant to be called elsewhere. frame_max is x/y floats to avoid pulling
+        // imgui.h into this header.
+        bool draw_minz_filter_type_field();
+        bool draw_minz_downscale_ratio_field();
+        bool draw_minz_shift_mode_field();
+        bool draw_minz_threshold_mode_field();
+        // Shared touch()/finalize() plumbing for the slider-enum fields above.
+        void commit_slider_enum_edit( bool changed );
+        void slider_enum_arrow_nudge( int & field, int min_v, int max_v );
+        // Manual-entry escape hatch shared by Shift Pixels and Threshold (mm).
+        bool draw_minz_manual_input( const char * id, int & value, int min_v, int max_v,
+                                      bool & edit_mode, std::string & edit_buf );
+        bool draw_minz_slider_with_arrows( const char * id, int & value, int min_v, int max_v );
+        bool draw_minz_manual_editable_field( const char * label,
+                                               const char * id,
+                                               int & value,
+                                               int min_v,
+                                               int max_v,
+                                               bool & edit_mode,
+                                               std::string & edit_buf );
+        bool draw_minz_reset_to_default_overlay( rs2_composite_option_id id,
+                                                  std::string & error_message,
+                                                  float frame_max_x,
+                                                  float frame_max_y );
+
     protected:
         viewer_model& _viewer;
         std::atomic<bool> _destructing;
