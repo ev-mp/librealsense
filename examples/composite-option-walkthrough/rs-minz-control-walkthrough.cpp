@@ -18,8 +18,8 @@
 //   5) if it does, print every supported composite option id
 //   6) for each one, read its current value straight from the device
 //      (rs2_get_composite_option) and print every field - e.g. the Temporal Filter DPP prints
-//      enabled/smooth_alpha/smooth_delta/persistency_index, MinZ prints its own 5 logical fields
-//      plus the shared dppc_header
+//      enabled/smooth_alpha/smooth_delta/persistency_index, MinZ prints its own 7 logical fields
+//      (post design-review layout) plus the shared dppc_header
 //
 // Drives everything through the real public C++ wrapper (rs2::options, see rs_options.hpp),
 // which is a thin pass-through to the C API this is meant to exercise: rs2_get_composite_option,
@@ -61,10 +61,12 @@ namespace
                    << " param_count=" << (int)v.param_count
                    << " param_type=" << (int)v.param_type
                    << " enable=" << v.enable
+                   << " filter_type=" << v.filter_type
                    << " downscale_ratio=" << v.downscale_ratio
-                   << " disparity_shift=" << v.disparity_shift
-                   << " threshold=" << v.threshold
-                   << " threshold_mode=" << v.threshold_mode << '\n';
+                   << " shift_mode=" << v.shift_mode
+                   << " shift_pixels=" << v.shift_pixels
+                   << " threshold_mode=" << v.threshold_mode
+                   << " threshold_mm=" << v.threshold_mm << '\n';
     }
 
     // Prints every field of `id`'s current value read straight from the device, dispatching to

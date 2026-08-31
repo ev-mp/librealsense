@@ -30,16 +30,32 @@ namespace rs2
                        << " param_count=" << (int)v.param_count
                        << " param_type=" << (int)v.param_type
                        << " enable=" << v.enable
+                       << " filter_type=" << v.filter_type
                        << " downscale_ratio=" << v.downscale_ratio
-                       << " disparity_shift=" << v.disparity_shift
-                       << " threshold=" << v.threshold
+                       << " shift_mode=" << v.shift_mode
+                       << " shift_pixels=" << v.shift_pixels
                        << " threshold_mode=" << v.threshold_mode
-                       << " reserved=[" << v.reserved[0] << "," << v.reserved[1] << "," << v.reserved[2] << "]" );
+                       << " threshold_mm=" << v.threshold_mm
+                       << " reserved=[" << v.reserved[0] << "]" );
         }
 
         // Ties the manual-entry pencil icon and the number it opens together visually - the same
         // color on both is what says "these two are one mode," not just proximity.
         const ImVec4 minz_manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
+
+        // ImGui has no native "named enum" slider - the standard idiom (see e.g.
+        // https://pthom.github.io/imgui_explorer's SliderInt-with-steps examples) is a plain
+        // SliderInt whose format string is the current value's display name instead of a "%d"
+        // conversion, so it prints literally instead of the raw integer while dragging still
+        // snaps to each integer position. `names[0]` corresponds to `min_v`. Because the format
+        // string is built from the value going INTO this call, the label lags the drag by one
+        // frame (updates next frame once *value has changed) - imperceptible in practice and the
+        // same tradeoff every SliderInt-with-format idiom makes.
+        bool slider_enum( const char * str_id, int * value, int min_v, int max_v, const char * const names[] )
+        {
+            std::string fmt = names[ *value - min_v ];
+            return ImGui::SliderInt( str_id, value, min_v, max_v, fmt.c_str() );
+        }
     }
 
     embedded_filter_model::embedded_filter_model(
@@ -158,218 +174,293 @@ namespace rs2
         // Every label below sits on its own line, with the interactive widget using a "##"-only
         // (invisible) label - this side panel is too narrow for "label: [====slider====] value"
         // all on one line; ImGui doesn't wrap inline widget labels, it just clips them.
-        // Downscale ratio only ever takes {1,2,4} - radio buttons, not a slider, so the user
-        // can't land on an invalid value like 3 (mirrors the field validation tool's own UI).
-        ImGui::Text( "Downscale Ratio:" );
-        for( int v : { 1, 2, 4 } )
+        //
+        // Per the design-review struct (see rs_hkr_minz_control.h), every mode/enum field below
+        // - filter_type, downscale_ratio, shift_mode, threshold_mode - is rendered as a "slider
+        // enum": a plain ImGui::SliderInt whose displayed text is the value's name instead of its
+        // raw number (see slider_enum() above), replacing the old radio-button/checkbox widgets.
+        // This also generalizes the earlier per-field manual-entry escape hatch (pencil icon +
+        // InputText, still used below for Shift Pixels / Threshold (mm)): selecting the "Manual"
+        // rung of shift_mode or threshold_mode is itself now what reveals that field, rather than
+        // a separate checkbox.
+        auto slider_enum_commit = [ this ]( bool changed )
         {
-            ImGui::SameLine();
-            if( ImGui::RadioButton( ( std::to_string( v ) + "##minz_ratio" ).c_str(), _minz_editor.value.downscale_ratio == v ) )
+            if( changed )
+                _minz_editor.touch();
+            if( ImGui::IsItemActive() )
+                _minz_editor.touch();
+            if( ImGui::IsItemDeactivatedAfterEdit() )
+                _minz_editor.finalize();
+        };
+        // Left/Right-arrow nudge for a focused-but-not-dragging slider-enum, mirroring the manual
+        // numeric fields' own arrow-key handling below - one focused key press is one complete,
+        // fast-committed edit.
+        auto slider_enum_arrow_nudge = [ this ]( int & field, int min_v, int max_v )
+        {
+            if( ! ImGui::IsItemFocused() || ImGui::IsItemActive() )
+                return;
+            if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) && field < max_v )
             {
+                ++field;
+                _minz_editor.touch();
+                _minz_editor.finalize( true );
+            }
+            else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) && field > min_v )
+            {
+                --field;
+                _minz_editor.touch();
+                _minz_editor.finalize( true );
+            }
+        };
+
+        static const char * const filter_type_names[] = { "Downscale", "Lookup Shift" };
+        ImGui::Text( "Filter Type:" );
+        {
+            int v = _minz_editor.value.filter_type;
+            bool changed = slider_enum( "##minz_filter_type", &v, 0, 1, filter_type_names );
+            if( changed )
+                _minz_editor.value.filter_type = v;
+            slider_enum_commit( changed );
+            slider_enum_arrow_nudge( _minz_editor.value.filter_type, 0, 1 );
+            any_field_active = any_field_active || ImGui::IsItemActive();
+        }
+
+        if( _minz_editor.value.filter_type == 0 )
+        {
+            // Downscale: only the ratio matters; value 0 is reserved (not a legal wire value),
+            // so the slider's range starts at 1.
+            static const char * const downscale_ratio_names[] = { "x2", "x4" };
+            ImGui::Text( "Downscale Ratio:" );
+            int v = _minz_editor.value.downscale_ratio;
+            bool changed = slider_enum( "##minz_downscale_ratio", &v, 1, 2, downscale_ratio_names );
+            if( changed )
                 _minz_editor.value.downscale_ratio = v;
-                _minz_editor.touch();
-                // A mouse click lands on this exact frame as IsMouseClicked(); a keyboard/
-                // gamepad nav selection change reaches this same "pressed" return without one,
-                // since nothing was physically clicked - use the fast delay there so arrow-key
-                // navigation feels responsive instead of waiting out the same 1.7s a deliberate
-                // mouse click gets.
-                _minz_editor.finalize( ! ImGui::IsMouseClicked( ImGuiMouseButton_Left ) );
-            }
-            any_field_active = any_field_active || ImGui::IsItemActive();
-        }
-
-        // Each field below has two editing modes, toggled by the small pencil button beside its
-        // label - the same edit_mode/edit_value pattern option_model uses for ordinary scalar
-        // options (common/option-model.cpp), not ImGui's native SliderInt Ctrl+Click/double-click
-        // text-input (that turned out not to be reliably usable here):
-        //   - slider mode (default): drag with the mouse, or press Left/Right once the slider has
-        //     focus (single click, no drag needed) to nudge by 1 - ImGui sliders don't do
-        //     arrow-key nudging on their own, so it's implemented by hand below. Each arrow press
-        //     is one complete, discrete edit (touch()+finalize() together), like a radio/checkbox
-        //     click, rather than a drag that only finalizes on release.
-        //   - type mode: an InputText box seeded with the current value; Enter parses, clamps,
-        //     and commits it, then flips back to slider mode.
-        // In both modes, touch() is called unconditionally every frame the active widget (slider
-        // drag OR the InputText box) has focus, not just on frames where the value changes, so
-        // the debounce deadline stays parked at +infinity for the whole time the user is engaged
-        // - otherwise a countdown already running from an earlier edit could reach zero and fire
-        // a commit mid-edit.
-        ImGui::Text( "Disparity Shift:" );
-        ImGui::SameLine();
-        {
-            std::string edit_id = rsutils::string::from() << textual_icons::edit << "##minz_shift_edit";
-            if( _minz_shift_edit_mode )
-                ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
-            if( ImGui::SmallButton( edit_id.c_str() ) )
-            {
-                if( ! _minz_shift_edit_mode )
-                    _minz_shift_edit_buf = std::to_string( _minz_editor.value.disparity_shift );
-                _minz_shift_edit_mode = ! _minz_shift_edit_mode;
-            }
-            if( _minz_shift_edit_mode )
-                ImGui::PopStyleColor();
-            if( ImGui::IsItemHovered() )
-                ImGui::SetTooltip( _minz_shift_edit_mode ? "Back to slider" : "Type an exact value" );
-        }
-
-        if( _minz_shift_edit_mode )
-        {
-            char buf[32] = {};
-            strncpy( buf, _minz_shift_edit_buf.c_str(), sizeof( buf ) - 1 );
-
-            // Narrow, centered input box (not full-width/left-aligned like the slider it
-            // replaces) plus the same highlight color as the pencil icon above, so the box
-            // visually reads as "a small typed value," distinct from the wide slider it stands
-            // in for while active.
-            float avail_width = ImGui::GetContentRegionAvail().x;
-            float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
-            ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
-            ImGui::PushItemWidth( input_width );
-            ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
-            bool submitted = ImGui::InputText( "##minz_shift_input", buf, sizeof( buf ),
-                                                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
-            ImGui::PopStyleColor();
-            ImGui::PopItemWidth();
-
-            if( submitted )
-            {
-                char * end = nullptr;
-                long parsed = std::strtol( buf, &end, 10 );
-                if( end != buf )
-                {
-                    _minz_editor.value.disparity_shift = (int)std::min( std::max( parsed, 0L ), 512L );
-                    _minz_editor.touch();
-                    _minz_editor.finalize();
-                }
-                _minz_shift_edit_mode = false;
-            }
-            else
-                _minz_shift_edit_buf = buf;
-            if( ImGui::IsItemActive() )
-                _minz_editor.touch();
+            slider_enum_commit( changed );
+            slider_enum_arrow_nudge( _minz_editor.value.downscale_ratio, 1, 2 );
             any_field_active = any_field_active || ImGui::IsItemActive();
         }
         else
         {
-            int shift = _minz_editor.value.disparity_shift;
-            if( ImGui::SliderInt( "##minz_shift", &shift, 0, 512 ) )
-            {
-                _minz_editor.value.disparity_shift = shift;
-                _minz_editor.touch();
-            }
-            if( ImGui::IsItemActive() )
-                _minz_editor.touch();
-            if( ImGui::IsItemDeactivatedAfterEdit() )
-                _minz_editor.finalize();
-            else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
-            {
-                if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
-                {
-                    _minz_editor.value.disparity_shift = std::min( _minz_editor.value.disparity_shift + 1, 512 );
-                    _minz_editor.touch();
-                    _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
-                }
-                else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
-                {
-                    _minz_editor.value.disparity_shift = std::max( _minz_editor.value.disparity_shift - 1, 0 );
-                    _minz_editor.touch();
-                    _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
-                }
-            }
+            // Lookup Shift: pick a fixed preset or drop into manual pixel entry.
+            static const char * const shift_mode_names[] = { "Shift 126px", "Shift 64px", "Manual" };
+            ImGui::Text( "Shift Mode:" );
+            int v = _minz_editor.value.shift_mode;
+            bool changed = slider_enum( "##minz_shift_mode", &v, 0, 2, shift_mode_names );
+            if( changed )
+                _minz_editor.value.shift_mode = v;
+            slider_enum_commit( changed );
+            slider_enum_arrow_nudge( _minz_editor.value.shift_mode, 0, 2 );
             any_field_active = any_field_active || ImGui::IsItemActive();
-        }
 
-        ImGui::Text( "Threshold (mm):" );
-        ImGui::SameLine();
-        {
-            std::string edit_id = rsutils::string::from() << textual_icons::edit << "##minz_threshold_edit";
-            if( _minz_threshold_edit_mode )
-                ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
-            if( ImGui::SmallButton( edit_id.c_str() ) )
+            if( _minz_editor.value.shift_mode == 2 )
             {
-                if( ! _minz_threshold_edit_mode )
-                    _minz_threshold_edit_buf = std::to_string( _minz_editor.value.threshold );
-                _minz_threshold_edit_mode = ! _minz_threshold_edit_mode;
-            }
-            if( _minz_threshold_edit_mode )
-                ImGui::PopStyleColor();
-            if( ImGui::IsItemHovered() )
-                ImGui::SetTooltip( _minz_threshold_edit_mode ? "Back to slider" : "Type an exact value" );
-        }
-
-        if( _minz_threshold_edit_mode )
-        {
-            char buf[32] = {};
-            strncpy( buf, _minz_threshold_edit_buf.c_str(), sizeof( buf ) - 1 );
-
-            float avail_width = ImGui::GetContentRegionAvail().x;
-            float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
-            ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
-            ImGui::PushItemWidth( input_width );
-            ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
-            bool submitted = ImGui::InputText( "##minz_threshold_input", buf, sizeof( buf ),
-                                                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
-            ImGui::PopStyleColor();
-            ImGui::PopItemWidth();
-
-            if( submitted )
-            {
-                char * end = nullptr;
-                long parsed = std::strtol( buf, &end, 10 );
-                if( end != buf )
+                // Each manual field below has two editing modes, toggled by the small pencil
+                // button beside its label - the same edit_mode/edit_value pattern option_model
+                // uses for ordinary scalar options (common/option-model.cpp), not ImGui's native
+                // SliderInt Ctrl+Click/double-click text-input (that turned out not to be
+                // reliably usable here):
+                //   - slider mode (default): drag with the mouse, or press Left/Right once the
+                //     slider has focus (single click, no drag needed) to nudge by 1 - ImGui
+                //     sliders don't do arrow-key nudging on their own, so it's implemented by
+                //     hand below. Each arrow press is one complete, discrete edit
+                //     (touch()+finalize() together), like a radio/checkbox click, rather than a
+                //     drag that only finalizes on release.
+                //   - type mode: an InputText box seeded with the current value; Enter parses,
+                //     clamps, and commits it, then flips back to slider mode.
+                // In both modes, touch() is called unconditionally every frame the active widget
+                // (slider drag OR the InputText box) has focus, not just on frames where the
+                // value changes, so the debounce deadline stays parked at +infinity for the whole
+                // time the user is engaged - otherwise a countdown already running from an
+                // earlier edit could reach zero and fire a commit mid-edit.
+                ImGui::Text( "Shift Pixels:" );
+                ImGui::SameLine();
                 {
-                    _minz_editor.value.threshold = (int)std::min( std::max( parsed, 0L ), 65535L );
-                    _minz_editor.touch();
-                    _minz_editor.finalize();
+                    std::string edit_id = rsutils::string::from() << textual_icons::edit << "##minz_shift_edit";
+                    if( _minz_shift_edit_mode )
+                        ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+                    if( ImGui::SmallButton( edit_id.c_str() ) )
+                    {
+                        if( ! _minz_shift_edit_mode )
+                            _minz_shift_edit_buf = std::to_string( _minz_editor.value.shift_pixels );
+                        _minz_shift_edit_mode = ! _minz_shift_edit_mode;
+                    }
+                    if( _minz_shift_edit_mode )
+                        ImGui::PopStyleColor();
+                    if( ImGui::IsItemHovered() )
+                        ImGui::SetTooltip( _minz_shift_edit_mode ? "Back to slider" : "Type an exact value" );
                 }
-                _minz_threshold_edit_mode = false;
+
+                if( _minz_shift_edit_mode )
+                {
+                    char buf[32] = {};
+                    strncpy( buf, _minz_shift_edit_buf.c_str(), sizeof( buf ) - 1 );
+
+                    // Narrow, centered input box (not full-width/left-aligned like the slider it
+                    // replaces) plus the same highlight color as the pencil icon above, so the
+                    // box visually reads as "a small typed value," distinct from the wide slider
+                    // it stands in for while active.
+                    float avail_width = ImGui::GetContentRegionAvail().x;
+                    float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                    ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
+                    ImGui::PushItemWidth( input_width );
+                    ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+                    bool submitted = ImGui::InputText( "##minz_shift_input", buf, sizeof( buf ),
+                                                        ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
+                    ImGui::PopStyleColor();
+                    ImGui::PopItemWidth();
+
+                    if( submitted )
+                    {
+                        char * end = nullptr;
+                        long parsed = std::strtol( buf, &end, 10 );
+                        if( end != buf )
+                        {
+                            _minz_editor.value.shift_pixels = (int)std::min( std::max( parsed, 0L ), 256L );
+                            _minz_editor.touch();
+                            _minz_editor.finalize();
+                        }
+                        _minz_shift_edit_mode = false;
+                    }
+                    else
+                        _minz_shift_edit_buf = buf;
+                    if( ImGui::IsItemActive() )
+                        _minz_editor.touch();
+                    any_field_active = any_field_active || ImGui::IsItemActive();
+                }
+                else
+                {
+                    int shift = _minz_editor.value.shift_pixels;
+                    if( ImGui::SliderInt( "##minz_shift", &shift, 0, 256 ) )
+                    {
+                        _minz_editor.value.shift_pixels = shift;
+                        _minz_editor.touch();
+                    }
+                    if( ImGui::IsItemActive() )
+                        _minz_editor.touch();
+                    if( ImGui::IsItemDeactivatedAfterEdit() )
+                        _minz_editor.finalize();
+                    else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
+                    {
+                        if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
+                        {
+                            _minz_editor.value.shift_pixels = std::min( _minz_editor.value.shift_pixels + 1, 256 );
+                            _minz_editor.touch();
+                            _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                        }
+                        else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
+                        {
+                            _minz_editor.value.shift_pixels = std::max( _minz_editor.value.shift_pixels - 1, 0 );
+                            _minz_editor.touch();
+                            _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                        }
+                    }
+                    any_field_active = any_field_active || ImGui::IsItemActive();
+                }
+            }
+        }
+
+        // Threshold mode: Zero range / MinZ (firmware-computed) / Manual. Per the design review,
+        // the FW-computed MinZ value itself is NOT surfaced to the user at this stage - selecting
+        // "MinZ (computed)" shows no readback field at all, unlike "Manual" which reveals one.
+        static const char * const threshold_mode_names[] = { "Zero range", "MinZ (computed)", "Manual" };
+        ImGui::Text( "Threshold Mode:" );
+        {
+            int v = _minz_editor.value.threshold_mode;
+            bool changed = slider_enum( "##minz_threshold_mode", &v, 0, 2, threshold_mode_names );
+            if( changed )
+                _minz_editor.value.threshold_mode = v;
+            slider_enum_commit( changed );
+            slider_enum_arrow_nudge( _minz_editor.value.threshold_mode, 0, 2 );
+            any_field_active = any_field_active || ImGui::IsItemActive();
+            if( ImGui::IsItemHovered() )
+                ImGui::SetTooltip( "Zero range: fill only originally-empty depth pixels.\n"
+                                    "MinZ (computed): firmware picks the threshold for the active resolution.\n"
+                                    "Manual: use the threshold value below." );
+        }
+
+        if( _minz_editor.value.threshold_mode == 2 )
+        {
+            ImGui::Text( "Threshold (mm):" );
+            ImGui::SameLine();
+            {
+                std::string edit_id = rsutils::string::from() << textual_icons::edit << "##minz_threshold_edit";
+                if( _minz_threshold_edit_mode )
+                    ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+                if( ImGui::SmallButton( edit_id.c_str() ) )
+                {
+                    if( ! _minz_threshold_edit_mode )
+                        _minz_threshold_edit_buf = std::to_string( _minz_editor.value.threshold_mm );
+                    _minz_threshold_edit_mode = ! _minz_threshold_edit_mode;
+                }
+                if( _minz_threshold_edit_mode )
+                    ImGui::PopStyleColor();
+                if( ImGui::IsItemHovered() )
+                    ImGui::SetTooltip( _minz_threshold_edit_mode ? "Back to slider" : "Type an exact value" );
+            }
+
+            if( _minz_threshold_edit_mode )
+            {
+                char buf[32] = {};
+                strncpy( buf, _minz_threshold_edit_buf.c_str(), sizeof( buf ) - 1 );
+
+                float avail_width = ImGui::GetContentRegionAvail().x;
+                float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
+                ImGui::PushItemWidth( input_width );
+                ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+                bool submitted = ImGui::InputText( "##minz_threshold_input", buf, sizeof( buf ),
+                                                    ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
+                ImGui::PopStyleColor();
+                ImGui::PopItemWidth();
+
+                if( submitted )
+                {
+                    char * end = nullptr;
+                    long parsed = std::strtol( buf, &end, 10 );
+                    if( end != buf )
+                    {
+                        _minz_editor.value.threshold_mm = (int)std::min( std::max( parsed, 0L ), 65535L );
+                        _minz_editor.touch();
+                        _minz_editor.finalize();
+                    }
+                    _minz_threshold_edit_mode = false;
+                }
+                else
+                    _minz_threshold_edit_buf = buf;
+                if( ImGui::IsItemActive() )
+                    _minz_editor.touch();
+                any_field_active = any_field_active || ImGui::IsItemActive();
             }
             else
-                _minz_threshold_edit_buf = buf;
-            if( ImGui::IsItemActive() )
-                _minz_editor.touch();
-            any_field_active = any_field_active || ImGui::IsItemActive();
-        }
-        else
-        {
-            int threshold = _minz_editor.value.threshold;
-            if( ImGui::SliderInt( "##minz_threshold", &threshold, 0, 65535 ) )
             {
-                _minz_editor.value.threshold = threshold;
-                _minz_editor.touch();
-            }
-            if( ImGui::IsItemActive() )
-                _minz_editor.touch();
-            if( ImGui::IsItemDeactivatedAfterEdit() )
-                _minz_editor.finalize();
-            else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
-            {
-                if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
+                int threshold = _minz_editor.value.threshold_mm;
+                if( ImGui::SliderInt( "##minz_threshold", &threshold, 0, 65535 ) )
                 {
-                    _minz_editor.value.threshold = std::min( _minz_editor.value.threshold + 1, 65535 );
+                    _minz_editor.value.threshold_mm = threshold;
                     _minz_editor.touch();
-                    _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
                 }
-                else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
+                if( ImGui::IsItemActive() )
+                    _minz_editor.touch();
+                if( ImGui::IsItemDeactivatedAfterEdit() )
+                    _minz_editor.finalize();
+                else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
                 {
-                    _minz_editor.value.threshold = std::max( _minz_editor.value.threshold - 1, 0 );
-                    _minz_editor.touch();
-                    _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                    if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
+                    {
+                        _minz_editor.value.threshold_mm = std::min( _minz_editor.value.threshold_mm + 1, 65535 );
+                        _minz_editor.touch();
+                        _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                    }
+                    else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
+                    {
+                        _minz_editor.value.threshold_mm = std::max( _minz_editor.value.threshold_mm - 1, 0 );
+                        _minz_editor.touch();
+                        _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                    }
                 }
+                any_field_active = any_field_active || ImGui::IsItemActive();
             }
-            any_field_active = any_field_active || ImGui::IsItemActive();
         }
-
-        bool manual = _minz_editor.value.threshold_mode != 0;
-        if( ImGui::Checkbox( "Manual Threshold##minz", &manual ) )
-        {
-            _minz_editor.value.threshold_mode = manual ? 1 : 0;
-            _minz_editor.touch();
-            _minz_editor.finalize();
-        }
-        any_field_active = any_field_active || ImGui::IsItemActive();
-        if( ImGui::IsItemHovered() )
-            ImGui::SetTooltip( "Unchecked = Auto (firmware-computed threshold)" );
 
         ImGui::Dummy( ImVec2( 0, 2 ) );
         float frame_bottom = ImGui::GetCursorScreenPos().y;

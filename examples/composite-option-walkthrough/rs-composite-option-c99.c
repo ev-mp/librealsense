@@ -95,9 +95,10 @@ int main( void )
                 memcpy( &current, bytes, sizeof( current ) );
                 rs2_delete_raw_data( raw );
 
-                printf( "Get: enable=%d downscale_ratio=%d disparity_shift=%d threshold=%d threshold_mode=%d\n",
-                        current.enable, current.downscale_ratio, current.disparity_shift,
-                        current.threshold, current.threshold_mode );
+                printf( "Get: enable=%d filter_type=%d downscale_ratio=%d shift_mode=%d shift_pixels=%d "
+                        "threshold_mode=%d threshold_mm=%d\n",
+                        current.enable, current.filter_type, current.downscale_ratio, current.shift_mode,
+                        current.shift_pixels, current.threshold_mode, current.threshold_mm );
 
                 /* Set - read-modify-write, toggle enable, whole struct sent atomically. */
                 rs2_minz_control cfg = current;
@@ -115,9 +116,10 @@ int main( void )
                 memcpy( &after, bytes, sizeof( after ) );
                 rs2_delete_raw_data( raw );
 
-                printf( "Get (after): enable=%d downscale_ratio=%d disparity_shift=%d threshold=%d threshold_mode=%d\n",
-                        after.enable, after.downscale_ratio, after.disparity_shift,
-                        after.threshold, after.threshold_mode );
+                printf( "Get (after): enable=%d filter_type=%d downscale_ratio=%d shift_mode=%d shift_pixels=%d "
+                        "threshold_mode=%d threshold_mm=%d\n",
+                        after.enable, after.filter_type, after.downscale_ratio, after.shift_mode,
+                        after.shift_pixels, after.threshold_mode, after.threshold_mm );
                 printf( "%s\n", after.enable == cfg.enable ? "matches what was sent" : "differs" );
             }
 

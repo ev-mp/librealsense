@@ -211,10 +211,12 @@ namespace
             make_field_printer( "param_count", &rs2_minz_control::param_count ),
             make_field_printer( "param_type", &rs2_minz_control::param_type ),
             make_field_printer( "enable", &rs2_minz_control::enable ),
+            make_field_printer( "filter_type", &rs2_minz_control::filter_type ),
             make_field_printer( "downscale_ratio", &rs2_minz_control::downscale_ratio ),
-            make_field_printer( "disparity_shift", &rs2_minz_control::disparity_shift ),
-            make_field_printer( "threshold", &rs2_minz_control::threshold ),
+            make_field_printer( "shift_mode", &rs2_minz_control::shift_mode ),
+            make_field_printer( "shift_pixels", &rs2_minz_control::shift_pixels ),
             make_field_printer( "threshold_mode", &rs2_minz_control::threshold_mode ),
+            make_field_printer( "threshold_mm", &rs2_minz_control::threshold_mm ),
         };
         return fields;
     }
@@ -306,9 +308,10 @@ namespace
         bool modified_field_matches = cfg.enable == cfg_to_send.enable;
         bool rest_intact = cfg.version == current.version && cfg.flags == current.flags
             && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
-            && cfg.param_type == current.param_type && cfg.downscale_ratio == current.downscale_ratio
-            && cfg.disparity_shift == current.disparity_shift && cfg.threshold == current.threshold
-            && cfg.threshold_mode == current.threshold_mode;
+            && cfg.param_type == current.param_type && cfg.filter_type == current.filter_type
+            && cfg.downscale_ratio == current.downscale_ratio && cfg.shift_mode == current.shift_mode
+            && cfg.shift_pixels == current.shift_pixels && cfg.threshold_mode == current.threshold_mode
+            && cfg.threshold_mm == current.threshold_mm;
         std::cout << " Struct.enable field" << ( modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
                   << "; all other fields " << ( rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" )
                   << ")\n";
