@@ -7,7 +7,7 @@ project(RealsenseExamples-CompositeCtl)
 # Save the command line compile commands in the build output
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
-# PROTOTYPE / DEMO: same full get/set/get_range/metadata walkthrough as
+# Same full get/set/get_range/metadata walkthrough as
 # examples/composite-option's rs-composite-option-demo.cpp, through the raw C API instead - no
 # exceptions, no templates, no RAII. See rs-composite-ctl.c.
 add_executable(rs-composite-ctl rs-composite-ctl.c ../example.h)

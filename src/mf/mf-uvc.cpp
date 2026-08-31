@@ -359,7 +359,7 @@ namespace librealsense
             // too, not an artificial 4-byte cap. That cap was correct for classic scalar PU/CT
             // controls (a value is genuinely at most a 4-byte int there, so length itself is <=4
             // and this was a no-op), but silently truncated multi-field composite XU controls
-            // (e.g. HKR MinZ Control's 38-byte rs2_minz_control, RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL):
+            // (e.g. HKR Improved Close Range Control's 38-byte rs2_improved_close_range_control, RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL):
             // the destination vector was correctly sized to the full option_range_size, but only
             // its first 4 bytes ever got populated from the device's real response - every field
             // past that offset silently stayed at std::vector's zero-init default, regardless of

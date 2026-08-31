@@ -22,8 +22,6 @@
 
 #include <src/embedded-filter-interface.h>
 
-#include <map>
-
 
 namespace librealsense
 {

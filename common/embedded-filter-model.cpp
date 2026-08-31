@@ -17,18 +17,18 @@ namespace rs2
 {
     namespace
     {
-        // DEBUG: every field actually read back from FW for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL -
+        // DEBUG: every field actually read back from FW for RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL -
         // called right after each real GET (initial seed and the toggle's read-modify-write), never
         // on every-frame no-op re-reads, so this reflects only genuine device round-trips.
         // LOG_DEBUG (not std::cout) so this only emits when the app's configured log verbosity is
         // DEBUG or more verbose, not at the default INFO level.
-        void print_minz_control( const rs2_minz_control & v )
+        void print_improved_close_range_control( const rs2_improved_close_range_control & v )
         {
-            LOG_DEBUG( "[MinZ GET] version=" << (int)v.version
-                       << " flags=" << (int)v.flags
-                       << " ctl_id=0x" << std::hex << v.ctl_id << std::dec
-                       << " param_count=" << (int)v.param_count
-                       << " param_type=" << (int)v.param_type
+            LOG_DEBUG( "[Improved Close Range GET] version=" << (int)v.header.version
+                       << " flags=" << (int)v.header.flags
+                       << " ctl_id=0x" << std::hex << v.header.ctl_id << std::dec
+                       << " param_count=" << (int)v.header.param_count
+                       << " param_type=" << (int)v.header.param_type
                        << " enable=" << v.enable
                        << " downscale_ratio=" << v.downscale_ratio
                        << " disparity_shift=" << v.disparity_shift
@@ -39,7 +39,7 @@ namespace rs2
 
         // Ties the manual-entry pencil icon and the number it opens together visually - the same
         // color on both is what says "these two are one mode," not just proximity.
-        const ImVec4 minz_manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
+        const ImVec4 improved_close_range_manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
     }
 
     embedded_filter_model::embedded_filter_model(
@@ -88,18 +88,18 @@ namespace rs2
         }
 
         // Composite options have no generic per-field editing UI (see embedded-filter-model.h) -
-        // RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL gets a hardcoded editor below; everything else
+        // RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL gets a hardcoded editor below; everything else
         // just shows read-only metadata (description, byte size).
         for( auto id : _composite_option_ids )
         {
             try
             {
-                if( id == RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL )
+                if( id == RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL )
                 {
-                    // No always-visible description line here - draw_minz_control_editor shows
+                    // No always-visible description line here - draw_improved_close_range_control_editor shows
                     // it as a tooltip on hovering the framed control instead, to save vertical
                     // space in this narrow side panel.
-                    draw_minz_control_editor( error_message );
+                    draw_improved_close_range_control_editor( error_message );
                     continue;
                 }
 
@@ -119,7 +119,7 @@ namespace rs2
         }
     }
 
-    bool embedded_filter_model::draw_minz_downscale_ratio_field()
+    bool embedded_filter_model::draw_improved_close_range_downscale_ratio_field()
     {
         // Downscale ratio only ever takes {1,2,4} - radio buttons, not a slider, so the user
         // can't land on an invalid value like 3 (mirrors the field validation tool's own UI).
@@ -128,29 +128,29 @@ namespace rs2
         for( int v : { 1, 2, 4 } )
         {
             ImGui::SameLine();
-            if( ImGui::RadioButton( ( std::to_string( v ) + "##minz_ratio" ).c_str(), _minz_editor.value.downscale_ratio == v ) )
+            if( ImGui::RadioButton( ( std::to_string( v ) + "##improved_close_range_ratio" ).c_str(), _improved_close_range_editor.value.downscale_ratio == v ) )
             {
-                _minz_editor.value.downscale_ratio = v;
-                _minz_editor.touch();
+                _improved_close_range_editor.value.downscale_ratio = v;
+                _improved_close_range_editor.touch();
                 // A mouse click lands on this exact frame as IsMouseClicked(); a keyboard/
                 // gamepad nav selection change reaches this same "pressed" return without one,
                 // since nothing was physically clicked - use the fast delay there so arrow-key
                 // navigation feels responsive instead of waiting out the same 1.7s a deliberate
                 // mouse click gets.
-                _minz_editor.finalize( ! ImGui::IsMouseClicked( ImGuiMouseButton_Left ) );
+                _improved_close_range_editor.finalize( ! ImGui::IsMouseClicked( ImGuiMouseButton_Left ) );
             }
             any_active = any_active || ImGui::IsItemActive();
         }
         return any_active;
     }
 
-    // The InputText half of draw_minz_manual_editable_field()'s two editing modes: a narrow,
+    // The InputText half of draw_improved_close_range_manual_editable_field()'s two editing modes: a narrow,
     // centered box seeded with the current value; Enter parses, clamps, and commits it, then
     // flips back to slider mode. touch() is called every frame this box has focus, not just on
     // change, so the debounce deadline stays parked at +infinity for the whole time the user is
     // engaged - otherwise a countdown already running from an earlier edit could reach zero and
     // fire a commit mid-edit.
-    bool embedded_filter_model::draw_minz_manual_input( const char * id, int & value, int min_v, int max_v,
+    bool embedded_filter_model::draw_improved_close_range_manual_input( const char * id, int & value, int min_v, int max_v,
                                                           bool & edit_mode, std::string & edit_buf )
     {
         char buf[32] = {};
@@ -163,7 +163,7 @@ namespace rs2
         float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
         ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
         ImGui::PushItemWidth( input_width );
-        ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+        ImGui::PushStyleColor( ImGuiCol_Text, improved_close_range_manual_edit_color );
         std::string input_id = rsutils::string::from() << "##" << id << "_input";
         bool submitted = ImGui::InputText( input_id.c_str(), buf, sizeof( buf ),
                                             ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
@@ -177,8 +177,8 @@ namespace rs2
             if( end != buf )
             {
                 value = (int)std::min( std::max( parsed, (long)min_v ), (long)max_v );
-                _minz_editor.touch();
-                _minz_editor.finalize();
+                _improved_close_range_editor.touch();
+                _improved_close_range_editor.finalize();
             }
             edit_mode = false;
         }
@@ -186,36 +186,36 @@ namespace rs2
             edit_buf = buf;
 
         if( ImGui::IsItemActive() )
-            _minz_editor.touch();
+            _improved_close_range_editor.touch();
         return ImGui::IsItemActive();
     }
 
-    // The slider half of draw_minz_manual_editable_field()'s two editing modes. ImGui sliders
+    // The slider half of draw_improved_close_range_manual_editable_field()'s two editing modes. ImGui sliders
     // don't do arrow-key nudging on their own, so it's implemented by hand: one focused arrow
     // press is one complete, discrete edit (touch()+finalize() together), like a radio/checkbox
     // click, rather than a drag that only finalizes on release.
-    bool embedded_filter_model::draw_minz_slider_with_arrows( const char * id, int & value, int min_v, int max_v )
+    bool embedded_filter_model::draw_improved_close_range_slider_with_arrows( const char * id, int & value, int min_v, int max_v )
     {
         std::string slider_id = rsutils::string::from() << "##" << id;
         if( ImGui::SliderInt( slider_id.c_str(), &value, min_v, max_v ) )
-            _minz_editor.touch();
+            _improved_close_range_editor.touch();
         if( ImGui::IsItemActive() )
-            _minz_editor.touch();
+            _improved_close_range_editor.touch();
         if( ImGui::IsItemDeactivatedAfterEdit() )
-            _minz_editor.finalize();
+            _improved_close_range_editor.finalize();
         else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
         {
             if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
             {
                 value = std::min( value + 1, max_v );
-                _minz_editor.touch();
-                _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                _improved_close_range_editor.touch();
+                _improved_close_range_editor.finalize( true );   // arrow-key nudge - fast turnaround
             }
             else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
             {
                 value = std::max( value - 1, min_v );
-                _minz_editor.touch();
-                _minz_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                _improved_close_range_editor.touch();
+                _improved_close_range_editor.finalize( true );   // arrow-key nudge - fast turnaround
             }
         }
         return ImGui::IsItemActive();
@@ -224,11 +224,11 @@ namespace rs2
     // One "label + pencil-toggle + (slider OR manual InputText)" field - shared by Disparity
     // Shift and Threshold (mm), which otherwise repeated this exact pattern twice. The pencil
     // button toggles between the two edit_mode/edit_buf-backed widgets drawn by
-    // draw_minz_manual_input()/draw_minz_slider_with_arrows() above (the same edit_mode/edit_buf
+    // draw_improved_close_range_manual_input()/draw_improved_close_range_slider_with_arrows() above (the same edit_mode/edit_buf
     // pattern option_model uses for ordinary scalar options in common/option-model.cpp, not
     // ImGui's native SliderInt Ctrl+Click/double-click text-input, which turned out not to be
     // reliably usable here).
-    bool embedded_filter_model::draw_minz_manual_editable_field( const char * label, const char * id, int & value,
+    bool embedded_filter_model::draw_improved_close_range_manual_editable_field( const char * label, const char * id, int & value,
                                                                    int min_v, int max_v, bool & edit_mode,
                                                                    std::string & edit_buf )
     {
@@ -237,7 +237,7 @@ namespace rs2
         {
             std::string edit_id = rsutils::string::from() << textual_icons::edit << "##" << id << "_edit";
             if( edit_mode )
-                ImGui::PushStyleColor( ImGuiCol_Text, minz_manual_edit_color );
+                ImGui::PushStyleColor( ImGuiCol_Text, improved_close_range_manual_edit_color );
             if( ImGui::SmallButton( edit_id.c_str() ) )
             {
                 if( ! edit_mode )
@@ -250,18 +250,18 @@ namespace rs2
                 ImGui::SetTooltip( edit_mode ? "Back to slider" : "Type an exact value" );
         }
 
-        return edit_mode ? draw_minz_manual_input( id, value, min_v, max_v, edit_mode, edit_buf )
-                          : draw_minz_slider_with_arrows( id, value, min_v, max_v );
+        return edit_mode ? draw_improved_close_range_manual_input( id, value, min_v, max_v, edit_mode, edit_buf )
+                          : draw_improved_close_range_slider_with_arrows( id, value, min_v, max_v );
     }
 
-    bool embedded_filter_model::draw_minz_threshold_mode_field()
+    bool embedded_filter_model::draw_improved_close_range_threshold_mode_field()
     {
-        bool manual = _minz_editor.value.threshold_mode != 0;
-        if( ImGui::Checkbox( "Manual Threshold##minz", &manual ) )
+        bool manual = _improved_close_range_editor.value.threshold_mode != 0;
+        if( ImGui::Checkbox( "Manual Threshold##improved_close_range", &manual ) )
         {
-            _minz_editor.value.threshold_mode = manual ? 1 : 0;
-            _minz_editor.touch();
-            _minz_editor.finalize();
+            _improved_close_range_editor.value.threshold_mode = manual ? 1 : 0;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize();
         }
         if( ImGui::IsItemHovered() )
             ImGui::SetTooltip( "Unchecked = Auto (firmware-computed threshold)" );
@@ -277,7 +277,7 @@ namespace rs2
     // rather than inline in the normal top-to-bottom flow, since its presence/absence shouldn't
     // shift any of the fields above it - the cursor is restored afterward so the NEXT thing this
     // panel draws isn't displaced.
-    bool embedded_filter_model::draw_minz_reset_to_default_overlay( rs2_composite_option_id id,
+    bool embedded_filter_model::draw_improved_close_range_reset_to_default_overlay( rs2_composite_option_id id,
                                                                       std::string & error_message,
                                                                       float frame_max_x,
                                                                       float frame_max_y )
@@ -302,19 +302,19 @@ namespace rs2
             // (one click = one discrete, debounced, atomically-committed change), rather than a
             // separate commit path, so it gets the fade animation and the undo grace window for
             // free. range.def is the FULL FW-reported default struct (header fields included);
-            // draw_minz_control_editor()'s before_commit forces enable back on regardless, same
+            // draw_improved_close_range_control_editor()'s before_commit forces enable back on regardless, same
             // as any other edit in this box - "reset" doesn't leave the control disabled even if
             // that's literally what the FW default says, for consistency with "touching this box
             // means you want it on."
             ImGui::SetCursorScreenPos( button_pos );
-            if( ImGui::Button( "Reset to Default##minz" ) )
+            if( ImGui::Button( "Reset to Default##improved_close_range" ) )
             {
                 try
                 {
-                    auto range = _embedded_filter->get_composite_option_range_as< rs2_minz_control_range >( id );
-                    _minz_editor.value = range.def;
-                    _minz_editor.touch();
-                    _minz_editor.finalize();
+                    auto range = _embedded_filter->get_composite_option_range_as< rs2_improved_close_range_control_range >( id );
+                    _improved_close_range_editor.value = range.def;
+                    _improved_close_range_editor.touch();
+                    _improved_close_range_editor.finalize();
                 }
                 catch( const std::exception & e )
                 {
@@ -336,11 +336,11 @@ namespace rs2
         return any_active;
     }
 
-    void embedded_filter_model::draw_minz_control_editor( std::string & error_message )
+    void embedded_filter_model::draw_improved_close_range_control_editor( std::string & error_message )
     {
-        const auto id = RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL;
+        const auto id = RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL;
 
-        if( ! _minz_editor.ensure_initialized( _embedded_filter, id, error_message, print_minz_control ) )
+        if( ! _improved_close_range_editor.ensure_initialized( _embedded_filter, id, error_message, print_improved_close_range_control ) )
             return;
 
         // Minimal indent - just enough padding that widget text doesn't sit flush on the frame
@@ -357,7 +357,7 @@ namespace rs2
         float frame_width = ImGui::GetContentRegionAvail().x -30.0f;
 
         // No separate Enable checkbox - the row header's own toggle (device-model.cpp's
-        // draw_embedded_filters()) drives rs2_minz_control::enable directly. Grey the whole box
+        // draw_embedded_filters()) drives rs2_improved_close_range_control::enable directly. Grey the whole box
         // out while it reads off (global alpha, not BeginDisabled, so fields stay clickable -
         // editing any of them while off forces enable back on at commit time below).
         const bool dim_while_disabled = ! _enabled;
@@ -369,12 +369,12 @@ namespace rs2
         // debounce countdown short. |= (not ||=): each call below draws real widgets as a side
         // effect and must run every frame regardless of the flag accumulated so far.
         bool any_field_active = false;
-        any_field_active |= draw_minz_downscale_ratio_field();
-        any_field_active |= draw_minz_manual_editable_field( "Disparity Shift:", "minz_shift",
-            _minz_editor.value.disparity_shift, 0, 512, _minz_shift_edit_mode, _minz_shift_edit_buf );
-        any_field_active |= draw_minz_manual_editable_field( "Threshold (mm):", "minz_threshold",
-            _minz_editor.value.threshold, 0, 65535, _minz_threshold_edit_mode, _minz_threshold_edit_buf );
-        any_field_active |= draw_minz_threshold_mode_field();
+        any_field_active |= draw_improved_close_range_downscale_ratio_field();
+        any_field_active |= draw_improved_close_range_manual_editable_field( "Disparity Shift:", "improved_close_range_shift",
+            _improved_close_range_editor.value.disparity_shift, 0, 512, _improved_close_range_shift_edit_mode, _improved_close_range_shift_edit_buf );
+        any_field_active |= draw_improved_close_range_manual_editable_field( "Threshold (mm):", "improved_close_range_threshold",
+            _improved_close_range_editor.value.threshold, 0, 65535, _improved_close_range_threshold_edit_mode, _improved_close_range_threshold_edit_buf );
+        any_field_active |= draw_improved_close_range_threshold_mode_field();
 
         ImGui::Dummy( ImVec2( 0, 2 ) );
         float frame_bottom = ImGui::GetCursorScreenPos().y;
@@ -384,15 +384,15 @@ namespace rs2
         // No line of its own is reserved for the reset overlay (frame_bottom sits right after the
         // last field's 2px pad), so it may partially overlap that field's row rather than pushing
         // the box taller.
-        any_field_active |= draw_minz_reset_to_default_overlay( id, error_message, frame_max.x, frame_max.y );
+        any_field_active |= draw_improved_close_range_reset_to_default_overlay( id, error_message, frame_max.x, frame_max.y );
 
         // Draws the dirty-state fade/border and sends the whole struct once the debounce timer
         // lapses (see composite_control_editor<T>). before_commit forces enable back on: without
         // an Enable checkbox in here anymore, a user who only touches e.g. Threshold would
         // otherwise send with enable unchanged (often off) - reflect that back into the row
         // toggle's own state too.
-        _minz_editor.end_frame_and_maybe_commit( _embedded_filter, id, error_message, frame_min, frame_max, any_field_active,
-            [this]( rs2_minz_control & v )
+        _improved_close_range_editor.end_frame_and_maybe_commit( _embedded_filter, id, error_message, frame_min, frame_max, any_field_active,
+            [this]( rs2_improved_close_range_control & v )
             {
                 v.enable = 1;
                 _enabled = true;
@@ -406,21 +406,21 @@ namespace rs2
 
     void embedded_filter_model::embedded_filter_enable_disable(bool actual)
     {
-        // Composite-only embedded filters (e.g. HKR MinZ Control) register no
+        // Composite-only embedded filters (e.g. HKR Improved Close Range Control) register no
         // RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar option at all - route the row header's
         // toggle through the composite option's own `enable` field instead: read-modify-write
         // so the other 4 fields go back exactly as the device last reported them, not
         // zero-initialized.
-        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL ) )
+        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL ) )
         {
             try
             {
-                _minz_editor.value = _embedded_filter->get_composite_option_as< rs2_minz_control >(
-                    RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL );
-                print_minz_control( _minz_editor.value );
-                _minz_editor.value.enable = actual ? 1 : 0;
-                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL, _minz_editor.value );
-                _minz_editor.initialized = true;
+                _improved_close_range_editor.value = _embedded_filter->get_composite_option_as< rs2_improved_close_range_control >(
+                    RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL );
+                print_improved_close_range_control( _improved_close_range_editor.value );
+                _improved_close_range_editor.value.enable = actual ? 1 : 0;
+                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL, _improved_close_range_editor.value );
+                _improved_close_range_editor.initialized = true;
                 _enabled = actual;
             }
             catch( const std::exception & )
@@ -476,19 +476,19 @@ namespace rs2
         _composite_option_ids = _embedded_filter->get_supported_composite_options();
         for( auto id : _composite_option_ids )
         {
-            // No generic per-composite-option editor exists yet (see draw_options()) - MinZ is
+            // No generic per-composite-option editor exists yet (see draw_options()) - Improved Close Range is
             // the one hardcoded case, and the only one with an `enable` field to prime here.
-            if( id != RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL )
+            if( id != RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL )
                 continue;
             if( ! _embedded_filter->supports_composite_option( id ) )
                 continue;
 
-            if( _minz_editor.ensure_initialized( _embedded_filter, id, error_message, print_minz_control ) )
+            if( _improved_close_range_editor.ensure_initialized( _embedded_filter, id, error_message, print_improved_close_range_control ) )
             {
                 // Composite state is the FALLBACK source of _enabled, not an override - a DDS
                 // filter that already set it from the scalar option in pass 1 keeps that value.
                 if( ! _embedded_filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
-                    _enabled = _minz_editor.value.enable != 0;
+                    _enabled = _improved_close_range_editor.value.enable != 0;
             }
         }
 

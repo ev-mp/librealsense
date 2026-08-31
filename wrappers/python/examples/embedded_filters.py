@@ -38,11 +38,11 @@ def list_embedded_filter_options(embedded_filter):
 # Known wire layouts for composite options this example knows how to interpret - there is no
 # generic "any composite option" cast (the SDK ships no per-id dispatch), so a new composite
 # option needs its layout added here too, same as every other composite-option sample's typed
-# dispatch. See rs_hkr_minz_control.h / rs_hkr_temporal_filter_dpp.h for the documented layouts.
+# dispatch. See rs_hkr_improved_close_range_control.h / rs_hkr_temporal_filter_dpp.h for the documented layouts.
 _COMPOSITE_OPTION_LAYOUTS = {
-    rs.composite_option_id.hkr_minz_control: (
+    rs.composite_option_id.hkr_improved_close_range_control: (
         # dppc_header (version, flags, ctl_id, param_count, param_type) shared by the whole HKR
-        # DPP control family, then MinZ's 5 logical fields, then 3 reserved (always 0) slots.
+        # DPP control family, then Improved Close Range's 5 logical fields, then 3 reserved (always 0) slots.
         '<BBHBBiiiiiiii',
         ['version', 'flags', 'ctl_id', 'param_count', 'param_type',
          'enable', 'downscale_ratio', 'disparity_shift', 'threshold', 'threshold_mode',

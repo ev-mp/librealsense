@@ -21,7 +21,7 @@ target_sources( ${PROJECT_NAME}
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_eth_config.h"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_composite_option.h"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_hkr_temporal_filter_dpp.h"
-        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_hkr_minz_control.h"
+        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_hkr_improved_close_range_control.h"
 
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/hpp/rs_types.hpp"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/hpp/rs_context.hpp"

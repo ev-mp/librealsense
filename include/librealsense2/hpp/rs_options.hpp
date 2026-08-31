@@ -373,13 +373,10 @@ namespace rs2
         };
 
         /**
-        * PROTOTYPE / DEMO API - see rs_composite_option.h for the underlying generic C API and
-        * the atomicity contract (single UVC transaction per call). Composite options are a
-        * completely separate identity space from ordinary rs2_option scalar options (see
-        * rs2_composite_option_id) - these four methods are the entire public C++ surface for
-        * them: no wrapper/handle type, no is<T>()/as<T>() casting - direct calls straight through
-        * to the corresponding rs2_* C function, exactly mirroring how get_option()/set_option()
-        * above do it for scalar options.
+        * See rs_composite_option.h for the underlying generic C API and the atomicity contract
+        * (single UVC transaction per call). These four methods are the entire public C++ surface
+        * for composite options: direct calls straight through to the corresponding rs2_* C
+        * function, mirroring how get_option()/set_option() above do it for scalar options.
         */
 
         /**
@@ -429,8 +426,9 @@ namespace rs2
         /**
         * typed counterpart to get_composite_option() - casts the raw payload directly into T
         * instead of handing back bytes for the caller to memcpy themselves. Validates that the
-        * device returned exactly sizeof(T) bytes, and - only for structs that carry a `version`
-        * field, e.g. rs2_minz_control - that it isn't the "never populated" sentinel (0).
+        * device returned exactly sizeof(T) bytes, and - only for structs with a composed
+        * dpp_header, e.g. rs2_improved_close_range_control - that its version isn't the "never
+        * populated" sentinel (0).
         * \param[in] id   composite option id to read
         * \return         T, populated from the option's current raw payload
         */
@@ -444,8 +442,9 @@ namespace rs2
 
         /**
         * typed counterpart to get_composite_option_range() - casts the raw {min,max,step,def}
-        * payload directly into TRange (e.g. rs2_minz_control_range) instead of handing back
-        * bytes. Same size/version validation as get_composite_option_as().
+        * payload directly into TRange (e.g. rs2_improved_close_range_control_range) instead of handing back
+        * bytes. Validates that the device returned exactly sizeof(TRange) bytes; a range struct
+        * has no version field of its own to further validate (see check_version_populated()).
         * \param[in] id   composite option id to read
         * \return         TRange, populated from the option's raw range payload
         */
@@ -579,38 +578,39 @@ namespace rs2
 
         // ---- typed composite-option cast helpers (get_composite_option_as() and friends) -----
         //
-        // Detects whether T has a `.version` member WITHOUT requiring T to opt in explicitly -
-        // this alone covers every composite-option struct in the SDK today: both range wrappers
-        // (rs2_temporal_filter_dpp_range::version, rs2_minz_control_range::version) and any value
-        // struct that embeds its own wire header (rs2_minz_control::version). A struct with no
-        // such field (rs2_temporal_filter_dpp_config) falls through to the no-op overload below -
-        // there is nothing to check for it.
+        // Detects whether T has a `.header.version` member via a composed dpp_header (see
+        // rs_dpp_header.h) - value structs like rs2_improved_close_range_control. Only value
+        // structs are checked: they're the ones a caller can hand-build and pass to
+        // set_composite_option_from() (get-modify-set), so a zero/never-populated header is a
+        // real bug worth catching. Range structs (e.g. rs2_improved_close_range_control_range)
+        // are always freshly read and returned whole, never hand-built, so there's nothing to
+        // check for them - they fall through to the no-op overload below, same as a struct with
+        // no version at all (e.g. rs2_temporal_filter_dpp_config).
         template< typename U >
-        class has_version_member
+        class has_header_version
         {
-            template< typename V > static auto test( int ) -> decltype( std::declval< V >().version, std::true_type{} );
+            template< typename V > static auto test( int ) -> decltype( std::declval< V >().header.version, std::true_type{} );
             template< typename > static std::false_type test( ... );
         public:
             static const bool value = decltype( test< U >( 0 ) )::value;
         };
 
         template< typename T >
-        static typename std::enable_if< ! has_version_member< T >::value >::type
+        static typename std::enable_if< ! has_header_version< T >::value >::type
         check_version_populated( const T & )
         {
-            // T has no version field (e.g. rs2_temporal_filter_dpp_config) - nothing to check.
+            // T has no header.version field - nothing to check.
         }
 
+        // Convention across every struct that carries a header.version field: valid versions
+        // start at 1. A 0 means "never populated" - set_composite_option_from() is about to send
+        // a default-initialized header the device never asked for (the most likely real bug: a
+        // get-modify-set that skipped the get).
         template< typename T >
-        static typename std::enable_if< has_version_member< T >::value >::type
+        static typename std::enable_if< has_header_version< T >::value >::type
         check_version_populated( const T & value )
         {
-            // Convention across every struct that carries this field (see rs_composite_option.h
-            // and the per-feature headers it points to): valid versions start at 1. A 0 means
-            // "never populated" - either get_composite_option_as() got back fewer meaningful
-            // bytes than expected, or set_composite_option_from() is about to send a
-            // default-initialized header the device never asked for.
-            if( value.version == 0 )
+            if( value.header.version == 0 )
                 throw std::runtime_error( "composite option struct has an unpopulated version field (0) "
                                            "- wrong struct for this option id, or a zero-initialized "
                                            "header about to be sent?" );

@@ -34,11 +34,11 @@ namespace rs2
             start_color.w + ( target_blue.w - start_color.w ) * progress );
     }
 
-    // PROTOTYPE / DEMO: reusable debounced-auto-commit editor for a composite option's local
-    // struct T. Extracted from the original HKR MinZ Control implementation so any other
+    // Reusable debounced-auto-commit editor for a composite option's local
+    // struct T. Extracted from the original HKR Improved Close Range Control implementation so any other
     // multi-param composite option can get the same behavior - touch -> fade in -> reset on
     // retouch -> hard commit on lapse - by holding one of these instead of re-implementing the
-    // mechanism. See embedded_filter_model::draw_minz_control_editor() for the reference usage.
+    // mechanism. See embedded_filter_model::draw_improved_close_range_control_editor() for the reference usage.
     //
     // The whole framed group is treated as ONE editing unit, matching T being one atomic
     // multi-field struct sent in a single UVC transaction - there is no per-field Send.

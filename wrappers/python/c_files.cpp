@@ -58,7 +58,7 @@ void init_c_files(py::module &m) {
 
     m.def( "option_from_string", &rs2_option_from_string );
 
-    // PROTOTYPE / DEMO: rs2_composite_option_id is a completely separate identity space from
+    // rs2_composite_option_id is a completely separate identity space from
     // rs2_option above (see rs_composite_option.h) - a multi-field control's own id, not a
     // scalar option. No from_string() reverse lookup exists for it (see
     // rs2_composite_option_id_to_string()'s own doc comment).

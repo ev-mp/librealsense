@@ -1,8 +1,6 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO extension - not a finalized production interface.
-//
 // A completely independent, standalone interface backing a "composite option": a multi-field
 // control whose fields are exchanged atomically (see include/librealsense2/h/rs_composite_option.h
 // for the public entry points this backs). This is NOT a specialization of, and shares NO common
@@ -45,14 +43,11 @@ public:
     virtual std::vector< uint8_t > get_raw() const = 0;
     virtual void set_raw( const void * data, size_t size ) = 0;
 
-    // Backs rs2_get_composite_option_range. Generic, versioned convention (reusable for ANY
-    // composite option, not just this one): a 4-byte little-endian "unsigned int version"
-    // (currently always 1) followed by four back-to-back payloads, each the option's normal
-    // wire size (as returned by get_raw()) - min, max, step, def, in that order. This is exactly
-    // the layout of rs2_temporal_filter_dpp_range for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP
-    // (see rs_hkr_temporal_filter_dpp.h), and is meant to generalize the same way to any future
-    // composite option's range struct (version field first, then one payload-sized min/max/step/
-    // def each).
+    // Backs rs2_get_composite_option_range. Generic convention (reusable for ANY composite
+    // option, not just this one): four back-to-back payloads, each the option's normal wire size
+    // (as returned by get_raw()) - min, max, step, def, in that order. No version field: a range
+    // is always freshly read and returned whole, never hand-built and sent back, so there is
+    // nothing for a version to guard against.
     virtual std::vector< uint8_t > get_raw_range() const = 0;
 
     // Real, meaningful metadata for a composite control, just as it is for a scalar option -

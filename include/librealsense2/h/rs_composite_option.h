@@ -3,33 +3,12 @@
 
 /** \file rs_composite_option.h
 * \brief
-* PROTOTYPE / DEMO API - not a finalized production interface.
-*
-* Generic "composite option" entry points: a small family of functions shared by every
-* composite (multi-field, atomically-exchanged) XU control. Composite options are a COMPLETELY
-* SEPARATE identity space from ordinary rs2_option scalar options - keyed by rs2_composite_option_id
-* below, which has zero relationship to rs2_option: different type, different namespace,
-* different registry. This is a deliberate pivot away from an earlier iteration of this
-* mechanism that reused rs2_option for composite ids; that design let generic/existing code that
-* iterates all supported (scalar) options and blindly calls rs2_get_option/rs2_set_option on each
-* one unexpectedly THROW when it hit a composite entry, since it still nominally looked like a
-* normal option. With a separate id type and a separate enumeration
-* (rs2_get_composite_options_list, never mixed into rs2_get_options_list), that failure mode is
-* structurally impossible: generic scalar-option code simply never sees a composite id.
-*
-* Any rs2_options* handle - a sensor OR an embedded_filter, both of which wrap rs2_options* (see
-* rs2::options) - that supports a given composite option can be driven through the calls below.
-*
-* The SDK does NOT ship a public typed struct per feature's wire layout as a rule; two exceptions
-* exist so far, for the prototype HKR Temporal Filter DPP and HKR/D5X5 MinZ controls, whose
-* layouts are public as documentation/cast-target convenience (see
-* rs_hkr_temporal_filter_dpp.h / rs_hkr_minz_control.h) - but the entry points below never change
-* shape as new composite options are added: adding one means adding an enumerator to
-* rs2_composite_option_id and registering it internally, not adding new public functions.
-*
-* Each call performs EXACTLY ONE UVC control transaction (one set_xu/get_xu round trip): all
-* fields of the option's payload travel together, atomically - never as separate per-field
-* writes/reads.
+* Generic entry points shared by every composite (multi-field, atomically-exchanged) XU control.
+* Composite options are a separate identity space from rs2_option - keyed by
+* rs2_composite_option_id, its own enumeration (rs2_get_composite_options_list), never mixed with
+* scalar options. Any rs2_options* handle (sensor or embedded_filter) that supports a given
+* composite option can be driven through the calls below. Each call is exactly one UVC
+* transaction: all fields of the option's payload travel together, atomically.
 */
 
 #ifndef LIBREALSENSE_RS2_COMPOSITE_OPTION_H
@@ -47,21 +26,10 @@ extern "C" {
 * options. */
 typedef enum rs2_composite_option_id
 {
-    /** PROTOTYPE / DEMO option id - not a finalized production control. HKR (D555-class) Depth
-     * Post-Processing "Temporal Filter": a single multi-field control whose 4 logical fields
-     * (enabled, smooth_alpha, smooth_delta, persistency_index) are exchanged atomically, in ONE
-     * UVC transaction, via the generic composite-option entry points below. Cast the raw payload
-     * to/from rs2_temporal_filter_dpp_config / rs2_temporal_filter_dpp_range, see
-     * rs_hkr_temporal_filter_dpp.h. */
+    /** HKR (D555-class) Depth Post-Processing "Temporal Filter" - see rs_hkr_temporal_filter_dpp.h. */
     RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-    /** PROTOTYPE / DEMO option id - not a finalized production control. HKR/D5X5 MinZ control: a
-     * single multi-field control whose 5 logical fields (enable, downscale_ratio,
-     * disparity_shift, threshold, threshold_mode) are exchanged atomically, in ONE UVC
-     * transaction, via the generic composite-option entry points below. Wire layout is shared
-     * with the rest of the HKR DPP control family (dppc_header + dppc_ctl), not MinZ-specific.
-     * Cast the raw payload to/from rs2_minz_control / rs2_minz_control_range, see
-     * rs_hkr_minz_control.h. */
-    RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL,
+    /** HKR/D5X5 Improved Close Range control - see rs_hkr_improved_close_range_control.h. */
+    RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL,
     RS2_COMPOSITE_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
 } rs2_composite_option_id;
 

@@ -1,14 +1,12 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO class - not a finalized production control ID or wire format.
-//
 // Generic, reusable composite (multi-field, atomically-exchanged) XU control - NOT named after
 // any specific feature. Any future multi-param XU control that needs to exchange a packed
 // struct atomically with the device can reuse this exact class; the only per-feature footprint
 // is the (extension_unit, ctrl_id, wire_size) triple passed to the constructor and the
 // rs2_composite_option_id it gets registered under via the existing
-// options_container::register_composite_option (see d500_temporal_embedded_filter, the first
+// options_container::register_composite_option (see composite_embedded_filter, the first
 // user of this class).
 //
 // Implements ONLY composite_option_interface - a fully independent interface with zero

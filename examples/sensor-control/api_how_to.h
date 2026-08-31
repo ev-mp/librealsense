@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 #include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_improved_close_range_control.h>
 #include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 #include "helper.h"
 
@@ -413,16 +413,16 @@ public:
     {
         // Unlike get_sensor_option() above, there is no generic "any composite option" cast -
         // the SDK ships no per-id dispatch, so the caller is expected to know each id's
-        // documented wire struct (see rs_hkr_minz_control.h / rs_hkr_temporal_filter_dpp.h) and
+        // documented wire struct (see rs_hkr_improved_close_range_control.h / rs_hkr_temporal_filter_dpp.h) and
         // cast accordingly via get_composite_option_as<T>(). A new composite option needs a case
         // added here too.
         try
         {
             switch (id)
             {
-            case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
+            case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:
             {
-                rs2_minz_control v = filter.get_composite_option_as<rs2_minz_control>(id);
+                rs2_improved_close_range_control v = filter.get_composite_option_as<rs2_improved_close_range_control>(id);
                 std::cout << "  enable          : " << v.enable << std::endl;
                 std::cout << "  downscale_ratio : " << v.downscale_ratio << std::endl;
                 std::cout << "  disparity_shift : " << v.disparity_shift << std::endl;
@@ -467,12 +467,12 @@ public:
 
         switch (id)
         {
-        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
+        case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:
         {
-            rs2_minz_control cfg;
+            rs2_improved_close_range_control cfg;
             try
             {
-                cfg = filter.get_composite_option_as<rs2_minz_control>(id);
+                cfg = filter.get_composite_option_as<rs2_improved_close_range_control>(id);
             }
             catch (const rs2::error& e)
             {
@@ -480,7 +480,7 @@ public:
                 return;
             }
 
-            rs2_minz_control_range range = filter.get_composite_option_range_as<rs2_minz_control_range>(id);
+            rs2_improved_close_range_control_range range = filter.get_composite_option_range_as<rs2_improved_close_range_control_range>(id);
             std::cout << "Supported range:" << std::endl;
             std::cout << "  enable          : [" << range.min.enable << ", " << range.max.enable << "]" << std::endl;
             std::cout << "  downscale_ratio : [" << range.min.downscale_ratio << ", " << range.max.downscale_ratio << "]" << std::endl;

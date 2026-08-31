@@ -3,17 +3,17 @@
 
 /* C99 composite-option walkthrough - the same device sweep and the same full per-id exercise
    (Get, Set read-modify-write, Get again + verify, Get range, metadata) as the C++
-   rs-composite-option-demo.cpp / rs-minz-control-walkthrough.cpp samples, through the raw C
+   rs-composite-option-demo.cpp / rs-improved-close-range-control-walkthrough.cpp samples, through the raw C
    API instead: no exceptions (every rs2_error* is checked by hand), no templates (no
    get_composite_option_as<T>()/get_composite_option_range_as<TRange>() - every cast is a manual
    memcpy into the documented wire struct), no RAII (every list/device/sensor/filter/buffer freed
    explicitly), no generic field-printer machinery (no pointer-to-member in C - each struct's
-   fields are just spelled out once, by hand, in print_minz_struct()/print_minz_range()).
+   fields are just spelled out once, by hand, in print_improved_close_range_struct()/print_improved_close_range_range()).
    Everything else - what gets read, written, and printed - matches the C++ walkthrough field for
    field, so a C99-only caller has one place that shows the full surface of this API family. */
 
 #include <librealsense2/rs.h>
-#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_improved_close_range_control.h>
 #include "example.h"   /* shared check_error()/print_device_info() used by every Examples/C sample */
 
 #include <stdio.h>
@@ -25,7 +25,7 @@ static const char * composite_option_name( rs2_composite_option_id id )
     switch( id )
     {
     case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-    case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        return "HKR_MINZ_CONTROL";
+    case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:        return "HKR_IMPROVED_CLOSE_RANGE_CONTROL";
     default:                                           return "UNKNOWN";
     }
 }
@@ -58,16 +58,16 @@ static void print_bytes( const char * label, const unsigned char * data, int siz
     printf( "\n" );
 }
 
-/* C99 equivalent of the C++ walkthrough's generic print_struct(minz_fields(), ...) - no
+/* C99 equivalent of the C++ walkthrough's generic print_struct(improved_close_range_fields(), ...) - no
    pointer-to-member table to drive it in C, so every field is spelled out here once, in wire
-   order, matching rs_hkr_minz_control.h. */
-static void print_minz_struct( const rs2_minz_control * v )
+   order, matching rs_hkr_improved_close_range_control.h. */
+static void print_improved_close_range_struct( const rs2_improved_close_range_control * v )
 {
-    printf( "        %-16s = %d\n", "version", (int)v->version );
-    printf( "        %-16s = %d\n", "flags", (int)v->flags );
-    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->ctl_id );
-    printf( "        %-16s = %d\n", "param_count", (int)v->param_count );
-    printf( "        %-16s = %d\n", "param_type", (int)v->param_type );
+    printf( "        %-16s = %d\n", "version", (int)v->header.version );
+    printf( "        %-16s = %d\n", "flags", (int)v->header.flags );
+    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->header.ctl_id );
+    printf( "        %-16s = %d\n", "param_count", (int)v->header.param_count );
+    printf( "        %-16s = %d\n", "param_type", (int)v->header.param_type );
     printf( "        %-16s = %d\n", "enable", v->enable );
     printf( "        %-16s = %d\n", "downscale_ratio", v->downscale_ratio );
     printf( "        %-16s = %d\n", "disparity_shift", v->disparity_shift );
@@ -75,49 +75,49 @@ static void print_minz_struct( const rs2_minz_control * v )
     printf( "        %-16s = %d\n", "threshold_mode", v->threshold_mode );
 }
 
-/* C99 equivalent of the C++ walkthrough's generic print_range(minz_fields(), ...): one header
+/* C99 equivalent of the C++ walkthrough's generic print_range(improved_close_range_fields(), ...): one header
    line naming the columns, then one row per field, name = [ min, max, default, step ]. */
-static void print_minz_range( const rs2_minz_control_range * r )
+static void print_improved_close_range_range( const rs2_improved_close_range_control_range * r )
 {
     printf( "        %-16s   [ min, max, default, step ]\n", "" );
-#define MINZ_RANGE_ROW( label, field ) \
+#define IMPROVED_CLOSE_RANGE_ROW( label, field ) \
     printf( "        %-16s = [ %d, %d, %d, %d ]\n", label, \
             (int)r->min.field, (int)r->max.field, (int)r->def.field, (int)r->step.field )
-    MINZ_RANGE_ROW( "version", version );
-    MINZ_RANGE_ROW( "flags", flags );
-    MINZ_RANGE_ROW( "ctl_id", ctl_id );
-    MINZ_RANGE_ROW( "param_count", param_count );
-    MINZ_RANGE_ROW( "param_type", param_type );
-    MINZ_RANGE_ROW( "enable", enable );
-    MINZ_RANGE_ROW( "downscale_ratio", downscale_ratio );
-    MINZ_RANGE_ROW( "disparity_shift", disparity_shift );
-    MINZ_RANGE_ROW( "threshold", threshold );
-    MINZ_RANGE_ROW( "threshold_mode", threshold_mode );
-#undef MINZ_RANGE_ROW
+    IMPROVED_CLOSE_RANGE_ROW( "version", header.version );
+    IMPROVED_CLOSE_RANGE_ROW( "flags", header.flags );
+    IMPROVED_CLOSE_RANGE_ROW( "ctl_id", header.ctl_id );
+    IMPROVED_CLOSE_RANGE_ROW( "param_count", header.param_count );
+    IMPROVED_CLOSE_RANGE_ROW( "param_type", header.param_type );
+    IMPROVED_CLOSE_RANGE_ROW( "enable", enable );
+    IMPROVED_CLOSE_RANGE_ROW( "downscale_ratio", downscale_ratio );
+    IMPROVED_CLOSE_RANGE_ROW( "disparity_shift", disparity_shift );
+    IMPROVED_CLOSE_RANGE_ROW( "threshold", threshold );
+    IMPROVED_CLOSE_RANGE_ROW( "threshold_mode", threshold_mode );
+#undef IMPROVED_CLOSE_RANGE_ROW
 }
 
-/* Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL -
-   the C99 equivalent of exercise_minz_control() in rs-composite-option-demo.cpp. Same 5
+/* Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL -
+   the C99 equivalent of exercise_improved_close_range_control() in rs-composite-option-demo.cpp. Same 5
    operations, in the same order:
-     1) Get (before)  - raw bytes, then the manual cast to rs2_minz_control
+     1) Get (before)  - raw bytes, then the manual cast to rs2_improved_close_range_control
      2) Set            - read-modify-write: only `enable` is toggled, everything else carried
                           through untouched from what was just read
      3) Get (after)    - confirm `enable` against what was sent, and every OTHER field against
                           what was on the device before the Set
-     4) Get range      - raw bytes, then the manual cast to rs2_minz_control_range
+     4) Get range      - raw bytes, then the manual cast to rs2_improved_close_range_control_range
      5) Query info      - read-only flag, human-readable description
    A registered-but-non-functional control is a real possibility on real hardware (see the file
    header note in rs-composite-option-demo.cpp) - reported as SKIPPED via `goto skipped`
    rather than aborting the whole program, the closest C99 equivalent of that walkthrough's
    per-id try/catch. Returns 1 if every step succeeded, 0 if skipped partway through. */
-static int exercise_minz_control( const rs2_options * opts, rs2_composite_option_id id )
+static int exercise_improved_close_range_control( const rs2_options * opts, rs2_composite_option_id id )
 {
     rs2_error * e = NULL;
     const rs2_raw_data_buffer * raw;
     const unsigned char * bytes;
     int size;
-    rs2_minz_control current, cfg_to_send, cfg;
-    rs2_minz_control_range range;
+    rs2_improved_close_range_control current, cfg_to_send, cfg;
+    rs2_improved_close_range_control_range range;
     int modified_field_matches, rest_intact;
 
     /* 1) Get (before) - both forms of the read, same as the C++ walkthrough: the raw untyped
@@ -147,7 +147,7 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
     memcpy( &current, bytes, sizeof( current ) );
     rs2_delete_raw_data( raw );
     printf( "      Get Structured Data:\n" );
-    print_minz_struct( &current );
+    print_improved_close_range_struct( &current );
 
     /* 2) Set - read-modify-write: wire header and every other field carried over untouched from
        `current`, not zero-initialized - only `enable` is the field this walkthrough means to
@@ -179,7 +179,7 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
     memcpy( &cfg, bytes, sizeof( cfg ) );
     rs2_delete_raw_data( raw );
     printf( "      Get modified Structure Data:\n" );
-    print_minz_struct( &cfg );
+    print_improved_close_range_struct( &cfg );
 
     /* Only `enable` was deliberately changed above (toggled) - check IT against what was sent,
        and separately check every OTHER field against `current` (what was actually on the device
@@ -188,17 +188,17 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
        write - unlike an in-memory mock, a mismatch here isn't necessarily a bug, so it is
        reported, not treated as fatal. */
     modified_field_matches = ( cfg.enable == cfg_to_send.enable );
-    rest_intact = cfg.version == current.version && cfg.flags == current.flags
-        && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
-        && cfg.param_type == current.param_type && cfg.downscale_ratio == current.downscale_ratio
+    rest_intact = cfg.header.version == current.header.version && cfg.header.flags == current.header.flags
+        && cfg.header.ctl_id == current.header.ctl_id && cfg.header.param_count == current.header.param_count
+        && cfg.header.param_type == current.header.param_type && cfg.downscale_ratio == current.downscale_ratio
         && cfg.disparity_shift == current.disparity_shift && cfg.threshold == current.threshold
         && cfg.threshold_mode == current.threshold_mode;
     printf( "      enable field %s; all other fields %s\n",
             modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write",
             rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" );
 
-    /* 4) Get range - raw bytes, then the manual cast to rs2_minz_control_range (4 full copies of
-       the struct - min/max/step/def, header fields included - see rs_hkr_minz_control.h). */
+    /* 4) Get range - raw bytes, then the manual cast to rs2_improved_close_range_control_range (4 full copies of
+       the struct - min/max/step/def, header fields included - see rs_hkr_improved_close_range_control.h). */
     raw = rs2_get_composite_option_range( opts, id, &e );
     if( e )
         goto skipped;
@@ -223,11 +223,8 @@ static int exercise_minz_control( const rs2_options * opts, rs2_composite_option
     print_bytes( "      Get Range", bytes, size );
     memcpy( &range, bytes, sizeof( range ) );
     rs2_delete_raw_data( raw );
-    /* range.version versions the {min,max,step,def} WRAPPER shape itself (hardcoded by the SDK
-       when it packs the reply) - a separate concept from rs2_minz_control::version inside each
-       of the four bounds, which IS read from the device. */
-    printf( "      Range (version=%u):\n", range.version );
-    print_minz_range( &range );
+    printf( "      Range:\n" );
+    print_improved_close_range_range( &range );
 
     /* 5) Query info. */
     printf( "      Read-only: %s\n", rs2_is_composite_option_read_only( opts, id, &e ) ? "true" : "false" );
@@ -255,8 +252,8 @@ static int exercise_composite_option( const rs2_options * opts, rs2_composite_op
 {
     switch( id )
     {
-    case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
-        return exercise_minz_control( opts, id );
+    case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:
+        return exercise_improved_close_range_control( opts, id );
     default:
         printf( "      (no typed walkthrough registered for this composite option id)\n" );
         return -1;

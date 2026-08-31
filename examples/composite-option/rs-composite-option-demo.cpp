@@ -1,15 +1,15 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO reference sample - "how do I use the composite-option API" walkthrough,
-// against REAL connected devices - no fake/mock transport. Full sequence:
+// Reference sample - "how do I use the composite-option API" walkthrough, against REAL
+// connected devices - no fake/mock transport. Full sequence:
 //
 //   1) rs2::context::query_devices()          - enumerate connected devices
 //   2) dev.query_sensors() + is<depth_sensor>() - find each device's depth sensor(s)
 //   3) sensor.query_embedded_filters()         - composite options live on a sensor's EMBEDDED
 //      FILTERs, each its OWN independent options registry - NOT on the depth sensor's own
-//      registry directly (see src/ds/d500/d500-minz-embedded-filter.cpp/
-//      d500-temporal-embedded-filter.cpp's register_composite_option calls). Calling
+//      registry directly (see src/ds/d500/composite-embedded-filter.cpp's register_composite_option
+//      call, used by both hdrd-embedded-filter.h and temporal-filter-feature.cpp). Calling
 //      get_supported_composite_options() straight on the sensor always comes back empty; querying
 //      only ONE embedded filter only ever shows that filter's own id(s), never another filter's -
 //      every filter must be walked to see every composite option a sensor exposes.
@@ -36,10 +36,11 @@
 
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
-#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_improved_close_range_control.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
@@ -53,7 +54,7 @@ namespace
         switch( id )
         {
         case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        return "HKR_MINZ_CONTROL";
+        case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:        return "HKR_IMPROVED_CLOSE_RANGE_CONTROL";
         default:                                           return "UNKNOWN";
         }
     }
@@ -103,11 +104,11 @@ namespace
     // construction, behind a common NON-TEMPLATED base interface - that's what lets a list of
     // these be iterated generically without the iterating code ever knowing S or Attribute.
     // print_struct() below has zero field names hardcoded in it and works for ANY struct type;
-    // only the small per-type static table (minz_fields()/temporal_filter_dpp_fields()) needs to
+    // only the small per-type static table (improved_close_range_fields()/temporal_filter_dpp_fields()) needs to
     // name each field, exactly once, ever.
 
     // uint8_t/int8_t stream as characters via the default operator<< - not useful for a byte-
-    // sized numeric field like rs2_minz_control::version - so route those through an int cast.
+    // sized numeric field like dpp_header::version - so route those through an int cast.
     // Every other type (int32_t, float, uint16_t, ...) uses the generic overload as-is.
     inline void stream_value( std::ostream & os, uint8_t v ) { os << (unsigned int)v; }
     inline void stream_value( std::ostream & os, int8_t v ) { os << (int)v; }
@@ -129,11 +130,15 @@ namespace
         virtual ~field_printer_base() = default;
     };
 
+    // Stores a std::function accessor rather than a raw pointer-to-member so the same class
+    // covers both a direct field (S::*) and one nested a level down through a composed header
+    // (S::*header, Header::*field) - see the two make_field_printer() overloads below.
     template< class S, class Attribute >
     class field_printer : public field_printer_base
     {
     public:
-        field_printer( const char * name, Attribute S::* field ) : _name( name ), _field( field ) {}
+        field_printer( const char * name, std::function< const Attribute &( const S & ) > accessor )
+            : _name( name ), _accessor( std::move( accessor ) ) {}
 
         const char * name() const override { return _name; }
 
@@ -141,25 +146,35 @@ namespace
         {
             auto & s = *reinterpret_cast< const S * >( struct_ptr );
             os << "        " << std::left << std::setw( (int)name_width ) << _name << std::right << " = ";
-            stream_value( os, s.*_field );
+            stream_value( os, _accessor( s ) );
             os << '\n';
         }
 
         void print_value( std::ostream & os, const void * struct_ptr ) const override
         {
             auto & s = *reinterpret_cast< const S * >( struct_ptr );
-            stream_value( os, s.*_field );
+            stream_value( os, _accessor( s ) );
         }
 
     private:
         const char * _name;
-        Attribute S::* _field;
+        std::function< const Attribute &( const S & ) > _accessor;
     };
 
     template< class S, class Attribute >
     std::shared_ptr< field_printer_base > make_field_printer( const char * name, Attribute S::* field )
     {
-        return std::make_shared< field_printer< S, Attribute > >( name, field );
+        return std::make_shared< field_printer< S, Attribute > >( name,
+            [field]( const S & s ) -> const Attribute & { return s.*field; } );
+    }
+
+    // Overload for a field nested one level down through a composed sub-struct, e.g.
+    // rs2_improved_close_range_control::header (a dpp_header) then dpp_header::version.
+    template< class S, class H, class Attribute >
+    std::shared_ptr< field_printer_base > make_field_printer( const char * name, H S::* header_field, Attribute H::* field )
+    {
+        return std::make_shared< field_printer< S, Attribute > >( name,
+            [header_field, field]( const S & s ) -> const Attribute & { return ( s.*header_field ).*field; } );
     }
 
     // The one fully generic entry point - takes whichever field table matches S, no per-struct
@@ -202,19 +217,19 @@ namespace
         }
     }
 
-    const std::vector< std::shared_ptr< field_printer_base > > & minz_fields()
+    const std::vector< std::shared_ptr< field_printer_base > > & improved_close_range_fields()
     {
         static const std::vector< std::shared_ptr< field_printer_base > > fields = {
-            make_field_printer( "version", &rs2_minz_control::version ),
-            make_field_printer( "flags", &rs2_minz_control::flags ),
-            make_field_printer( "ctl_id", &rs2_minz_control::ctl_id ),
-            make_field_printer( "param_count", &rs2_minz_control::param_count ),
-            make_field_printer( "param_type", &rs2_minz_control::param_type ),
-            make_field_printer( "enable", &rs2_minz_control::enable ),
-            make_field_printer( "downscale_ratio", &rs2_minz_control::downscale_ratio ),
-            make_field_printer( "disparity_shift", &rs2_minz_control::disparity_shift ),
-            make_field_printer( "threshold", &rs2_minz_control::threshold ),
-            make_field_printer( "threshold_mode", &rs2_minz_control::threshold_mode ),
+            make_field_printer( "version", &rs2_improved_close_range_control::header, &dpp_header::version ),
+            make_field_printer( "flags", &rs2_improved_close_range_control::header, &dpp_header::flags ),
+            make_field_printer( "ctl_id", &rs2_improved_close_range_control::header, &dpp_header::ctl_id ),
+            make_field_printer( "param_count", &rs2_improved_close_range_control::header, &dpp_header::param_count ),
+            make_field_printer( "param_type", &rs2_improved_close_range_control::header, &dpp_header::param_type ),
+            make_field_printer( "enable", &rs2_improved_close_range_control::enable ),
+            make_field_printer( "downscale_ratio", &rs2_improved_close_range_control::downscale_ratio ),
+            make_field_printer( "disparity_shift", &rs2_improved_close_range_control::disparity_shift ),
+            make_field_printer( "threshold", &rs2_improved_close_range_control::threshold ),
+            make_field_printer( "threshold_mode", &rs2_improved_close_range_control::threshold_mode ),
         };
         return fields;
     }
@@ -264,7 +279,7 @@ namespace
 
         print_bytes( "Get Range", opts.get_composite_option_range( id ) );
         auto range = opts.get_composite_option_range_as< rs2_temporal_filter_dpp_range >( id );
-        std::cout << "      Range (version=" << range.version << "): enabled[" << range.min.enabled << ".."
+        std::cout << "      Range: enabled[" << range.min.enabled << ".."
                   << range.max.enabled << "] smooth_alpha[" << range.min.smooth_alpha << ".." << range.max.smooth_alpha
                   << "] smooth_delta[" << range.min.smooth_delta << ".." << range.max.smooth_delta
                   << "] persistency_index[" << range.min.persistency_index << ".." << range.max.persistency_index
@@ -274,8 +289,8 @@ namespace
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
     }
 
-    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL.
-    void exercise_minz_control( rs2::options & opts, rs2_composite_option_id id )
+    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL.
+    void exercise_improved_close_range_control( rs2::options & opts, rs2_composite_option_id id )
     {
         // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
         // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
@@ -283,48 +298,46 @@ namespace
         // APIs - production code would normally only need the typed one.
         
         print_bytes( "Get Raw Data:", opts.get_composite_option( id ) );
-        auto current = opts.get_composite_option_as< rs2_minz_control >( id );
+        auto current = opts.get_composite_option_as< rs2_improved_close_range_control >( id );
         std::cout << "Get Structured Data:\n";
-        print_struct( std::cout, minz_fields(), current );
+        print_struct( std::cout, improved_close_range_fields(), current );
 
         // Read-modify-write: wire header (version/flags/ctl_id/param_count/param_type) carried
         // over untouched from what the device just reported, not zero-initialized - only the
         // logical fields below are the ones this walkthrough means to change.
-        rs2_minz_control cfg_to_send = current;
+        rs2_improved_close_range_control cfg_to_send = current;
         cfg_to_send.enable = int(!cfg_to_send.enable);        
         opts.set_composite_option_from( id, cfg_to_send );
         std::cout << "Set Structured Data: enable => !enable - writing to device\n";
 
         print_bytes( "Get Raw Data", opts.get_composite_option( id ) );
-        auto cfg = opts.get_composite_option_as< rs2_minz_control >( id );
+        auto cfg = opts.get_composite_option_as< rs2_improved_close_range_control >( id );
         std::cout << "Get modified Structure Data:\n";
-        print_struct( std::cout, minz_fields(), cfg );
+        print_struct( std::cout, improved_close_range_fields(), cfg );
         // Only `enable` was deliberately changed above (toggled) - check IT against what was
         // sent, and separately check every OTHER field against `current` (what was actually on
         // the device before this Set) to confirm the read-modify-write really did carry the rest
         // through untouched rather than accidentally stomping them.
         bool modified_field_matches = cfg.enable == cfg_to_send.enable;
-        bool rest_intact = cfg.version == current.version && cfg.flags == current.flags
-            && cfg.ctl_id == current.ctl_id && cfg.param_count == current.param_count
-            && cfg.param_type == current.param_type && cfg.downscale_ratio == current.downscale_ratio
+        bool rest_intact = cfg.header.version == current.header.version && cfg.header.flags == current.header.flags
+            && cfg.header.ctl_id == current.header.ctl_id && cfg.header.param_count == current.header.param_count
+            && cfg.header.param_type == current.header.param_type && cfg.downscale_ratio == current.downscale_ratio
             && cfg.disparity_shift == current.disparity_shift && cfg.threshold == current.threshold
             && cfg.threshold_mode == current.threshold_mode;
         std::cout << " Struct.enable field" << ( modified_field_matches ? "matches what was sent" : "differs - FW may quantize/clamp on write" )
                   << "; all other fields " << ( rest_intact ? "intact" : "UNEXPECTEDLY CHANGED vs. originally read data" )
                   << ")\n";
 
-        // range.version is a range-WRAPPER schema version the SDK itself hardcodes to 1 when
-        // packing the reply (see composite_xu_option::get_raw_range()) - it is NOT read from the
-        // device. range.min/max/step/def are each a FULL rs2_minz_control - the same struct as
+        // range.min/max/step/def are each a FULL rs2_improved_close_range_control - the same struct as
         // `current`/`cfg` above, header fields included - and those bytes ARE exactly what the
-        // device's real get_xu_range() call returned. Reusing print_struct()/minz_fields() here
+        // device's real get_xu_range() call returned. Reusing print_struct()/improved_close_range_fields() here
         // (rather than the old hand-written line, which only showed 4 of the 10 fields) shows
         // every field of every bound, including whether the header sub-fields came back
         // meaningfully populated or all-zero too.
         print_bytes( "Get Range", opts.get_composite_option_range( id ) );
-        auto range = opts.get_composite_option_range_as< rs2_minz_control_range >( id );
-        std::cout << "      Range (version=" << range.version << "):\n";
-        print_range( std::cout, minz_fields(), range.min, range.max, range.def, range.step );
+        auto range = opts.get_composite_option_range_as< rs2_improved_close_range_control_range >( id );
+        std::cout << "      Range:\n";
+        print_range( std::cout, improved_close_range_fields(), range.min, range.max, range.def, range.step );
 
         std::cout << "      Read-only: " << ( opts.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
@@ -342,7 +355,7 @@ namespace
         // TODO: re-enable once exercise_temporal_filter_dpp() is verified against real HKR
         // Temporal Filter DPP hardware (not available at the time this walkthrough was written).
         //case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true;
-        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        exercise_minz_control( opts, id ); return true;
+        case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:        exercise_improved_close_range_control( opts, id ); return true;
         default:
             std::cout << "      (no typed walkthrough registered for this composite option id)\n";
             return false;

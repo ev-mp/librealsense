@@ -4,8 +4,13 @@
 
 #include <src/ds/features/temporal-filter-feature.h>
 #include <src/ds/d500/d500-device.h>
-#include <src/ds/d500/d500-temporal-embedded-filter.h>
+#include <src/ds/d500/composite-embedded-filter.h>
+#include <src/ds/ds-private.h>
+#include <src/proc/temporal-embedded-filter.h>
 #include <src/uvc-sensor.h>
+
+#include <librealsense2/h/rs_composite_option.h>
+#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
 
 
 namespace librealsense {
@@ -15,8 +20,20 @@ namespace librealsense {
 
 temporal_filter_feature::temporal_filter_feature( d500_depth_sensor & depth_sensor )
 {
+    // Registers the ONE composite option this filter exposes. Adding another
+    // composite option elsewhere in the SDK never needs a new class - just another
+    // composite_xu_option instance with its own (xu, ctrl_id, wire_size, rs2_composite_option_id).
+    // No dedicated alias type: temporal_embedded_filter is the RS2_EXTENSION_* identity, this is
+    // the only place that ever constructs it (compare hdrd-embedded-filter.h, which needs a named
+    // alias because it's referenced from more than one place).
     auto raw_depth_ep = std::dynamic_pointer_cast< uvc_sensor >( depth_sensor.get_raw_sensor() );
-    depth_sensor.add_embedded_filter( std::make_shared< d500_temporal_embedded_filter >( raw_depth_ep ) );
+    depth_sensor.add_embedded_filter( std::make_shared<
+        composite_embedded_filter< temporal_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_TEMPORAL > >(
+        raw_depth_ep,
+        ds::DS5_HKR_TEMPORAL_FILTER_DPP,
+        static_cast< uint32_t >( sizeof( rs2_temporal_filter_dpp_config ) ),
+        RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
+        "HKR Temporal Filter DPP (prototype) - use rs2_set/get_composite_option, see rs_hkr_temporal_filter_dpp.h" ) );
 }
 
 feature_id temporal_filter_feature::get_id() const

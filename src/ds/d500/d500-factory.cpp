@@ -26,7 +26,7 @@
 #include <src/ds/d500/d500-options.h>
 #include <src/ds/d500/d500-auto-calibration.h>
 #include <src/ds/features/temporal-filter-feature.h>
-#include <src/ds/features/minz-filter-feature.h>
+#include <src/ds/features/improved-close-range-filter-feature.h>
 
 #include <src/platform/platform-utils.h>
 
@@ -135,10 +135,10 @@ namespace librealsense
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            // PROTOTYPE / DEMO: HKR MinZ Control composite option - USB toggle. Formerly
+            // HKR Improved Close Range Control composite option - USB toggle. Formerly
             // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
-            // consolidated onto the generic composite-option mechanism - see minz-filter-feature.h.
-            register_feature( std::make_shared< minz_filter_feature >(
+            // consolidated onto the generic composite-option mechanism - see improved-close-range-filter-feature.h.
+            register_feature( std::make_shared< improved_close_range_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
@@ -190,12 +190,12 @@ namespace librealsense
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            // PROTOTYPE / DEMO: HKR MinZ Control composite option - USB toggle. Formerly
+            // HKR Improved Close Range Control composite option - USB toggle. Formerly
             // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
-            // consolidated onto the generic composite-option mechanism - see minz-filter-feature.h.
+            // consolidated onto the generic composite-option mechanism - see improved-close-range-filter-feature.h.
             // Skipped on MIPI: the V4L2 backend has no CID for the depth-XU selector (0x14).
             if( ! _is_mipi_device )
-                register_feature( std::make_shared< minz_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+                register_feature( std::make_shared< improved_close_range_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
@@ -389,27 +389,22 @@ namespace librealsense
                                               std::make_shared< thermal_compensation >( _thermal_monitor, thermal_compensation_toggle ) );
             } );  // group_multiple_fw_calls
 
-            // PROTOTYPE / DEMO: HKR Temporal Filter DPP composite option - D555 only. Reuses the
-            // same FW gate Improved Close Range Depth used to use as a reasonable proxy for "same
-            // SKU/FW scope" (both are depth-XU controls introduced together on this SKU); this
-            // is a prototype control id (see ds::DS5_HKR_TEMPORAL_FILTER_DPP), not a verified FW
-            // cut line of its own.
+            // HKR Temporal Filter DPP composite option - D555 only. Reuses the same FW gate
+            // Improved Close Range Depth uses, as a reasonable proxy for "same SKU/FW scope"
+            // (both are depth-XU controls introduced together on this SKU).
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< temporal_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
             }
 
-            // PROTOTYPE / DEMO: HKR MinZ Control composite option - D555 only, same FW gate as
+            // HKR Improved Close Range Control composite option - D555 only, same FW gate as
             // above. Formerly "Improved Close Range Depth", a scalar enable-only option
-            // (close_range_filter_feature); consolidated onto the generic composite-option
-            // mechanism instead - see rs_hkr_minz_control.h - which exposes all 5 fields
-            // (enable, downscale_ratio, disparity_shift, threshold, threshold_mode) atomically
-            // rather than just enable. PROTOTYPE/DEMO PR: the scalar path is retired, not kept
-            // alongside this one.
+            // (close_range_filter_feature, now retired); consolidated onto the generic
+            // composite-option mechanism instead - see rs_hkr_improved_close_range_control.h.
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
-                register_feature( std::make_shared< minz_filter_feature >(
+                register_feature( std::make_shared< improved_close_range_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
             }
         }

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(RealsenseExamplesHkrTemporalFilterDppMock)
 
-# PROTOTYPE / DEMO test scaffolding: proves the atomicity + round-trip behavior of the generic
+# Test scaffolding proving the atomicity + round-trip behavior of the generic
 # "composite option" mechanism (include/librealsense2/h/rs_composite_option.h,
 # src/composite-option-interface.h) as applied to RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
 # against a fake in-memory librealsense::composite_option_interface implementation standing in for

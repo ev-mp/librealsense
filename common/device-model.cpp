@@ -2885,7 +2885,7 @@ namespace rs2
                     }
                 }
 
-                // PROTOTYPE / DEMO: HKR Temporal Filter DPP "structured API" panel. Only
+                // HKR Temporal Filter DPP "structured API" panel. Only
                 // rendered for a sensor that actually exposes
                 // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - composite options are a
                 // completely separate identity space from ordinary rs2_option scalar options, so
@@ -3263,7 +3263,7 @@ namespace rs2
                             int font_size = window.get_font_size();
                             const ImVec2 button_size = { font_size * 2.f, font_size * 1.5f };
 
-                            // While this filter's composite editor (e.g. MinZ) has a debounced
+                            // While this filter's composite editor (e.g. Improved Close Range) has a debounced
                             // commit pending, tint the toggle with the exact same gold->blue ramp
                             // the editor's own framed box fades through (before it snaps to idle
                             // on commit), so the row header echoes "about to send" instead of

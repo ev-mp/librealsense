@@ -76,13 +76,10 @@ std::vector< uint8_t > composite_xu_option::get_raw_range() const
         || uvc_range.def.size() != _wire_size )
         throw invalid_value_exception( "composite_xu_option::get_raw_range: device returned an unexpected range payload size" );
 
-    // Generic {version, min, max, step, def} packing - see
-    // composite_option_interface::get_raw_range() for the convention this follows.
-    const uint32_t version = 1;
+    // Generic {min, max, step, def} packing - see composite_option_interface::get_raw_range()
+    // for the convention this follows.
     std::vector< uint8_t > result;
-    result.reserve( sizeof( version ) + 4 * _wire_size );
-    auto const * version_bytes = reinterpret_cast< uint8_t const * >( &version );
-    result.insert( result.end(), version_bytes, version_bytes + sizeof( version ) );
+    result.reserve( 4 * _wire_size );
     result.insert( result.end(), uvc_range.min.begin(), uvc_range.min.end() );
     result.insert( result.end(), uvc_range.max.begin(), uvc_range.max.end() );
     result.insert( result.end(), uvc_range.step.begin(), uvc_range.step.end() );

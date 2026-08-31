@@ -49,6 +49,6 @@ target_sources(${LRS_TARGET}
         "${CMAKE_CURRENT_LIST_DIR}/features/gyro-sensitivity-feature.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/features/temporal-filter-feature.h"
         "${CMAKE_CURRENT_LIST_DIR}/features/temporal-filter-feature.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/features/minz-filter-feature.h"
-        "${CMAKE_CURRENT_LIST_DIR}/features/minz-filter-feature.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/features/improved-close-range-filter-feature.h"
+        "${CMAKE_CURRENT_LIST_DIR}/features/improved-close-range-filter-feature.cpp"
 )

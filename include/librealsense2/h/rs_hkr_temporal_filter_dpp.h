@@ -3,8 +3,6 @@
 
 /** \file rs_hkr_temporal_filter_dpp.h
 * \brief
-* PROTOTYPE / DEMO API - not a finalized production interface.
-*
 * Public documentation/cast-target structs for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP (see
 * rs_option.h), a composite (multi-field, atomically-exchanged) XU control accessed through the
 * generic rs2_set_composite_option/rs2_get_composite_option/rs2_get_composite_option_range entry
@@ -28,7 +26,9 @@ extern "C" {
 
 /** HKR/D555 Depth Post-Processing "Temporal Filter" configuration - the payload exchanged by
 * RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP. Tightly packed, no padding required: every field is
-* naturally 4-byte-aligned. 16 bytes total. */
+* naturally 4-byte-aligned. 16 bytes total, no dpp_header (unlike rs2_improved_close_range_control) - current
+* firmware doesn't speak the DPP family's fixed-8-param envelope for this control yet; expected to
+* converge onto dpp_header (see rs_dpp_header.h) once that's negotiated with the FW team. */
 typedef struct rs2_temporal_filter_dpp_config
 {
     int32_t enabled;             /**< 0 = Off, 1 = On. Default 0 */
@@ -38,10 +38,10 @@ typedef struct rs2_temporal_filter_dpp_config
 } rs2_temporal_filter_dpp_config;
 
 /** Supported {min, max, step, def} bounds for rs2_temporal_filter_dpp_config, as returned by
-* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP). */
+* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP). Read-only - no
+* version field of its own. */
 typedef struct rs2_temporal_filter_dpp_range
 {
-    unsigned int version;                     /**< Schema version of this range struct; starts at 1 */
     rs2_temporal_filter_dpp_config min;
     rs2_temporal_filter_dpp_config max;
     rs2_temporal_filter_dpp_config step;

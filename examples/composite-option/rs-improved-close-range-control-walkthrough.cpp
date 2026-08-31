@@ -1,13 +1,13 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO - composite-option device sweep, against whatever RealSense devices are
+// Composite-option device sweep, against whatever RealSense devices are
 // actually connected (no fake transport). Sequence:
 //   1) enumerate connected devices (rs2_query_devices)
 //   2) for each device, walk its sensors and find any depth sensor(s)
 //   3) for each depth sensor, walk its embedded filters (rs2_query_embedded_filters) - composite
-//      options like MinZ/Temporal Filter DPP are registered on an embedded filter's OWN options
-//      registry (see e.g. src/ds/d500/d500-minz-embedded-filter.cpp's register_composite_option
+//      options like Improved Close Range/Temporal Filter DPP are registered on an embedded filter's OWN options
+//      registry (see e.g. src/ds/d500/hdrd-embedded-filter.h's register_composite_option
 //      call), NOT on the depth sensor's own registry directly, matching how the viewer itself
 //      only ever queries composite options through rs2::embedded_filter
 //      (common/embedded-filter-model.cpp), never through rs2::sensor. Calling
@@ -18,7 +18,7 @@
 //   5) if it does, print every supported composite option id
 //   6) for each one, read its current value straight from the device
 //      (rs2_get_composite_option) and print every field - e.g. the Temporal Filter DPP prints
-//      enabled/smooth_alpha/smooth_delta/persistency_index, MinZ prints its own 5 logical fields
+//      enabled/smooth_alpha/smooth_delta/persistency_index, Improved Close Range prints its own 5 logical fields
 //      plus the shared dppc_header
 //
 // Drives everything through the real public C++ wrapper (rs2::options, see rs_options.hpp),
@@ -28,7 +28,7 @@
 
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
-#include <librealsense2/h/rs_hkr_minz_control.h>
+#include <librealsense2/h/rs_hkr_improved_close_range_control.h>
 
 #include <iostream>
 #include <string>
@@ -40,7 +40,7 @@ namespace
         switch( id )
         {
         case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-        case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:        return "HKR_MINZ_CONTROL";
+        case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:        return "HKR_IMPROVED_CLOSE_RANGE_CONTROL";
         default:                                           return "UNKNOWN";
         }
     }
@@ -53,13 +53,13 @@ namespace
                    << " persistency_index=" << v.persistency_index << '\n';
     }
 
-    void print_minz_control( const rs2_minz_control & v )
+    void print_improved_close_range_control( const rs2_improved_close_range_control & v )
     {
-        std::cout << "        version=" << (int)v.version
-                   << " flags=" << (int)v.flags
-                   << " ctl_id=0x" << std::hex << v.ctl_id << std::dec
-                   << " param_count=" << (int)v.param_count
-                   << " param_type=" << (int)v.param_type
+        std::cout << "        version=" << (int)v.header.version
+                   << " flags=" << (int)v.header.flags
+                   << " ctl_id=0x" << std::hex << v.header.ctl_id << std::dec
+                   << " param_count=" << (int)v.header.param_count
+                   << " param_type=" << (int)v.header.param_type
                    << " enable=" << v.enable
                    << " downscale_ratio=" << v.downscale_ratio
                    << " disparity_shift=" << v.disparity_shift
@@ -80,8 +80,8 @@ namespace
             case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
                 print_temporal_filter_dpp( opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id ) );
                 break;
-            case RS2_COMPOSITE_OPTION_HKR_MINZ_CONTROL:
-                print_minz_control( opts.get_composite_option_as< rs2_minz_control >( id ) );
+            case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:
+                print_improved_close_range_control( opts.get_composite_option_as< rs2_improved_close_range_control >( id ) );
                 break;
             default:
                 std::cout << "        (no typed printer registered for this composite option id)\n";

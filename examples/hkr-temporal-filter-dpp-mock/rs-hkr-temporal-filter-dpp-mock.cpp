@@ -1,7 +1,7 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// PROTOTYPE / DEMO test scaffolding - NOT a real hardware round trip.
+// Test scaffolding - NOT a real hardware round trip.
 //
 // This standalone program proves the E2E behavior of the GENERIC "composite option" mechanism
 // (see include/librealsense2/h/rs_composite_option.h and src/composite-option-interface.h) as

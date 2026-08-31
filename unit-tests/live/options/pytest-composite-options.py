@@ -12,62 +12,62 @@ pytestmark = [
     pytest.mark.device_each("D585*"),
 ]
 
-# HKR MinZ Control's documented wire layout: a dppc_header (version, flags, ctl_id, param_count,
-# param_type) shared by the whole HKR DPP control family, then MinZ's 5 logical fields, then 3
-# reserved (always 0) slots - see rs_hkr_minz_control.h. Same layout used by
+# HKR Improved Close Range Control's documented wire layout: a dppc_header (version, flags, ctl_id, param_count,
+# param_type) shared by the whole HKR DPP control family, then Improved Close Range's 5 logical fields, then 3
+# reserved (always 0) slots - see rs_hkr_improved_close_range_control.h. Same layout used by
 # wrappers/python/examples/embedded_filters.py - there is no generic "any composite option" cast,
 # so a new composite option needs its own layout (and its own test) added, same as everywhere else
 # composite options are exercised in this repo.
-_MINZ_FMT = '<BBHBBiiiiiiii'
-_MINZ_FIELDS = ['version', 'flags', 'ctl_id', 'param_count', 'param_type',
+_IMPROVED_CLOSE_RANGE_FMT = '<BBHBBiiiiiiii'
+_IMPROVED_CLOSE_RANGE_FIELDS = ['version', 'flags', 'ctl_id', 'param_count', 'param_type',
                 'enable', 'downscale_ratio', 'disparity_shift', 'threshold', 'threshold_mode',
                 'reserved0', 'reserved1', 'reserved2']
-_MINZ_ITEM_SIZE = struct.calcsize(_MINZ_FMT)
+_IMPROVED_CLOSE_RANGE_ITEM_SIZE = struct.calcsize(_IMPROVED_CLOSE_RANGE_FMT)
 
 
-def _unpack_minz(raw):
-    return dict(zip(_MINZ_FIELDS, struct.unpack(_MINZ_FMT, raw)))
+def _unpack_improved_close_range(raw):
+    return dict(zip(_IMPROVED_CLOSE_RANGE_FIELDS, struct.unpack(_IMPROVED_CLOSE_RANGE_FMT, raw)))
 
 
-def _pack_minz(fields):
-    return struct.pack(_MINZ_FMT, *(fields[name] for name in _MINZ_FIELDS))
+def _pack_improved_close_range(fields):
+    return struct.pack(_IMPROVED_CLOSE_RANGE_FMT, *(fields[name] for name in _IMPROVED_CLOSE_RANGE_FIELDS))
 
 
-def _find_minz_filter(sensor):
-    """Return the embedded filter exposing HKR MinZ Control on this sensor, or None - the
+def _find_improved_close_range_filter(sensor):
+    """Return the embedded filter exposing HKR Improved Close Range Control on this sensor, or None - the
     composite option lives on one of the sensor's embedded filters, its own independent options
     registry, not on the sensor itself (see rs2::embedded_filter)."""
     for embedded_filter in sensor.query_embedded_filters():
-        if rs.composite_option_id.hkr_minz_control in embedded_filter.get_supported_composite_options():
+        if rs.composite_option_id.hkr_improved_close_range_control in embedded_filter.get_supported_composite_options():
             return embedded_filter
     return None
 
 
-def test_minz_control_basic_parameter_changes(test_device):
-    """Check whether HKR MinZ Control is supported; if so, bounce its writable fields to new
+def test_improved_close_range_control_basic_parameter_changes(test_device):
+    """Check whether HKR Improved Close Range Control is supported; if so, bounce its writable fields to new
     in-range values (verifying each readback) and restore the original value at the end."""
     dev, ctx = test_device
     depth_sensor = dev.first_depth_sensor()
-    embedded_filter = _find_minz_filter(depth_sensor)
+    embedded_filter = _find_improved_close_range_filter(depth_sensor)
     if embedded_filter is None:
-        pytest.skip("HKR MinZ Control composite option not supported on this device")
+        pytest.skip("HKR Improved Close Range Control composite option not supported on this device")
 
-    option_id = rs.composite_option_id.hkr_minz_control
+    option_id = rs.composite_option_id.hkr_improved_close_range_control
     try:
         original_raw = embedded_filter.get_composite_option(option_id)
     except RuntimeError as e:
         # Registered but not actually functional on this device/FW is a real, expected outcome -
         # get_supported_composite_options() only reflects static registration, never a live
         # capability check.
-        pytest.skip(f"HKR MinZ Control registered but not functional on this device/FW: {e}")
+        pytest.skip(f"HKR Improved Close Range Control registered but not functional on this device/FW: {e}")
 
-    original = _unpack_minz(original_raw)
+    original = _unpack_improved_close_range(original_raw)
 
     range_raw = embedded_filter.get_composite_option_range(option_id)
-    # rs2_minz_control_range: a 4-byte wrapper version, then 4 full copies of the struct - min,
-    # max, step, def, in that order, each _MINZ_ITEM_SIZE bytes.
-    min_fields = _unpack_minz(range_raw[4:4 + _MINZ_ITEM_SIZE])
-    max_fields = _unpack_minz(range_raw[4 + _MINZ_ITEM_SIZE:4 + 2 * _MINZ_ITEM_SIZE])
+    # rs2_improved_close_range_control_range: 4 full copies of the struct - min, max, step, def,
+    # in that order, each _IMPROVED_CLOSE_RANGE_ITEM_SIZE bytes. Read-only, no wrapper version field.
+    min_fields = _unpack_improved_close_range(range_raw[0:_IMPROVED_CLOSE_RANGE_ITEM_SIZE])
+    max_fields = _unpack_improved_close_range(range_raw[_IMPROVED_CLOSE_RANGE_ITEM_SIZE:2 * _IMPROVED_CLOSE_RANGE_ITEM_SIZE])
 
     changed_any = False
     try:
@@ -82,22 +82,22 @@ def test_minz_control_basic_parameter_changes(test_device):
 
             cfg = dict(original)
             cfg[field] = new_value
-            embedded_filter.set_composite_option(option_id, _pack_minz(cfg))
+            embedded_filter.set_composite_option(option_id, _pack_improved_close_range(cfg))
             changed_any = True
 
-            readback = _unpack_minz(embedded_filter.get_composite_option(option_id))
+            readback = _unpack_improved_close_range(embedded_filter.get_composite_option(option_id))
             assert readback[field] == new_value, f"{field}: expected {new_value}, got {readback[field]}"
 
             # Restore this field immediately, before moving on to the next one, so each change is
             # independently verified and reverted rather than compounding on top of the last.
             cfg[field] = original[field]
-            embedded_filter.set_composite_option(option_id, _pack_minz(cfg))
+            embedded_filter.set_composite_option(option_id, _pack_improved_close_range(cfg))
 
         if not changed_any:
-            pytest.skip("No writable MinZ field had room to change on this device/FW")
+            pytest.skip("No writable Improved Close Range field had room to change on this device/FW")
     finally:
         # Always restore the very first raw payload read from the device, regardless of what
         # happened above - the strongest guarantee that this test leaves no lasting side effects.
         embedded_filter.set_composite_option(option_id, original_raw)
         readback_raw = embedded_filter.get_composite_option(option_id)
-        assert readback_raw == original_raw, "failed to restore original HKR MinZ Control value"
+        assert readback_raw == original_raw, "failed to restore original HKR Improved Close Range Control value"
