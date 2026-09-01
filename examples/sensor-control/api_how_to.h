@@ -424,10 +424,12 @@ public:
             {
                 rs2_improved_close_range_control v = filter.get_composite_option_as<rs2_improved_close_range_control>(id);
                 std::cout << "  enable          : " << v.enable << std::endl;
+                std::cout << "  filter_type     : " << v.filter_type << std::endl;
                 std::cout << "  downscale_ratio : " << v.downscale_ratio << std::endl;
-                std::cout << "  disparity_shift : " << v.disparity_shift << std::endl;
-                std::cout << "  threshold       : " << v.threshold << std::endl;
+                std::cout << "  shift_mode      : " << v.shift_mode << std::endl;
+                std::cout << "  shift_pixels    : " << v.shift_pixels << std::endl;
                 std::cout << "  threshold_mode  : " << v.threshold_mode << std::endl;
+                std::cout << "  threshold_mm    : " << v.threshold_mm << std::endl;
                 break;
             }
             case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
@@ -483,13 +485,16 @@ public:
             rs2_improved_close_range_control_range range = filter.get_composite_option_range_as<rs2_improved_close_range_control_range>(id);
             std::cout << "Supported range:" << std::endl;
             std::cout << "  enable          : [" << range.min.enable << ", " << range.max.enable << "]" << std::endl;
+            std::cout << "  filter_type     : [" << range.min.filter_type << ", " << range.max.filter_type << "]" << std::endl;
             std::cout << "  downscale_ratio : [" << range.min.downscale_ratio << ", " << range.max.downscale_ratio << "]" << std::endl;
-            std::cout << "  disparity_shift : [" << range.min.disparity_shift << ", " << range.max.disparity_shift << "]" << std::endl;
-            std::cout << "  threshold       : [" << range.min.threshold << ", " << range.max.threshold << "]" << std::endl;
+            std::cout << "  shift_mode      : [" << range.min.shift_mode << ", " << range.max.shift_mode << "]" << std::endl;
+            std::cout << "  shift_pixels    : [" << range.min.shift_pixels << ", " << range.max.shift_pixels << "]" << std::endl;
             std::cout << "  threshold_mode  : [" << range.min.threshold_mode << ", " << range.max.threshold_mode << "]" << std::endl;
+            std::cout << "  threshold_mm    : [" << range.min.threshold_mm << ", " << range.max.threshold_mm << "]" << std::endl;
 
             std::cout << "\nWhich field would you like to change?\n" << std::endl;
-            std::cout << "  0 : enable\n  1 : downscale_ratio\n  2 : disparity_shift\n  3 : threshold\n  4 : threshold_mode" << std::endl;
+            std::cout << "  0 : enable\n  1 : filter_type\n  2 : downscale_ratio\n  3 : shift_mode\n"
+                          "  4 : shift_pixels\n  5 : threshold_mode\n  6 : threshold_mm" << std::endl;
             uint32_t field_index = get_user_selection("Select a field by index: ");
 
             std::cout << "Enter the new value for this field: ";
@@ -500,10 +505,12 @@ public:
             switch (field_index)
             {
             case 0: cfg.enable = requested_value; break;
-            case 1: cfg.downscale_ratio = requested_value; break;
-            case 2: cfg.disparity_shift = requested_value; break;
-            case 3: cfg.threshold = requested_value; break;
-            case 4: cfg.threshold_mode = requested_value; break;
+            case 1: cfg.filter_type = requested_value; break;
+            case 2: cfg.downscale_ratio = requested_value; break;
+            case 3: cfg.shift_mode = requested_value; break;
+            case 4: cfg.shift_pixels = requested_value; break;
+            case 5: cfg.threshold_mode = requested_value; break;
+            case 6: cfg.threshold_mm = requested_value; break;
             default:
                 std::cerr << "Selected field is out of range" << std::endl;
                 return;

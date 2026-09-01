@@ -86,7 +86,14 @@ namespace rs2
         // tracking). Split out so no single function mixes more than one field's concerns; none
         // of these are meant to be called from anywhere else. frame_max is passed as separate
         // x/y floats rather than ImVec2 so this header does not need to pull in imgui.h.
+        bool draw_improved_close_range_filter_type_field();
         bool draw_improved_close_range_downscale_ratio_field();
+        bool draw_improved_close_range_shift_mode_field();
+        bool draw_improved_close_range_threshold_mode_field();
+        // Shared touch()/finalize() plumbing for the slider-enum fields above.
+        void commit_slider_enum_edit( bool changed );
+        void slider_enum_arrow_nudge( int & field, int min_v, int max_v );
+        // Manual-entry escape hatch shared by Shift Pixels and Threshold (mm).
         bool draw_improved_close_range_manual_editable_field( const char * label,
                                                const char * id,
                                                int & value,
@@ -97,7 +104,6 @@ namespace rs2
         bool draw_improved_close_range_manual_input( const char * id, int & value, int min_v, int max_v,
                                       bool & edit_mode, std::string & edit_buf );
         bool draw_improved_close_range_slider_with_arrows( const char * id, int & value, int min_v, int max_v );
-        bool draw_improved_close_range_threshold_mode_field();
         bool draw_improved_close_range_reset_to_default_overlay( rs2_composite_option_id id,
                                                   std::string & error_message,
                                                   float frame_max_x,
@@ -124,7 +130,7 @@ namespace rs2
         // by holding its own composite_control_editor<its-struct-type> the same way.
         composite_control_editor< rs2_improved_close_range_control > _improved_close_range_editor;
 
-        // Per-field manual-entry toggle state for the Disparity Shift / Threshold sliders (see
+        // Per-field manual-entry toggle state for the Shift Pixels / Threshold (mm) sliders (see
         // draw_improved_close_range_control_editor()) - mirrors option_model's own edit_mode/edit_value pattern
         // (common/option-model.cpp) rather than relying on ImGui's native SliderInt Ctrl+Click/
         // double-click text-input, which turned out not to be reliably discoverable/usable here.

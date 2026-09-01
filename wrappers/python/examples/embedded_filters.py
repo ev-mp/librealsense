@@ -42,11 +42,11 @@ def list_embedded_filter_options(embedded_filter):
 _COMPOSITE_OPTION_LAYOUTS = {
     rs.composite_option_id.hkr_improved_close_range_control: (
         # dppc_header (version, flags, ctl_id, param_count, param_type) shared by the whole HKR
-        # DPP control family, then Improved Close Range's 5 logical fields, then 3 reserved (always 0) slots.
+        # DPP control family, then Improved Close Range's 7 logical fields, then 1 reserved (always 0) slot.
         '<BBHBBiiiiiiii',
         ['version', 'flags', 'ctl_id', 'param_count', 'param_type',
-         'enable', 'downscale_ratio', 'disparity_shift', 'threshold', 'threshold_mode',
-         'reserved0', 'reserved1', 'reserved2']),
+         'enable', 'filter_type', 'downscale_ratio', 'shift_mode', 'shift_pixels',
+         'threshold_mode', 'threshold_mm', 'reserved0']),
     rs.composite_option_id.hkr_temporal_filter_dpp: (
         # No shared header on this one - just its own 4 fields, tightly packed.
         '<ifii',

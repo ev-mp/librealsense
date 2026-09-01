@@ -30,16 +30,45 @@ namespace rs2
                        << " param_count=" << (int)v.header.param_count
                        << " param_type=" << (int)v.header.param_type
                        << " enable=" << v.enable
+                       << " filter_type=" << v.filter_type
                        << " downscale_ratio=" << v.downscale_ratio
-                       << " disparity_shift=" << v.disparity_shift
-                       << " threshold=" << v.threshold
+                       << " shift_mode=" << v.shift_mode
+                       << " shift_pixels=" << v.shift_pixels
                        << " threshold_mode=" << v.threshold_mode
-                       << " reserved=[" << v.reserved[0] << "," << v.reserved[1] << "," << v.reserved[2] << "]" );
+                       << " threshold_mm=" << v.threshold_mm
+                       << " reserved=[" << v.reserved[0] << "]" );
         }
 
         // Ties the manual-entry pencil icon and the number it opens together visually - the same
         // color on both is what says "these two are one mode," not just proximity.
         const ImVec4 improved_close_range_manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
+
+        // ImGui has no native "named enum" slider - a plain SliderInt whose format string is the
+        // value's display name (instead of "%d") is the standard idiom. `names[0]` == `min_v`.
+
+        // A real device's firmware may still speak the pre-design-review wire layout, so a field
+        // can land outside its enum's legal range. Called after every raw device read that
+        // populates a fresh rs2_improved_close_range_control, before any branching or display code
+        // uses it - clamping only at display time would leave the raw stored value inconsistent
+        // with what's shown (e.g. a garbage shift_mode of 200 displays as "Manual" but `== 2`
+        // never matches).
+        void sanitize_improved_close_range_control( rs2_improved_close_range_control & v )
+        {
+            v.filter_type = std::min( std::max( v.filter_type, 0 ), 1 );
+            v.downscale_ratio = std::min( std::max( v.downscale_ratio, 1 ), 2 );
+            v.shift_mode = std::min( std::max( v.shift_mode, 0 ), 2 );
+            v.threshold_mode = std::min( std::max( v.threshold_mode, 0 ), 2 );
+        }
+
+        bool slider_enum( const char * str_id, int * value, int min_v, int max_v, const char * const names[] )
+        {
+            // Bounds-checked BEFORE indexing names[] (sized max_v-min_v+1) - see
+            // sanitize_improved_close_range_control() above for why *value, sourced from device
+            // data, can land outside [min_v,max_v].
+            int display_index = std::min( std::max( *value, min_v ), max_v ) - min_v;
+            const char * fmt = names[ display_index ];
+            return ImGui::SliderInt( str_id, value, min_v, max_v, fmt );
+        }
     }
 
     embedded_filter_model::embedded_filter_model(
@@ -119,29 +148,76 @@ namespace rs2
         }
     }
 
+    void embedded_filter_model::commit_slider_enum_edit( bool changed )
+    {
+        if( changed )
+            _improved_close_range_editor.touch();
+        if( ImGui::IsItemActive() )
+            _improved_close_range_editor.touch();
+        if( ImGui::IsItemDeactivatedAfterEdit() )
+            _improved_close_range_editor.finalize();
+    }
+
+    // Left/Right-arrow nudge for a focused-but-not-dragging slider-enum.
+    void embedded_filter_model::slider_enum_arrow_nudge( int & field, int min_v, int max_v )
+    {
+        if( ! ImGui::IsItemFocused() || ImGui::IsItemActive() )
+            return;
+        if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) && field < max_v )
+        {
+            ++field;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize( true );
+        }
+        else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) && field > min_v )
+        {
+            --field;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize( true );
+        }
+    }
+
+    bool embedded_filter_model::draw_improved_close_range_filter_type_field()
+    {
+        static const char * const names[] = { "Downscale", "Lookup Shift" };
+        ImGui::Text( "Filter Type:" );
+        int v = _improved_close_range_editor.value.filter_type;
+        bool changed = slider_enum( "##improved_close_range_filter_type", &v, 0, 1, names );
+        if( changed )
+            _improved_close_range_editor.value.filter_type = v;
+        commit_slider_enum_edit( changed );
+        slider_enum_arrow_nudge( _improved_close_range_editor.value.filter_type, 0, 1 );
+        return ImGui::IsItemActive();
+    }
+
     bool embedded_filter_model::draw_improved_close_range_downscale_ratio_field()
     {
-        // Downscale ratio only ever takes {1,2,4} - radio buttons, not a slider, so the user
-        // can't land on an invalid value like 3 (mirrors the field validation tool's own UI).
-        bool any_active = false;
+        // Downscale: only the ratio matters; value 0 is reserved (not a legal wire value), so
+        // the slider's range starts at 1.
+        static const char * const names[] = { "x2", "x4" };
         ImGui::Text( "Downscale Ratio:" );
-        for( int v : { 1, 2, 4 } )
-        {
-            ImGui::SameLine();
-            if( ImGui::RadioButton( ( std::to_string( v ) + "##improved_close_range_ratio" ).c_str(), _improved_close_range_editor.value.downscale_ratio == v ) )
-            {
-                _improved_close_range_editor.value.downscale_ratio = v;
-                _improved_close_range_editor.touch();
-                // A mouse click lands on this exact frame as IsMouseClicked(); a keyboard/
-                // gamepad nav selection change reaches this same "pressed" return without one,
-                // since nothing was physically clicked - use the fast delay there so arrow-key
-                // navigation feels responsive instead of waiting out the same 1.7s a deliberate
-                // mouse click gets.
-                _improved_close_range_editor.finalize( ! ImGui::IsMouseClicked( ImGuiMouseButton_Left ) );
-            }
-            any_active = any_active || ImGui::IsItemActive();
-        }
-        return any_active;
+        int v = _improved_close_range_editor.value.downscale_ratio;
+        bool changed = slider_enum( "##improved_close_range_downscale_ratio", &v, 1, 2, names );
+        if( changed )
+            _improved_close_range_editor.value.downscale_ratio = v;
+        commit_slider_enum_edit( changed );
+        slider_enum_arrow_nudge( _improved_close_range_editor.value.downscale_ratio, 1, 2 );
+        return ImGui::IsItemActive();
+    }
+
+    bool embedded_filter_model::draw_improved_close_range_shift_mode_field()
+    {
+        // Lookup Shift: pick a fixed preset, or Manual - which draw_improved_close_range_control_editor()
+        // reveals via a separate draw_improved_close_range_manual_editable_field() call for Shift Pixels.
+        static const char * const names[] = { "Shift 126px", "Shift 64px", "Manual" };
+        ImGui::Text( "Shift Mode:" );
+        int v = _improved_close_range_editor.value.shift_mode;
+        bool changed = slider_enum( "##improved_close_range_shift_mode", &v, 0, 2, names );
+        if( changed )
+            _improved_close_range_editor.value.shift_mode = v;
+        commit_slider_enum_edit( changed );
+        slider_enum_arrow_nudge( _improved_close_range_editor.value.shift_mode, 0, 2 );
+        return ImGui::IsItemActive();
     }
 
     // The InputText half of draw_improved_close_range_manual_editable_field()'s two editing modes: a narrow,
@@ -256,16 +332,23 @@ namespace rs2
 
     bool embedded_filter_model::draw_improved_close_range_threshold_mode_field()
     {
-        bool manual = _improved_close_range_editor.value.threshold_mode != 0;
-        if( ImGui::Checkbox( "Manual Threshold##improved_close_range", &manual ) )
-        {
-            _improved_close_range_editor.value.threshold_mode = manual ? 1 : 0;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize();
-        }
+        // Zero range / MinZ (firmware-computed) / Manual. Per the design review, the FW-computed
+        // MinZ value itself is NOT surfaced to the user at this stage - "MinZ (computed)" reveals
+        // no readback field at all, unlike "Manual" (see draw_improved_close_range_manual_editable_field()).
+        static const char * const names[] = { "Zero range", "MinZ (computed)", "Manual" };
+        ImGui::Text( "Threshold Mode:" );
+        int v = _improved_close_range_editor.value.threshold_mode;
+        bool changed = slider_enum( "##improved_close_range_threshold_mode", &v, 0, 2, names );
+        if( changed )
+            _improved_close_range_editor.value.threshold_mode = v;
+        commit_slider_enum_edit( changed );
+        slider_enum_arrow_nudge( _improved_close_range_editor.value.threshold_mode, 0, 2 );
+        bool active = ImGui::IsItemActive();
         if( ImGui::IsItemHovered() )
-            ImGui::SetTooltip( "Unchecked = Auto (firmware-computed threshold)" );
-        return ImGui::IsItemActive();
+            ImGui::SetTooltip( "Zero range: fill only originally-empty depth pixels.\n"
+                                "MinZ (computed): firmware picks the threshold for the active resolution.\n"
+                                "Manual: use the threshold value below." );
+        return active;
     }
 
     // Reset to Default starts hidden behind a small "..." marker tucked into the box's
@@ -313,6 +396,7 @@ namespace rs2
                 {
                     auto range = _embedded_filter->get_composite_option_range_as< rs2_improved_close_range_control_range >( id );
                     _improved_close_range_editor.value = range.def;
+                    sanitize_improved_close_range_control( _improved_close_range_editor.value );
                     _improved_close_range_editor.touch();
                     _improved_close_range_editor.finalize();
                 }
@@ -342,6 +426,7 @@ namespace rs2
 
         if( ! _improved_close_range_editor.ensure_initialized( _embedded_filter, id, error_message, print_improved_close_range_control ) )
             return;
+        sanitize_improved_close_range_control( _improved_close_range_editor.value );
 
         // Minimal indent - just enough padding that widget text doesn't sit flush on the frame
         // border - rather than the tree's full default indent, so the group sits as far left as
@@ -369,12 +454,24 @@ namespace rs2
         // debounce countdown short. |= (not ||=): each call below draws real widgets as a side
         // effect and must run every frame regardless of the flag accumulated so far.
         bool any_field_active = false;
-        any_field_active |= draw_improved_close_range_downscale_ratio_field();
-        any_field_active |= draw_improved_close_range_manual_editable_field( "Disparity Shift:", "improved_close_range_shift",
-            _improved_close_range_editor.value.disparity_shift, 0, 512, _improved_close_range_shift_edit_mode, _improved_close_range_shift_edit_buf );
-        any_field_active |= draw_improved_close_range_manual_editable_field( "Threshold (mm):", "improved_close_range_threshold",
-            _improved_close_range_editor.value.threshold, 0, 65535, _improved_close_range_threshold_edit_mode, _improved_close_range_threshold_edit_buf );
+        any_field_active |= draw_improved_close_range_filter_type_field();
+
+        if( _improved_close_range_editor.value.filter_type == 0 )
+        {
+            any_field_active |= draw_improved_close_range_downscale_ratio_field();
+        }
+        else
+        {
+            any_field_active |= draw_improved_close_range_shift_mode_field();
+            if( _improved_close_range_editor.value.shift_mode == 2 )
+                any_field_active |= draw_improved_close_range_manual_editable_field( "Shift Pixels:", "improved_close_range_shift",
+                    _improved_close_range_editor.value.shift_pixels, 0, 256, _improved_close_range_shift_edit_mode, _improved_close_range_shift_edit_buf );
+        }
+
         any_field_active |= draw_improved_close_range_threshold_mode_field();
+        if( _improved_close_range_editor.value.threshold_mode == 2 )
+            any_field_active |= draw_improved_close_range_manual_editable_field( "Threshold (mm):", "improved_close_range_threshold",
+                _improved_close_range_editor.value.threshold_mm, 0, 65535, _improved_close_range_threshold_edit_mode, _improved_close_range_threshold_edit_buf );
 
         ImGui::Dummy( ImVec2( 0, 2 ) );
         float frame_bottom = ImGui::GetCursorScreenPos().y;
@@ -417,6 +514,7 @@ namespace rs2
             {
                 _improved_close_range_editor.value = _embedded_filter->get_composite_option_as< rs2_improved_close_range_control >(
                     RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL );
+                sanitize_improved_close_range_control( _improved_close_range_editor.value );
                 print_improved_close_range_control( _improved_close_range_editor.value );
                 _improved_close_range_editor.value.enable = actual ? 1 : 0;
                 _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL, _improved_close_range_editor.value );
@@ -485,6 +583,7 @@ namespace rs2
 
             if( _improved_close_range_editor.ensure_initialized( _embedded_filter, id, error_message, print_improved_close_range_control ) )
             {
+                sanitize_improved_close_range_control( _improved_close_range_editor.value );
                 // Composite state is the FALLBACK source of _enabled, not an override - a DDS
                 // filter that already set it from the scalar option in pass 1 keeps that value.
                 if( ! _embedded_filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )

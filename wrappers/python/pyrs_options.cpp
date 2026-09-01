@@ -34,17 +34,20 @@ void init_options(py::module &m) {
         .def( py::init<>() )
         .def_readwrite( "header", &rs2_improved_close_range_control::header )
         .def_readwrite( "enable", &rs2_improved_close_range_control::enable )
+        .def_readwrite( "filter_type", &rs2_improved_close_range_control::filter_type )
         .def_readwrite( "downscale_ratio", &rs2_improved_close_range_control::downscale_ratio )
-        .def_readwrite( "disparity_shift", &rs2_improved_close_range_control::disparity_shift )
-        .def_readwrite( "threshold", &rs2_improved_close_range_control::threshold )
+        .def_readwrite( "shift_mode", &rs2_improved_close_range_control::shift_mode )
+        .def_readwrite( "shift_pixels", &rs2_improved_close_range_control::shift_pixels )
         .def_readwrite( "threshold_mode", &rs2_improved_close_range_control::threshold_mode )
+        .def_readwrite( "threshold_mm", &rs2_improved_close_range_control::threshold_mm )
         .def( "__repr__",
               []( rs2_improved_close_range_control const & v )
               {
                   std::ostringstream ss;
-                  ss << "<improved_close_range_control enable=" << v.enable << " downscale_ratio=" << v.downscale_ratio
-                     << " disparity_shift=" << v.disparity_shift << " threshold=" << v.threshold
-                     << " threshold_mode=" << v.threshold_mode << ">";
+                  ss << "<improved_close_range_control enable=" << v.enable << " filter_type=" << v.filter_type
+                     << " downscale_ratio=" << v.downscale_ratio << " shift_mode=" << v.shift_mode
+                     << " shift_pixels=" << v.shift_pixels << " threshold_mode=" << v.threshold_mode
+                     << " threshold_mm=" << v.threshold_mm << ">";
                   return ss.str();
               } );
 

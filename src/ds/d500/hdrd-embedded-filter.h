@@ -16,8 +16,8 @@ namespace librealsense {
 // This addresses the SAME physical XU control (unit 3, selector 0x14) that used to be exposed as
 // "Improved Close Range Depth" - a scalar, enable-only RS2_OPTION_EMBEDDED_FILTER_ENABLED option
 // (close_range_xu_option, since removed). Consolidated onto this composite option instead, which
-// exposes all 5 fields (enable, downscale_ratio, disparity_shift, threshold, threshold_mode)
-// atomically rather than just enable. Note this means
+// exposes all 7 fields (enable, filter_type, downscale_ratio, shift_mode, shift_pixels,
+// threshold_mode, threshold_mm) atomically rather than just enable. Note this means
 // RS2_OPTION_EMBEDDED_FILTER_ENABLED is no longer registered for this filter, so any generic
 // caller that assumed every embedded filter has it (e.g. common/embedded-filter-model.cpp in the
 // viewer) will throw for this one - a known, accepted consequence of the consolidation.

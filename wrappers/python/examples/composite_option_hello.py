@@ -53,17 +53,19 @@ def main():
     print("  param_count     = {}".format(cfg.header.param_count))
     print("  param_type      = {}".format(cfg.header.param_type))
     print("  enable          = {}".format(cfg.enable))
+    print("  filter_type     = {}".format(cfg.filter_type))
     print("  downscale_ratio = {}".format(cfg.downscale_ratio))
-    print("  disparity_shift = {}".format(cfg.disparity_shift))
-    print("  threshold       = {}".format(cfg.threshold))
+    print("  shift_mode      = {}".format(cfg.shift_mode))
+    print("  shift_pixels    = {}".format(cfg.shift_pixels))
     print("  threshold_mode  = {}".format(cfg.threshold_mode))
+    print("  threshold_mm    = {}".format(cfg.threshold_mm))
 
     # The typed range works the same way - min/max/step/default are each a full improved_close_range_control.
     rng = improved_close_range_filter.get_improved_close_range_control_range(rs.composite_option_id.hkr_improved_close_range_control)
     print("\nSupported range:")
     print("  downscale_ratio : [{}, {}]".format(rng.min.downscale_ratio, rng.max.downscale_ratio))
-    print("  disparity_shift : [{}, {}]".format(rng.min.disparity_shift, rng.max.disparity_shift))
-    print("  threshold       : [{}, {}]".format(rng.min.threshold, rng.max.threshold))
+    print("  shift_pixels    : [{}, {}]".format(rng.min.shift_pixels, rng.max.shift_pixels))
+    print("  threshold_mm    : [{}, {}]".format(rng.min.threshold_mm, rng.max.threshold_mm))
 
 
 if __name__ == '__main__':
