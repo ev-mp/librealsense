@@ -6,7 +6,6 @@
 #include "stream-interface.h"
 
 #include <src/sync.h>
-#include <algorithm>
 #include <stdexcept>
 
 
@@ -185,27 +184,19 @@ matcher_factory::create_timestamp_composite_matcher( std::vector< std::shared_pt
 std::vector< stream_interface * > matcher_factory::separate_color( std::vector< stream_interface * > const & profiles,
                                                                    std::vector< stream_interface * > & rest )
 {
-    // We need one profile per stream - matcher use only UID and type
-    std::map< int, stream_interface * > color_profiles;
+    std::vector< stream_interface * > color;
     for( auto & profile : profiles )
         if( profile->get_stream_type() == RS2_STREAM_COLOR )
-            color_profiles[profile->get_stream_index()] = profile;
-
-    std::vector< stream_interface * > color;
-    for( auto & profile : color_profiles )
-        color.push_back( profile.second );
-
-    for( auto & profile : profiles )
-        if( std::find( color.begin(), color.end(), profile ) == color.end() )
+            color.push_back( profile );
+        else
             rest.push_back( profile );
 
     return color;
 }
 
 
-std::vector< stream_interface * >
-matcher_factory::separate_perception( std::vector< stream_interface * > const & profiles,
-                                      std::vector< stream_interface * > & rest )
+std::vector< stream_interface * > matcher_factory::separate_perception( std::vector< stream_interface * > const & profiles,
+                                                                        std::vector< stream_interface * > & rest )
 {
     std::vector< stream_interface * > perception;
     for( auto & profile : profiles )

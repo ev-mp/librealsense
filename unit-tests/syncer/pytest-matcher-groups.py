@@ -237,3 +237,26 @@ def test_perception_is_carried_by_dlr_c():
         assert best == expected(DEPTH0, IR1, IR2, COLOR), "perception was matched into the frameset"
     finally:
         dev.close()
+
+
+#############################################################################################
+def test_dic_matches_every_infrared_stream():
+    """DIC names infrared without an index, so both IRs join the group. The old code took only the
+    first, leaving the second with no matcher at all."""
+    dev = sw_device([DEPTH0, IR1, IR2, CONFIDENCE], rs.matchers.dic)
+    try:
+        assert dev.collect() == expected(DEPTH0, IR1, IR2, CONFIDENCE)
+    finally:
+        dev.close()
+
+
+#############################################################################################
+def test_two_color_streams_are_matched_together():
+    """Color streams are told apart by index, so both reach the color matcher and neither leaks into
+    the group - the case the de-duplicating map used to guard."""
+    color1 = (rs.stream.color, 1, rs.format.rgb8)
+    dev = sw_device([DEPTH0, IR1, IR2, COLOR, color1], rs.matchers.dlr_c)
+    try:
+        assert dev.collect() == expected(DEPTH0, IR1, IR2, COLOR, color1)
+    finally:
+        dev.close()
