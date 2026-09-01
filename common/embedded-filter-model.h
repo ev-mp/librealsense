@@ -90,9 +90,6 @@ namespace rs2
         bool draw_improved_close_range_downscale_ratio_field();
         bool draw_improved_close_range_shift_mode_field();
         bool draw_improved_close_range_threshold_mode_field();
-        // Shared touch()/finalize() plumbing for the slider-enum fields above.
-        void commit_slider_enum_edit( bool changed );
-        void slider_enum_arrow_nudge( int & field, int min_v, int max_v );
         // Manual-entry escape hatch shared by Shift Pixels and Threshold (mm).
         bool draw_improved_close_range_manual_editable_field( const char * label,
                                                const char * id,

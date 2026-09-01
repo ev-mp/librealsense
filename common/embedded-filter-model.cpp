@@ -2,6 +2,7 @@
 // Copyright(c) 2025 RealSense, Inc. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
+#include <realsense_imgui.h>
 #include <rsutils/easylogging/easyloggingpp.h>
 #include <algorithm>
 #include <cstdlib>
@@ -43,31 +44,22 @@ namespace rs2
         // color on both is what says "these two are one mode," not just proximity.
         const ImVec4 improved_close_range_manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
 
-        // ImGui has no native "named enum" slider - a plain SliderInt whose format string is the
-        // value's display name (instead of "%d") is the standard idiom. `names[0]` == `min_v`.
-
         // A real device's firmware may still speak the pre-design-review wire layout, so a field
         // can land outside its enum's legal range. Called after every raw device read that
         // populates a fresh rs2_improved_close_range_control, before any branching or display code
         // uses it - clamping only at display time would leave the raw stored value inconsistent
         // with what's shown (e.g. a garbage shift_mode of 200 displays as "Manual" but `== 2`
-        // never matches).
+        // never matches), and would leave the conditional branching in
+        // draw_improved_close_range_control_editor() looking at an undefined case.
+        // RsImGui::CustomComboBox (used below) is separately bounds-checked against its own
+        // items_count, so this isn't needed to prevent a crash - only to keep the displayed value
+        // and the branching consistent with each other.
         void sanitize_improved_close_range_control( rs2_improved_close_range_control & v )
         {
             v.filter_type = std::min( std::max( v.filter_type, 0 ), 1 );
             v.downscale_ratio = std::min( std::max( v.downscale_ratio, 1 ), 2 );
             v.shift_mode = std::min( std::max( v.shift_mode, 0 ), 2 );
             v.threshold_mode = std::min( std::max( v.threshold_mode, 0 ), 2 );
-        }
-
-        bool slider_enum( const char * str_id, int * value, int min_v, int max_v, const char * const names[] )
-        {
-            // Bounds-checked BEFORE indexing names[] (sized max_v-min_v+1) - see
-            // sanitize_improved_close_range_control() above for why *value, sourced from device
-            // data, can land outside [min_v,max_v].
-            int display_index = std::min( std::max( *value, min_v ), max_v ) - min_v;
-            const char * fmt = names[ display_index ];
-            return ImGui::SliderInt( str_id, value, min_v, max_v, fmt );
         }
     }
 
@@ -148,60 +140,41 @@ namespace rs2
         }
     }
 
-    void embedded_filter_model::commit_slider_enum_edit( bool changed )
-    {
-        if( changed )
-            _improved_close_range_editor.touch();
-        if( ImGui::IsItemActive() )
-            _improved_close_range_editor.touch();
-        if( ImGui::IsItemDeactivatedAfterEdit() )
-            _improved_close_range_editor.finalize();
-    }
-
-    // Left/Right-arrow nudge for a focused-but-not-dragging slider-enum.
-    void embedded_filter_model::slider_enum_arrow_nudge( int & field, int min_v, int max_v )
-    {
-        if( ! ImGui::IsItemFocused() || ImGui::IsItemActive() )
-            return;
-        if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) && field < max_v )
-        {
-            ++field;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize( true );
-        }
-        else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) && field > min_v )
-        {
-            --field;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize( true );
-        }
-    }
-
+    // Real combo-box widget (RsImGui::CustomComboBox, see third-party/imgui/realsense_imgui.h),
+    // matching the convention every other enum-valued option in the viewer already uses (see
+    // option_model::draw_combobox() in common/option-model.cpp) - not a SliderInt whose format
+    // string happens to show a name, which was never more than a slider styled to look like a
+    // choice list. touch()/finalize() drive the same debounced auto-commit every other field in
+    // this editor uses (see composite-control-editor.h).
     bool embedded_filter_model::draw_improved_close_range_filter_type_field()
     {
-        static const char * const names[] = { "Downscale", "Lookup Shift" };
+        static const char * const labels[] = { "Downscale", "Lookup Shift" };
         ImGui::Text( "Filter Type:" );
-        int v = _improved_close_range_editor.value.filter_type;
-        bool changed = slider_enum( "##improved_close_range_filter_type", &v, 0, 1, names );
-        if( changed )
-            _improved_close_range_editor.value.filter_type = v;
-        commit_slider_enum_edit( changed );
-        slider_enum_arrow_nudge( _improved_close_range_editor.value.filter_type, 0, 1 );
+        ImGui::SameLine();
+        int selected = _improved_close_range_editor.value.filter_type;
+        if( RsImGui::CustomComboBox( "##improved_close_range_filter_type", &selected, labels, 2 ) )
+        {
+            _improved_close_range_editor.value.filter_type = selected;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize();
+        }
         return ImGui::IsItemActive();
     }
 
     bool embedded_filter_model::draw_improved_close_range_downscale_ratio_field()
     {
-        // Downscale: only the ratio matters; value 0 is reserved (not a legal wire value), so
-        // the slider's range starts at 1.
-        static const char * const names[] = { "x2", "x4" };
+        // Wire values are 1 (x2) and 2 (x4), not 0-based like the other enum fields - convert to
+        // and from a 0-based combo index rather than changing the documented wire values.
+        static const char * const labels[] = { "x2", "x4" };
         ImGui::Text( "Downscale Ratio:" );
-        int v = _improved_close_range_editor.value.downscale_ratio;
-        bool changed = slider_enum( "##improved_close_range_downscale_ratio", &v, 1, 2, names );
-        if( changed )
-            _improved_close_range_editor.value.downscale_ratio = v;
-        commit_slider_enum_edit( changed );
-        slider_enum_arrow_nudge( _improved_close_range_editor.value.downscale_ratio, 1, 2 );
+        ImGui::SameLine();
+        int selected = _improved_close_range_editor.value.downscale_ratio - 1;
+        if( RsImGui::CustomComboBox( "##improved_close_range_downscale_ratio", &selected, labels, 2 ) )
+        {
+            _improved_close_range_editor.value.downscale_ratio = selected + 1;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize();
+        }
         return ImGui::IsItemActive();
     }
 
@@ -209,14 +182,16 @@ namespace rs2
     {
         // Lookup Shift: pick a fixed preset, or Manual - which draw_improved_close_range_control_editor()
         // reveals via a separate draw_improved_close_range_manual_editable_field() call for Shift Pixels.
-        static const char * const names[] = { "Shift 126px", "Shift 64px", "Manual" };
+        static const char * const labels[] = { "Shift 126px", "Shift 64px", "Manual" };
         ImGui::Text( "Shift Mode:" );
-        int v = _improved_close_range_editor.value.shift_mode;
-        bool changed = slider_enum( "##improved_close_range_shift_mode", &v, 0, 2, names );
-        if( changed )
-            _improved_close_range_editor.value.shift_mode = v;
-        commit_slider_enum_edit( changed );
-        slider_enum_arrow_nudge( _improved_close_range_editor.value.shift_mode, 0, 2 );
+        ImGui::SameLine();
+        int selected = _improved_close_range_editor.value.shift_mode;
+        if( RsImGui::CustomComboBox( "##improved_close_range_shift_mode", &selected, labels, 3 ) )
+        {
+            _improved_close_range_editor.value.shift_mode = selected;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize();
+        }
         return ImGui::IsItemActive();
     }
 
@@ -335,14 +310,16 @@ namespace rs2
         // Zero range / MinZ (firmware-computed) / Manual. Per the design review, the FW-computed
         // MinZ value itself is NOT surfaced to the user at this stage - "MinZ (computed)" reveals
         // no readback field at all, unlike "Manual" (see draw_improved_close_range_manual_editable_field()).
-        static const char * const names[] = { "Zero range", "MinZ (computed)", "Manual" };
+        static const char * const labels[] = { "Zero range", "MinZ (computed)", "Manual" };
         ImGui::Text( "Threshold Mode:" );
-        int v = _improved_close_range_editor.value.threshold_mode;
-        bool changed = slider_enum( "##improved_close_range_threshold_mode", &v, 0, 2, names );
-        if( changed )
-            _improved_close_range_editor.value.threshold_mode = v;
-        commit_slider_enum_edit( changed );
-        slider_enum_arrow_nudge( _improved_close_range_editor.value.threshold_mode, 0, 2 );
+        ImGui::SameLine();
+        int selected = _improved_close_range_editor.value.threshold_mode;
+        if( RsImGui::CustomComboBox( "##improved_close_range_threshold_mode", &selected, labels, 3 ) )
+        {
+            _improved_close_range_editor.value.threshold_mode = selected;
+            _improved_close_range_editor.touch();
+            _improved_close_range_editor.finalize();
+        }
         bool active = ImGui::IsItemActive();
         if( ImGui::IsItemHovered() )
             ImGui::SetTooltip( "Zero range: fill only originally-empty depth pixels.\n"
