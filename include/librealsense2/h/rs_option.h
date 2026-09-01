@@ -120,7 +120,7 @@ extern "C" {
         RS2_OPTION_AUTO_EXPOSURE_LIMIT_TOGGLE, /**< Enable / disable color image auto-exposure*/
         RS2_OPTION_AUTO_GAIN_LIMIT_TOGGLE, /**< Enable / disable color image auto-gain*/
         RS2_OPTION_EMITTER_FREQUENCY, /**< Select emitter (laser projector) frequency, see rs2_emitter_frequency for values */
-        RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE, /**< Select depth sensor auto exposure mode see rs2_depth_auto_exposure_mode for values  */
+        RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE, /**< Select depth sensor auto exposure mode, see rs2_depth_auto_exposure_mode for values - or rs2_colored_ir_auto_exposure_mode on colored-IR devices */
         RS2_OPTION_OHM_TEMPERATURE, /**< Temperature of the Optical Head Sensor */
         RS2_OPTION_SOC_PVT_TEMPERATURE, /**< Temperature of PVT SOC */
         RS2_OPTION_GYRO_SENSITIVITY,/**< Control of the gyro sensitivity level, see rs2_gyro_sensitivity for values */ 
@@ -135,6 +135,12 @@ extern "C" {
         RS2_OPTION_LEFT_IR_TEMPERATURE, /**< Temperature of the Left IR Sensor */
         
         RS2_OPTION_EMBEDDED_FILTER_ENABLED, /**< Enable/Disable Embedded Filter */
+        RS2_OPTION_DISPARITY_SHIFT, /**< Embedded filter: stereo disparity shift (pre-stream only) */
+        RS2_OPTION_THRESHOLD, /**< Embedded filter: merge threshold in mm (pre-stream only) */
+        RS2_OPTION_DOWNSCALE_RATIO, /**< Embedded filter: secondary-frame downscale ratio (pre-stream only) */
+        RS2_OPTION_READOUT_SHAPING, /**< IR/depth sensor readout shaping [0-100%]; higher slows readout to avoid dropped frames */
+        RS2_OPTION_DETECTION_DISTANCE, /**< Enable firmware calculation of per-detection distance (meters) on the object-detection stream */
+        RS2_OPTION_SENSORS_CONFIG_MODE, /**< D5x5: 0 = dedicated color sensor (3C), 1 = dual RGB (2C). Requires a hardware_reset after setting; the device then re-enumerates under the new PID. */
         RS2_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
     } rs2_option;
 
@@ -181,6 +187,17 @@ extern "C" {
         int16_t x1, y1;
         int16_t x2, y2;
     } rs2_option_rect;
+
+    /**
+    * The range of values an option accepts.
+    */
+    typedef struct rs2_option_range
+    {
+        float min;
+        float max;
+        float def;
+        float step;                       /**< granularity of options accepting discrete values; zero if continuous */
+    } rs2_option_range;
 
     /** \brief The value of an option, in a known option type.
     */
@@ -301,6 +318,18 @@ extern "C" {
     } rs2_depth_auto_exposure_mode;
     const char* rs2_depth_auto_exposure_mode_to_string( rs2_depth_auto_exposure_mode mode );
 
+    /** \brief values for RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE option on colored-IR devices, where the same imagers
+        feed both the color and the depth pipeline so auto exposure has to be arbitrated between them. */
+    typedef enum rs2_colored_ir_auto_exposure_mode
+    {
+        RS2_COLORED_IR_AUTO_EXPOSURE_AUTO = 0,  /**< Let the firmware choose the policy */
+        RS2_COLORED_IR_AUTO_EXPOSURE_DEPTH_PRIORITY = 1,  /**< Favor the depth pipeline */
+        RS2_COLORED_IR_AUTO_EXPOSURE_COLOR_PRIORITY = 2,  /**< Favor the color pipeline */
+        RS2_COLORED_IR_AUTO_EXPOSURE_HYBRID = 3,  /**< Combine color and depth pipelines for best results on both */
+        RS2_COLORED_IR_AUTO_EXPOSURE_COUNT        /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
+    } rs2_colored_ir_auto_exposure_mode;
+    const char* rs2_colored_ir_auto_exposure_mode_to_string( rs2_colored_ir_auto_exposure_mode mode );
+
     /** \brief values for RS2_OPTION_SAFETY_MODE option. */
     typedef enum rs2_safety_mode
     {
@@ -415,6 +444,15 @@ extern "C" {
     * \return temporary (goes away with the options-list) pointer to the option-value struct
     */
     rs2_option_value const * rs2_get_option_value_from_list( const rs2_options_list * options, int i, rs2_error ** error );
+
+    /**
+    * get the range of the specific option from options list
+    * \param[in] i          the index of the option
+    * \param[out] out_range filled with the range; left untouched if the option has no range
+    * \param[out] error     if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+    * \return 0 if this option has no queryable range; 1 otherwise
+    */
+    int rs2_get_option_range_from_list( const rs2_options_list * options, int i, rs2_option_range * out_range, rs2_error ** error );
 
     /**
     * Clean up a value and all it points to

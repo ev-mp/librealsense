@@ -35,7 +35,13 @@ from rspy import repo
 pyrs_dir = repo.find_pyrs_dir()
 sys.path.insert( 1, pyrs_dir )
 
-MAX_ENUMERATION_TIME = 17  # [sec]
+MAX_ENUMERATION_TIME = 20  # [sec]
+
+# Worst-case device removal delay after port disable / hw_reset.
+# DDS devices (e.g. D555 over PoE) are only declared gone after the participant
+# lease (3s) expires past the last announcement (1.5s cycle), plus propagation
+# latency in the device-changed callback. Observed on D555/PoE: ~8s after PoE cut.
+PORTS_DISABLED_TIMEOUT = 10  # [sec]
 
 # We need both pyrealsense2 and hub. We can work without hub, but
 # without pyrealsense2 no devices at all will be returned.
@@ -43,14 +49,24 @@ from rspy import device_hub
 try:
     import pyrealsense2 as rs
     log.d( rs )
-    hub = device_hub.create() # if there's no hub, this will hold None
-    sys.path = sys.path[:-1]  # remove what we added
 except ModuleNotFoundError:
     log.w( 'No pyrealsense2 library is available! Running as if no cameras available...' )
     import sys
     log.d( 'sys.path=', sys.path )
     rs = None
-    hub = None
+
+hub = None
+_hub_attempted = False
+
+def init_hub():
+    """Create the hub instance. Call after logging is configured so discovery prints are visible."""
+    global hub, _hub_attempted
+    if _hub_attempted:
+        return
+    _hub_attempted = True
+    hub = device_hub.create()
+    if pyrs_dir in sys.path:
+        sys.path.remove( pyrs_dir )
 
 import time
 
@@ -67,11 +83,14 @@ class Device:
             self._name = dev.get_info( rs.camera_info.name )
             if self._name.startswith( 'Intel RealSense ' ):
                 self._name = self._name[16:]
+            elif self._name.startswith( 'RealSense ' ):
+                self._name = self._name[10:]
         self._product_line = None
         if dev.supports( rs.camera_info.product_line ):
             self._product_line = dev.get_info( rs.camera_info.product_line )
         self._physical_port = dev.supports( rs.camera_info.physical_port ) and dev.get_info( rs.camera_info.physical_port ) or None
 
+        self._connection_type = None  # remains None if camera_info.connection_type is unsupported
         if dev.supports(rs.camera_info.connection_type):
             self._connection_type = dev.get_info(rs.camera_info.connection_type)
             self._is_dds = self._connection_type == "DDS"
@@ -125,8 +144,8 @@ class Device:
         return self._physical_port
 
     @property
-    def usb_location( self ):
-        return self._usb_location
+    def location( self ):
+        return self._location
 
     @property
     def port( self ):
@@ -145,14 +164,16 @@ class Device:
         return self._is_dds
 
 
-def wait_until_all_ports_disabled( timeout = 5 ):
+def wait_until_all_ports_disabled( timeout = PORTS_DISABLED_TIMEOUT ):
     """
-    Waits for all ports to be disabled
+    Waits for all ports to be disabled.
     """
     for retry in range( timeout ):
         if len( enabled() ) == 0:
             return True
         time.sleep( 1 )
+    if len( enabled() ) == 0:
+        return True
     log.w( 'Timed out waiting for 0 devices' )
     return False
 
@@ -167,6 +188,10 @@ def map_unknown_ports():
     global _device_by_sn
     devices_with_unknown_ports = [device for device in _device_by_sn.values() if device.port is None]
     if not devices_with_unknown_ports:
+        # All ports are known, but still enabled from query(). Disable all so unmapped ports
+        # (e.g. loose cables) can't produce rogue devices mid-test.
+        hub.disable_ports()
+        wait_until_all_ports_disabled()
         return
     #
     ports = hub.ports()
@@ -199,9 +224,12 @@ def map_unknown_ports():
             log.d( 'enabling port', port )
             hub.enable_ports( [port], disable_other_ports=True )
             sn = None
+            port_enable_time = timestamp()
             for retry in range( MAX_ENUMERATION_TIME ):
                 if len( enabled() ) == 1:
                     sn = list( enabled() )[0]
+                    detection_time = timestamp() - port_enable_time
+                    log.d( f"Device {sn} detected on port {port} after {detection_time:.2f} seconds" )
                     break
                 time.sleep( 1 )
             if not sn:
@@ -221,10 +249,13 @@ def map_unknown_ports():
             hub.disable_ports( [port] )
             wait_until_all_ports_disabled()
     finally:
+        # Disable all ports so tests start from a clean state
+        hub.disable_ports()
+        wait_until_all_ports_disabled()
         log.debug_unindent()
 
 
-def query( monitor_changes=True, hub_reset=False, recycle_ports=True, disable_dds=True ):
+def query( monitor_changes=True, hub_reset=False, recycle_ports=True, disable_dds=True, rslog=False ):
     """
     Start a new LRS context, and collect all devices
     :param monitor_changes: If True, devices will update dynamically as they are removed/added
@@ -236,6 +267,7 @@ def query( monitor_changes=True, hub_reset=False, recycle_ports=True, disable_dd
     global rs
     if not rs:
         return
+    init_hub()
     #
     # Before we can start a context and query devices, we need to enable all the ports
     # on the hub, if any:
@@ -244,42 +276,71 @@ def query( monitor_changes=True, hub_reset=False, recycle_ports=True, disable_dd
             hub.connect(hub_reset)
         if recycle_ports:
             hub.disable_ports( sleep_on_change = 5 )
-            hub.enable_ports( sleep_on_change = MAX_ENUMERATION_TIME )
+            hub.enable_ports()  # Enable without sleeping - we'll poll ourselves
     #
     # Get all devices, and store by serial-number
     global _device_by_sn, _context, _port_to_sn
     settings = {'dds' : { 'enabled' : True }}  # explicitly enable dds in case there's an issue with the config file
     if disable_dds:
         settings['dds']['enabled'] = False
+    
+    if rslog:
+        rs.log_to_console(rs.log_severity.debug) # Enable context debug logging to see device removal/addition
+        
     _context = rs.context( settings )
     _device_by_sn = dict()
+    detected_sns = set()
+
+    log.debug_indent()
+
+    # Wait for devices appearing to enumerate
+    wait_time = MAX_ENUMERATION_TIME if hub else 1 # When no hub connected we can assume the device is connected and powered
+    time.sleep( wait_time )
+
+    d555_found = False
     try:
-        log.debug_indent()
-        for retry in range(3):
-            try:
-                devices = _context.query_devices()
-                break
-            except RuntimeError as e:
-                log.d( 'FAILED to query devices:', e )
-                if retry > 1:
-                    log.e( 'FAILED to query devices', retry + 1, 'times!' )
-                    raise
-                else:
-                    time.sleep( 1 )
+        devices = list( _context.query_devices() )
+    except RuntimeError as e:
+        log.e( f'FAILED to query devices: {e}' )
+        devices = []
+    for dev in devices:
+        try:
+            sn = dev.get_info( rs.camera_info.serial_number ) if dev.supports( rs.camera_info.serial_number ) \
+                 else dev.get_info( rs.camera_info.firmware_update_id )
+        except RuntimeError as e:
+            log.e( f'Found device but failed to get serial number: {e}' )
+            continue
+
+        if sn in detected_sns:
+            name = dev.get_info( rs.camera_info.name ) if dev.supports( rs.camera_info.name ) else 'Unknown'
+            log.w( f'Duplicate serial number detected: {sn} ({name}) — skipping' )
+            continue
+        detected_sns.add( sn )
+        device = Device( sn, dev )
+        _device_by_sn[sn] = device
+        port_str = f'port {device.port}: ' if device.port is not None else ''
+        log.d( f'...{port_str}{sn} {dev}' )
+
+        name = dev.get_info(rs.camera_info.name) if dev.supports(rs.camera_info.name) else ""
+        d555_found = "D555" in name
+
+    if hub and not d555_found:
+        # All CI machines with a D555 connected have a hub. Detect camera even in case domain have reset to 0 so applicable tests will run.
+        ctx = rs.context( { "dds" : { "enabled" : True, "domain" : 0 } } )
+        devices = ctx.query_devices(int(rs.product_line.sw_only) | int(rs.product_line.any))
         for dev in devices:
-            # The FW update ID is always available, it seems, and is the ASIC serial number
-            # whereas the Serial Number is the OPTIC serial number and is only available in
-            # non-recovery devices. So we use the former...
-            try:
-                sn = dev.get_info( rs.camera_info.firmware_update_id )
-            except RuntimeError as e:
-                log.e( f'Found device with S/N {sn} but trying to get fw-update-id failed: {e}' )
-                continue
-            device = Device( sn, dev )
-            _device_by_sn[sn] = device
-            log.d( '... port {}:'.format( device.port is None and '?' or device.port ), sn, dev )
-    finally:
-        log.debug_unindent()
+            name = dev.get_info(rs.camera_info.name) if dev.supports(rs.camera_info.name) else ""
+            if "D555" in name:
+                log.i("Found D555 device with domain 0, not same as in configuration file")
+                sn = dev.get_info( rs.camera_info.serial_number ) if dev.supports( rs.camera_info.serial_number ) \
+                     else dev.get_info( rs.camera_info.firmware_update_id )
+                device = Device( sn, dev )
+                _device_by_sn[sn] = device
+
+    if rslog:
+        rs.log_to_console(rs.log_severity.none) # disable debug logging
+
+    log.debug_unindent()
     #
     if monitor_changes:
         _context.set_devices_changed_callback( _device_change_callback )
@@ -295,17 +356,26 @@ def _device_change_callback( info ):
             device._removed = True
             log.d( 'device removed:', device.serial_number )
     for handle in info.get_new_devices():
-        sn = handle.get_info( rs.camera_info.firmware_update_id )
+        sn = handle.get_info( rs.camera_info.serial_number ) if handle.supports( rs.camera_info.serial_number ) \
+             else handle.get_info( rs.camera_info.firmware_update_id )
         log.d( 'device added:', sn, handle )
         if sn in _device_by_sn:
             device = _device_by_sn[sn]
-            device._dev = handle     # Because it has a new handle!
-            device._removed = False
+            # Check if connection type changed (e.g., USB -> DDS)
+            old_connection_type = device._connection_type
+            new_connection_type = handle.supports(rs.camera_info.connection_type) and handle.get_info(rs.camera_info.connection_type) or None
+            if new_connection_type and new_connection_type != old_connection_type:
+                # Device reappeared with different connection type (e.g., USB camera now exposed via DDS adapter)
+                # This is likely a test artifact - don't replace the physical device with the virtual one
+                log.d( f'ignoring device {sn} with changed connection type: {old_connection_type} -> {new_connection_type}' )
+            else:
+                # Same connection type, just update the handle (device was recycled/reset)
+                device._dev = handle
+                device._removed = False
         else:
-            # shouldn't see new devices...
-            log.d( 'new device detected!?' )
-            _device_by_sn[sn] = Device( sn, handle )
-
+            # New device not in initial map - ignore it
+            # Could be DDS simulated devices created during tests
+            continue
 
 def all():
     """
@@ -332,9 +402,9 @@ def by_product_line( product_line, ignored_products ):
     global _device_by_sn
     result = set()
     for device in _device_by_sn.values():
-        if device.product_line == product_line:
+        if device.product_line.upper() == product_line.upper():
             for ignored_product in ignored_products:
-                if ignored_product in device.name:
+                if ignored_product.upper() in device.name.upper():
                     break
             else:
                 result.add(device.serial_number)
@@ -350,9 +420,9 @@ def by_name( name, ignored_products ):
     global _device_by_sn
     result = set()
     ignored_list_as_str = " ".join(ignored_products)
-    if name not in ignored_list_as_str:
+    if name.upper() not in ignored_list_as_str.upper():
         for device in _device_by_sn.values():
-            if device.name and device.name.find( name ) >= 0:
+            if device.name and device.name.upper().find( name.upper() ) >= 0:
                 result.add(device.serial_number)
     return result
 
@@ -522,49 +592,66 @@ def recovery():
     return { device.serial_number for device in _device_by_sn.values() if device.handle.is_in_recovery_mode() }
 
 
-def enable_only( serial_numbers, recycle = False, timeout = MAX_ENUMERATION_TIME ):
+def enable_only( serial_numbers, recycle = False, timeout = MAX_ENUMERATION_TIME, disable_other_ports = False ):
     """
-    Enable only the devices corresponding to the given serial-numbers. This can work either
-    with or without a hub: without, the devices will simply be HW-reset, but other devices
-    will still be present.
+    Enable the devices corresponding to the given serial-numbers and wait until they are online.
+    Works with or without a hub: without one the devices are simply HW-reset (recycle) and other
+    devices remain present.
 
     NOTE: will raise an exception if any SN is unknown!
 
-    :param serial_numbers: A collection of serial-numbers to enable - all others' ports are
-                           disabled and will no longer be usable!
-    :param recycle: If False, the devices will not be reset if they were already enabled. If
-                    True, the devices will be recycled by disabling the port, waiting, then
-                    re-enabling
+    Port state is intentionally NOT tracked here -- callers own it via their own lifecycle:
+    the pytest harness disables its device on fixture teardown; the legacy harness passes
+    disable_other_ports=True so each setup isolates statelessly.
+
+    Note: leak recovery is per-session -- query() disables all ports at session start, but a
+    within-session crash that skips a fixture teardown will leave that device powered until the
+    next session (the previous recycle=True path used to disable all enabled ports here, which
+    acted as a within-session net; that net is gone). Callers needing stronger isolation against
+    a leaked port should pass disable_other_ports=True.
+
+    :param serial_numbers: serial-numbers to enable.
+    :param recycle: If True, power-cycle the requested device(s) -- disable the port, wait for
+                    removal, then re-enable -- to reset them to a clean state.
+    :param disable_other_ports: If True, disable every other hub port so only the requested
+                    device(s) remain powered (stateless isolation).
     :param timeout: The maximum seconds to wait to make sure the devices are indeed online
     """
+    if recycle:
+        # let the driver/device settle before we disrupt it; helps the MIPI driver in particular
+        # recover cleanly when a preceding test left it in a bad state
+        time.sleep(1)
     if hub:
         #
         ports = [ get( sn ).port for sn in serial_numbers ]
+        # DDS (and other non-hub) devices have port=None; filter them out of hub operations
+        wanted_ports = sorted( p for p in ports if p is not None )
         #
-        if recycle:
-            #
-            log.d( 'recycling ports via hub:', ports )
-            #
-            enabled_devices = enabled()
-            hub.disable_ports( )
-            _wait_until_removed( enabled_devices, timeout = timeout )
-            #
-            hub.enable_ports( ports )
-            #
+        if not wanted_ports:
+            log.d( 'no hub ports to enable; leaving hub as-is' )
+        elif recycle:
+            log.d( 'recycling ports', wanted_ports, '+ disabling others' if disable_other_ports else '' )
+            recycled_sns = { sn for sn in serial_numbers if get( sn ) and get( sn ).port is not None }
+            hub.disable_ports( wanted_ports )
+            _wait_until_removed( recycled_sns, timeout = timeout )
+            hub.enable_ports( wanted_ports, disable_other_ports = disable_other_ports )
         else:
-            #
-            hub.enable_ports( ports, disable_other_ports = True )
+            log.d( 'enabling ports', wanted_ports, '+ disabling others' if disable_other_ports else '' )
+            hub.enable_ports( wanted_ports, disable_other_ports = disable_other_ports )
         #
-        _wait_for( serial_numbers, timeout = timeout )
+        if not _wait_for( serial_numbers, timeout = timeout ):
+            raise TimeoutError( f'devices did not enumerate within {timeout}s after hub enable: {serial_numbers}' )
         #
     elif recycle:
         #
-        hw_reset( serial_numbers )
+        if not hw_reset( serial_numbers, timeout = timeout ):
+            raise RuntimeError( f'hw_reset failed for: {serial_numbers}' )
         #
     else:
         log.d( 'no hub; ports left as-is' )
         # even without reset, enable_only should wait for the devices to be available again
-        _wait_for(serial_numbers, timeout=timeout)
+        if not _wait_for( serial_numbers, timeout = timeout ):
+            raise TimeoutError( f'devices did not enumerate within {timeout}s: {serial_numbers}' )
 
 
 def enable_all():
@@ -574,7 +661,63 @@ def enable_all():
     hub.enable_ports()
 
 
-def _wait_until_removed( serial_numbers, timeout = 5 ):
+def any_port_powered( serial_numbers ):
+    """
+    True if any of the given serials maps to a hub port that is currently powered on.
+
+    Uses the hub's hardware port state (hub.is_port_enabled), NOT the SDK enabled() -- so it is
+    reliable even when a device hasn't (re-)enumerated. Lets a setup detect a device left powered
+    by a skipped/crashed teardown so it can recycle it clean rather than reuse a stale state.
+    Returns False without a hub or for serials with no hub port (e.g. non-hub DDS devices).
+
+    A powered port here is unexpected (setup expects the device OFF -- prev teardown or query()'s
+    disable-all should have cleared it), so we log a warning naming the offender before returning.
+    """
+    if not hub:
+        return False
+    for sn in serial_numbers:
+        dev = get( sn )
+        if dev and dev.port is not None and hub.is_port_enabled( dev.port ):
+            log.w( f'{sn} port {dev.port} still powered at setup -- a prior teardown was likely '
+                   f'skipped (crash/kill); recycling to a clean state' )
+            return True
+    return False
+
+
+def disable( serial_numbers, wait = True ):
+    """
+    Disable the hub ports for the given serial-numbers and, by default, wait until the devices
+    are actually removed. No-op without a hub or for devices with no hub port (e.g. non-hub DDS
+    devices). Used by the pytest harness to power off a device on fixture teardown -- the
+    counterpart to enable_only() at setup.
+
+    Waiting matters for slow-dropping DDS/PoE devices (participant-lease latency, ~8s): without
+    it the removal can land during the *next* module's test and race its device discovery
+    (observed as a flaky 'Advanced mode expects camera to have a depth sensor' at setup). This
+    mirrors the _wait_until_removed() that enable_only(recycle=True) does on the enable path.
+
+    A timed-out wait is non-fatal BY DESIGN: failing a teardown mis-attributes the error to the
+    test that just passed, and a transient hub blip would redden an otherwise-green suite. We log
+    loudly instead so a downstream flake can be traced back here -- do not "fix" this by raising.
+    """
+    if not hub:
+        return
+    sns = [ sn for sn in serial_numbers if get( sn ) and get( sn ).port is not None ]
+    ports = sorted( get( sn ).port for sn in sns )
+    if not ports:
+        return
+    # let the last command to the device/FW settle before we cut power, so we don't yank power
+    # mid-transaction (mirrors the pre-recycle settle in enable_only)
+    time.sleep( 1 )
+    hub.disable_ports( ports )
+    if wait:
+        if not _wait_until_removed( set( sns ) ):
+            # non-fatal by design (see docstring): surface loudly so a downstream flake is traceable
+            log.w( f'disable: {sns} still enumerated after {PORTS_DISABLED_TIMEOUT}s; '
+                   f'next module setup may race their removal' )
+
+
+def _wait_until_removed( serial_numbers, timeout = PORTS_DISABLED_TIMEOUT ):
     """
     Wait until the given serial numbers are all offline
 
@@ -652,7 +795,12 @@ def hw_reset( serial_numbers, timeout = MAX_ENUMERATION_TIME ):
     _wait_for(serial_numbers, timeout=timeout) # make sure devices are added before doing hw reset
     for sn in serial_numbers:
         dev = get( sn ).handle
-        dev.hardware_reset()
+        try:
+            dev.hardware_reset()
+        except Exception as e:
+            # swallow so one failing SN doesn't skip reset on the others and, more importantly,
+            # doesn't skip the post-reset settle that lets the driver re-enumerate
+            log.w( f'hardware_reset() failed for {sn}: {e}' )
     #
 
     if removable_devs_sns:
@@ -661,7 +809,7 @@ def hw_reset( serial_numbers, timeout = MAX_ENUMERATION_TIME ):
     else:
         # normally we will get here with a mipi device,
         # we want to allow some time for the device to reinitialize as it was not disconnected
-        time.sleep(3)
+        time.sleep(8)
     #
     return _wait_for( serial_numbers, timeout = timeout )
 
@@ -749,6 +897,7 @@ if __name__ == '__main__':
     if args:
         usage()
     try:
+        init_hub()
         if hub:
             if not hub.is_connected():
                 hub.connect()
@@ -808,6 +957,7 @@ if __name__ == '__main__':
             hub.recycle_ports()
     finally:
         # Disconnect from the hub -- if we don't it might crash on Linux...
-        hub.disconnect()
+        if hub:
+            hub.disconnect()
 
 

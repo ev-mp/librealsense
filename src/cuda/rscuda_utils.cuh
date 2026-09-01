@@ -1,20 +1,63 @@
+// License: Apache 2.0. See LICENSE file in root directory.
+// Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
+
 #pragma once
-#ifdef RS2_USE_CUDA
+// Guarded on either macro (not just RS2_USE_CUDA) so this compiles under HIP regardless of
+// whether global_config.cmake's BUILD_WITH_HIP branch also defines RS2_USE_CUDA (today, for
+// back-compat) or drops it in favor of RS2_USE_HIP alone.
+#if defined(RS2_USE_CUDA) || defined(RS2_USE_HIP)
 
 #include <stdexcept>
+#include <string>
 #include <memory>
 #include <cassert>
 
-// CUDA headers
+// GPU runtime headers
+#ifdef RS2_USE_HIP
+#include <hip/hip_runtime.h>
+#define cudaMalloc hipMalloc
+#define cudaFree hipFree
+#define cudaMemcpy hipMemcpy
+#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaSuccess hipSuccess
+#define cudaError_t hipError_t
+#define cudaGetErrorString hipGetErrorString
+#define cudaGetLastError hipGetLastError
+#define cudaStreamSynchronize hipStreamSynchronize
+#define cudaMemset hipMemset
+// Zero-copy pointer-attribute probing (see try_device_ptr() below). Only referenced when
+// RS2_USE_CUDA_ZEROCOPY is also defined (BUILD_WITH_HIP_ZEROCOPY); harmless otherwise since
+// the whole try_device_ptr() body they appear in is itself compiled out.
+#define cudaPointerAttributes hipPointerAttribute_t
+#define cudaPointerGetAttributes hipPointerGetAttributes
+#define cudaMemoryTypeManaged hipMemoryTypeManaged
+#define cudaMemoryTypeHost hipMemoryTypeHost
+#define cudaHostGetDevicePointer hipHostGetDevicePointer
+#else
 #include <cuda_runtime.h>
-
-#ifdef _MSC_VER 
-// Add library dependencies if using VS
+#ifdef _MSC_VER
+// Add library dependencies if using VS.  Gated to the CUDA branch only;
+// when building for HIP the linker must not pull in cudart_static.lib.
 #pragma comment(lib, "cudart_static")
 #endif
+#endif
+
+#include "cuda-compat.h"        // RS_CUDA_MEMTYPE — single definition shared across CUDA TUs
+#include "cuda-frame-memory.h"  // rs_frame_zc_enabled — the one place zero-copy is switched on
+
+// Throws std::runtime_error with a descriptive message if a CUDA / HIP call returns non-success.
+// Uses `auto` for the return value so the same macro compiles for both cudaError_t and hipError_t.
+#define RS_CUDA_CHECK(expr) do {                                                                     \
+    auto _rs_cuda_err = (expr);                                                                      \
+    if (_rs_cuda_err != cudaSuccess)                                                                 \
+        throw std::runtime_error(std::string(#expr " failed: ") + cudaGetErrorString(_rs_cuda_err)); \
+} while (0)
 
 namespace rscuda
 {
+    constexpr int THREADS_IN_WARP = 32; // CUDA warp size; constant across all current NVIDIA archs.
+
     template<typename  T>
     std::shared_ptr<T> alloc_dev(int elements)
     {
@@ -23,6 +66,55 @@ namespace rscuda
         if (res != cudaSuccess)
             throw std::runtime_error("cudaMalloc failed status: " + res);
         return std::shared_ptr<T>(d_data, [](T* p) { cudaFree(p); });
+    }
+
+    // Zero-copy probe: if `host` is CUDA pinned+mapped memory (frame buffers on an
+    // integrated GPU), return the aliasing device pointer so a kernel can read/write it
+    // in place with no cudaMemcpy. Returns nullptr otherwise (plain malloc / discrete /
+    // non-zero-copy build), signalling the caller to use the cudaMalloc + copy path.
+    // Clears the CUDA error state on the not-mapped path so it doesn't leak to RS_CUDA_CHECK.
+    template<typename T>
+    T* try_device_ptr(const void* host)
+    {
+#ifdef RS2_USE_CUDA_ZEROCOPY
+        // Only probe in zero-copy builds. In a plain CUDA build this compiles to
+        // `return nullptr;`, so the existing cudaMalloc + cudaMemcpy path is taken
+        // unchanged (no extra per-frame probe, byte-for-byte identical behavior).
+        //
+        // Handles both memory kinds the zero-copy path produces:
+        //   - managed (frame pool, cudaMallocManaged) -> same ptr is device-usable
+        //   - host-registered mapped (V4L2 capture buffers) -> attr.devicePointer
+        // Unregistered (plain malloc / discrete GPU) -> nullptr -> caller copies.
+        //
+        // Gate on the same switch rs_frame_zc_alloc() uses, so this agrees with the contract
+        // documented on rs_frame_zc_device_ptr(): zero-copy only on an integrated GPU. Without
+        // the gate, a discrete-GPU host whose driver reports pageableMemoryAccess (HMM, common
+        // on recent Linux drivers) hands back a device pointer for ordinary malloc'd frame
+        // memory, and the kernels would stream a whole frame over PCIe every call instead of
+        // taking the staging copy that is much faster there.
+        if (!librealsense::rs_frame_zc_enabled())
+            return nullptr;
+
+        cudaPointerAttributes attr{};
+        if (host && cudaPointerGetAttributes(&attr, host) == cudaSuccess)
+        {
+            if (RS_CUDA_MEMTYPE(attr) == cudaMemoryTypeManaged)
+                return static_cast<T*>(const_cast<void*>(host));
+            if (attr.devicePointer)
+                return static_cast<T*>(attr.devicePointer);
+            // Some Jetson L4T CUDA drivers leave attr.devicePointer null for mapped pinned
+            // memory even though it IS device-mapped; cudaHostGetDevicePointer resolves the alias.
+            if (RS_CUDA_MEMTYPE(attr) == cudaMemoryTypeHost)
+            {
+                void* dptr = nullptr;
+                if (cudaHostGetDevicePointer(&dptr, const_cast<void*>(host), 0) == cudaSuccess && dptr)
+                    return static_cast<T*>(dptr);
+            }
+        }
+        cudaGetLastError();
+#endif
+        (void)host;
+        return nullptr;
     }
 
     template<typename  T>
@@ -100,4 +192,4 @@ namespace rscuda
         to_point[2] = extrin->rotation[2] * from_point[0] + extrin->rotation[5] * from_point[1] + extrin->rotation[8] * from_point[2] + extrin->translation[2];
     }
 }
-#endif //RS2_USE_CUDA
+#endif //RS2_USE_CUDA || RS2_USE_HIP

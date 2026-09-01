@@ -30,6 +30,19 @@ namespace librealsense
         _depth_sensor->unregister_option(RS2_OPTION_VISUAL_PRESET);
     }
 
+    void ds_advanced_mode_base::register_to_depth_scale_option()
+    {
+        if (_depth_units_register_action)
+        {
+            _depth_units_register_action();
+        }
+    }
+
+    void ds_advanced_mode_base::unregister_from_depth_scale_option()
+    {
+        _depth_sensor->unregister_option(RS2_OPTION_DEPTH_UNITS);
+    }
+
     void ds_advanced_mode_base::initialize_advanced_mode( device_interface * dev )
     {
         _dev = dev;
@@ -54,6 +67,22 @@ namespace librealsense
         }
 
         device_specific_initialization();
+
+        // _depth_units_register_action not needed for d500 devices 
+        // since advanced mode toggling is not enabled
+        if (auto d400_dev = dynamic_cast<d400_device*>(_dev))
+        {   
+            auto& depth_units_action = d400_dev->_depth_units_register_action;
+            if (depth_units_action) 
+            {
+                ds_advanced_mode_base::set_depth_units_register_action(depth_units_action);
+            }
+        }
+        
+        ds_advanced_mode_base::set_hardware_reset_action([this]()
+        {
+            _dev->hardware_reset();
+        });
     }
 
     void ds_advanced_mode_base::device_specific_initialization()
@@ -75,16 +104,24 @@ namespace librealsense
 
     void ds_advanced_mode_base::toggle_advanced_mode( bool enable )
     {
-        send_receive( encode_command( ds::fw_cmd::EN_ADV, enable ) );
-        send_receive( encode_command( ds::fw_cmd::HWRST ) );
+        if (! enable )
+        {
+            unregister_from_visual_preset_option();
+            unregister_from_depth_scale_option();
+        }
 
-        // register / unregister visual preset option
-        if( is_enabled() )
+        send_receive( encode_command( ds::fw_cmd::EN_ADV, enable ) );
+
+        if (_hardware_reset_action)
+            _hardware_reset_action();
+        else
+            send_receive( encode_command( ds::fw_cmd::HWRST ) );
+
+        if( enable )
         {
             register_to_visual_preset_option();
+            register_to_depth_scale_option();
         }
-        else
-            unregister_from_visual_preset_option();
     }
 
     void ds_advanced_mode_base::apply_preset( const std::vector< platform::stream_profile > & configuration,
@@ -122,7 +159,6 @@ namespace librealsense
             case ds::RS455_PID:
             case ds::RS457_PID:
             case ds::D555_PID:
-            case ds::D585_PID:
                 default_450_mid_low_res( p );
                 switch( res )
                 {
@@ -141,12 +177,22 @@ namespace librealsense
                 }
                 break;
             case ds::D585S_PID:
+            case ds::D585_LEGACY_PID:
+            case ds::D535_2C_PID:
+            case ds::D585_2C_PID:
+            case ds::D585_2C_PROTO_PID:
+            case ds::D535_3C_PID:
+            case ds::D535F_PID:
+            case ds::D585_3C_PID:
+            case ds::D585F_PID:
+            case ds::D585_3C_PROTO_PID:
                 default_585S( p );
                 break;
             case ds::RS405U_PID:
                 default_405u( p );
                 break;
             case ds::RS405_PID:
+            case ds::RS401_GMSL_PID:
                 default_405( p );
                 break;
             case ds::RS400_PID:
@@ -165,7 +211,7 @@ namespace librealsense
         case RS2_RS400_VISUAL_PRESET_HAND:
             hand_gesture( p );
             // depth units for D405
-            if( device_pid == ds::RS405_PID )
+            if( device_pid == ds::RS405_PID || device_pid == ds::RS401_GMSL_PID )
                 p.depth_table.depthUnits = 100;  // 0.1mm
             break;
         case RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY:
@@ -270,6 +316,47 @@ namespace librealsense
     {
         *ptr = _amplitude_factor_support ? get< STAFactor >( advanced_mode_traits< STAFactor >::group, nullptr, mode ) :
             []() { STAFactor af; af.amplitude = 0.f; return af; }();
+    }
+
+    void ds_advanced_mode_base::get_all_controls( STAdvancedModeControls * ptr ) const
+    {
+        // Every group and mode is read here, under one bulk operation, and not by a query per group:
+        // each standalone GET_ADV powers the depth sensor up and back down again
+        rsutils::deferred depth_bulk = _depth_sensor->bulk_operation();
+
+        // A group whose min/max FW does not report (hdad, and ae on some devices) fails the query;
+        // it gets the value in all three, which is what callers showed for such a group anyway.
+        // Only the FW rejection is caught - a transport failure must not pass as a min/max.
+        auto read = [this]( auto getter, auto * dst )
+        {
+            for( int mode = 0; mode < RS2_ADVANCED_MODE_MODES; ++mode )
+            {
+                try
+                {
+                    ( this->*getter )( &dst[mode], mode );
+                }
+                catch( std::runtime_error const & )
+                {
+                    if( ! mode )
+                        throw;
+                    dst[mode] = dst[0];
+                }
+            }
+        };
+
+        read( &ds_advanced_mode_base::get_depth_control_group, ptr->depth_control );
+        read( &ds_advanced_mode_base::get_rsm, ptr->rsm );
+        read( &ds_advanced_mode_base::get_rau_support_vector_control, ptr->rsvc );
+        read( &ds_advanced_mode_base::get_color_control, ptr->color_control );
+        read( &ds_advanced_mode_base::get_rau_color_thresholds_control, ptr->rctc );
+        read( &ds_advanced_mode_base::get_slo_color_thresholds_control, ptr->sctc );
+        read( &ds_advanced_mode_base::get_slo_penalty_control, ptr->spc );
+        read( &ds_advanced_mode_base::get_hdad, ptr->hdad );
+        read( &ds_advanced_mode_base::get_color_correction, ptr->cc );
+        read( &ds_advanced_mode_base::get_depth_table_control, ptr->depth_table );
+        read( &ds_advanced_mode_base::get_ae_control, ptr->ae );
+        read( &ds_advanced_mode_base::get_census_radius, ptr->census );
+        read( &ds_advanced_mode_base::get_amp_factor, ptr->amp_factor );
     }
 
     bool ds_advanced_mode_base::supports_option( const sensor_base * sensor, rs2_option opt ) const
@@ -530,6 +617,9 @@ namespace librealsense
 
     void ds_advanced_mode_base::set_ae_control( const STAEControl & val )
     {
+        if( _dev->get_info( rs2_camera_info::RS2_CAMERA_INFO_PRODUCT_LINE ) == "D500" )
+            throw invalid_value_exception( "set_ae_control(...) failed! AE Setpoint is not supported on D500-family devices" );
+
         set( val, advanced_mode_traits< STAEControl >::group );
         if( _preset_opt )
             _preset_opt->set( RS2_RS400_VISUAL_PRESET_CUSTOM );

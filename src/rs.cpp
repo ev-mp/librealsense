@@ -13,8 +13,8 @@
 #include "core/extension.h"
 #include "media/playback/playback-device-info.h"
 #include "media/record/record_device.h"
-#include <media/ros/ros_writer.h>
-#include <media/ros/ros_reader.h>
+#include <media/bag_to_db3_converter.h>
+#include <media/ros_factory.h>
 #include "core/advanced_mode.h"
 #include "core/pose-frame.h"
 #include "core/motion-frame.h"
@@ -40,6 +40,7 @@
 #include "proc/sequence-id-filter.h"
 #include "proc/decimation-embedded-filter.h"
 #include "proc/temporal-embedded-filter.h"
+#include "proc/close-range-embedded-filter.h"
 #include "media/playback/playback_device.h"
 #include "stream.h"
 #include <librealsense2/h/rs_types.h>
@@ -60,13 +61,20 @@
 #include "fw-update/fw-update-device-interface.h"
 #include "core/frame-callback.h"
 #include "color-sensor.h"
+#include "perception-sensor.h"
 #include "safety-sensor.h"
 #include "depth-mapping-sensor.h"
 #include "composite-frame.h"
 #include "points.h"
 #include "labeled-points.h"
+#include "object-detection-frame.h"
+#include "perception-frame.h"
 #include "eth-config-device.h"
 #include "embedded-filter-interface.h"
+
+#ifdef RS2_USE_CUDA_ZEROCOPY
+#include "cuda/cuda-frame-memory.h"  // rs_frame_zc_device_ptr for rs2_get_frame_gpu_data
+#endif
 
 #include <src/core/time-service.h>
 #include <rsutils/string/from.h>
@@ -103,11 +111,16 @@ struct rs2_option_value_wrapper : rs2_option_value
     // Add a reference count to control lifetime
     mutable std::atomic< int > ref_count;
 
+    int has_range;
+    rs2_option_range range;
+
     rs2_option_value_wrapper( rs2_option option_id,
                               rs2_option_type option_type,
                               std::shared_ptr< const json > const & p_json_value )
         : ref_count( 1 )
         , p_json( p_json_value )
+        , has_range( 0 )
+        , range{}
     {
         id = option_id;
         type = option_type;
@@ -911,8 +924,9 @@ void rs2_set_option(const rs2_options* options, rs2_option option, float value, 
         if (range.min != range.max && range.step)
             VALIDATE_RANGE(value, range.min, range.max);
         if ((int)value != value)
-            throw invalid_value_exception(rsutils::string::from() << "not an integer: " << value);
-        option_ref.set(value);
+            LOG_WARNING("Float value " << value << " given to integer option " << rs2_get_option_name(options, option, error)
+                << ", truncating to " << std::trunc(value));
+        option_ref.set(std::trunc(value));
         break;
 
     case RS2_OPTION_TYPE_BOOLEAN:
@@ -1004,6 +1018,21 @@ rs2_options_list* rs2_get_options_list(const rs2_options* options, rs2_error** e
         if( option.is_enabled() )
             value = std::make_shared< const json >( option.get_value() );
         auto wrapper = new rs2_option_value_wrapper( option_id, option.get_value_type(), value );
+        // In addition to the option, read its range here (if exists) while the UVC sensor is powered
+        try
+        {
+            auto const range = option.get_range();
+            wrapper->range = { range.min, range.max, range.def, range.step };
+            wrapper->has_range = 1;
+        }
+        catch( std::exception const & e )
+        {
+            LOG_DEBUG( "failed to query range of " << get_string( option_id ) << ": " << e.what() );
+        }
+        catch( ... )
+        {
+            LOG_DEBUG( "failed to query range of " << get_string( option_id ) );
+        }
         rs2_list->list.push_back( wrapper );
     }
     return rs2_list;
@@ -1039,6 +1068,18 @@ rs2_option_value const * rs2_get_option_value_from_list( const rs2_options_list 
     return p_option_value;
 }
 HANDLE_EXCEPTIONS_AND_RETURN( nullptr, options, i )
+
+int rs2_get_option_range_from_list( const rs2_options_list * options, int i, rs2_option_range * out_range, rs2_error ** error ) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL( options );
+    VALIDATE_NOT_NULL( out_range );
+    auto const p_option_value = options->list.at( i );
+    if( ! p_option_value->has_range )
+        return 0;
+    *out_range = p_option_value->range;
+    return 1;
+}
+HANDLE_EXCEPTIONS_AND_RETURN( 0, options, i )
 
 void rs2_delete_options_list(rs2_options_list* list) BEGIN_API_CALL
 {
@@ -1462,6 +1503,30 @@ const void* rs2_get_frame_data(const rs2_frame* frame_ref, rs2_error** error) BE
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, frame_ref)
 
+const void* rs2_get_frame_gpu_data(const rs2_frame* frame_ref, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(frame_ref);
+#ifdef RS2_USE_CUDA_ZEROCOPY
+    // The frame buffer is CUDA-mapped only under zero-copy on an integrated GPU; resolve its
+    // device alias. Returns null otherwise -> caller falls back to rs2_get_frame_data + upload.
+    return librealsense::rs_frame_zc_device_ptr( ( (frame_interface*)frame_ref )->get_frame_data() );
+#else
+    // Not a zero-copy build: no GPU alias exists. Symbol stays present for ABI stability.
+    return nullptr;
+#endif
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, frame_ref)
+
+const void* rs2_get_frame_gpu_data_or_upload(const rs2_frame* frame_ref, int* copied, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(frame_ref);
+    bool c = false;
+    auto p = ((frame_interface*)frame_ref)->get_gpu_data_or_upload(&c);
+    if (copied) *copied = c ? 1 : 0;
+    return p;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, frame_ref)
+
 int rs2_get_frame_width(const rs2_frame* frame_ref, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(frame_ref);
@@ -1734,6 +1799,15 @@ void rs2_override_extrinsics( const rs2_sensor* sensor, const rs2_extrinsics* ex
 }
 HANDLE_EXCEPTIONS_AND_RETURN( , sensor, extrinsics )
 
+double rs2_get_device_time_ms( const rs2_device* device, rs2_error** error ) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(device);
+
+    auto device_global_time = VALIDATE_INTERFACE(device->device, librealsense::global_time_interface);
+    return device_global_time->get_device_time_ms();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0.0, device)
+
 void rs2_reset_sensor_calibration( rs2_sensor const * sensor, rs2_error** error ) BEGIN_API_CALL
 {
     throw not_implemented_exception( "deprecated" );
@@ -1961,6 +2035,7 @@ int rs2_is_sensor_extendable_to(const rs2_sensor* sensor, rs2_extension extensio
     case RS2_EXTENSION_DEBUG_STREAM_SENSOR     : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::debug_stream_sensor )   != nullptr;
     case RS2_EXTENSION_SAFETY_SENSOR           : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::safety_sensor)          != nullptr;
     case RS2_EXTENSION_DEPTH_MAPPING_SENSOR    : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::depth_mapping_sensor)   != nullptr;
+    case RS2_EXTENSION_PERCEPTION_SENSOR       : return VALIDATE_INTERFACE_NO_THROW(sensor->sensor, librealsense::perception_sensor)       != nullptr;
 
     default:
         return false;
@@ -1987,6 +2062,7 @@ int rs2_is_device_extendable_to(const rs2_device* dev, rs2_extension extension, 
         case RS2_EXTENSION_SAFETY_SENSOR         : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::safety_sensor)                 != nullptr;
         case RS2_EXTENSION_ADVANCED_MODE         : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::ds_advanced_mode_interface)    != nullptr;
         case RS2_EXTENSION_DEPTH_MAPPING_SENSOR  : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_mapping_sensor)          != nullptr;
+        case RS2_EXTENSION_PERCEPTION_SENSOR     : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::perception_sensor)             != nullptr;
         case RS2_EXTENSION_RECORD                : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::record_device)                 != nullptr;
         case RS2_EXTENSION_PLAYBACK              : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::playback_device)               != nullptr;
         case RS2_EXTENSION_TM2                   : return false;
@@ -2021,6 +2097,18 @@ int rs2_is_frame_extendable_to(const rs2_frame* f, rs2_extension extension_type,
     case RS2_EXTENSION_MOTION_FRAME             : return VALIDATE_INTERFACE_NO_THROW((frame_interface*)f, librealsense::motion_frame)    != nullptr;
     case RS2_EXTENSION_POSE_FRAME               : return VALIDATE_INTERFACE_NO_THROW((frame_interface*)f, librealsense::pose_frame)      != nullptr;
     case RS2_EXTENSION_LABELED_POINTS         : return VALIDATE_INTERFACE_NO_THROW((frame_interface*)f, librealsense::labeled_points) != nullptr;
+    case RS2_EXTENSION_PERCEPTION_FRAME       : return VALIDATE_INTERFACE_NO_THROW((frame_interface*)f, librealsense::perception_frame) != nullptr;
+    case RS2_EXTENSION_OBJECT_DETECTION_FRAME : return VALIDATE_INTERFACE_NO_THROW((frame_interface*)f, librealsense::object_detection_frame) != nullptr;
+    case RS2_EXTENSION_GPU_FRAME              :
+        // A frame is extendable to gpu_frame only when its pixels truly reside in GPU-accessible
+        // (zero-copy) memory, i.e. a CUDA device pointer aliasing the frame data resolves. This
+        // mirrors gl::gpu_frame (rs2_gl_is_frame_extendable_to) and lets callers branch on
+        // f.as<gpu_frame>() to choose zero-copy vs. their own upload.
+#ifdef RS2_USE_CUDA_ZEROCOPY
+        return rs_frame_zc_device_ptr( ((frame_interface*)f)->get_frame_data() ) != nullptr;
+#else
+        return false;
+#endif
 
     default:
         return false;
@@ -2060,6 +2148,7 @@ int rs2_is_embedded_filter_extendable_to(const rs2_embedded_filter* embedded_fil
     {
     case RS2_EXTENSION_DECIMATION_EMBEDDED_FILTER: return VALIDATE_INTERFACE_NO_THROW((embedded_filter_interface*)(embedded_filter->_embedded_filter.get()), librealsense::decimation_embedded_filter) != nullptr;
     case RS2_EXTENSION_TEMPORAL_EMBEDDED_FILTER: return VALIDATE_INTERFACE_NO_THROW((embedded_filter_interface*)(embedded_filter->_embedded_filter.get()), librealsense::temporal_embedded_filter) != nullptr;
+    case RS2_EXTENSION_CLOSE_RANGE_EMBEDDED_FILTER: return VALIDATE_INTERFACE_NO_THROW((embedded_filter_interface*)(embedded_filter->_embedded_filter.get()), librealsense::close_range_embedded_filter) != nullptr;
     default:
         return false;
     }
@@ -2073,9 +2162,10 @@ int rs2_stream_profile_is(const rs2_stream_profile* profile, rs2_extension exten
     VALIDATE_ENUM(extension_type);
     switch (extension_type)
     {
-    case RS2_EXTENSION_VIDEO_PROFILE    : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::video_stream_profile_interface)  != nullptr;
-    case RS2_EXTENSION_MOTION_PROFILE   : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::motion_stream_profile_interface) != nullptr;
-    case RS2_EXTENSION_POSE_PROFILE     : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::pose_stream_profile_interface)   != nullptr;
+    case RS2_EXTENSION_VIDEO_PROFILE      : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::video_stream_profile_interface)     != nullptr;
+    case RS2_EXTENSION_MOTION_PROFILE     : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::motion_stream_profile_interface)    != nullptr;
+    case RS2_EXTENSION_POSE_PROFILE       : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::pose_stream_profile_interface)      != nullptr;
+    case RS2_EXTENSION_PERCEPTION_PROFILE : return VALIDATE_INTERFACE_NO_THROW(profile->profile, librealsense::perception_stream_profile_interface) != nullptr;
     default:
         return false;
     }
@@ -2086,6 +2176,13 @@ rs2_device* rs2_context_add_device(rs2_context* ctx, const char* file, rs2_error
 {
     VALIDATE_NOT_NULL(ctx);
     VALIDATE_NOT_NULL(file);
+
+    if (!librealsense::is_db3_file(file))
+#ifdef BUILD_ROSBAG2
+        LOG_WARNING("ROS1 .bag format is deprecated. Use rs-convert -D to convert to .db3 format.");
+#else
+        LOG_WARNING("ROS1 .bag format is deprecated. Build with BUILD_ROSBAG2 to enable .db3 support.");
+#endif
 
     auto dev_info = std::make_shared< playback_device_info >( ctx->ctx, file );
     ctx->ctx->add_device( dev_info );
@@ -2231,6 +2328,21 @@ void rs2_playback_device_stop(const rs2_device* device, rs2_error** error) BEGIN
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device)
 
+void rs2_convert_bag_to_db3(const char* input_bag_path, const char* output_db3_path, const rs2_context* ctx,
+                            rs2_update_progress_callback_ptr callback, void* client_data, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(input_bag_path);
+    VALIDATE_NOT_NULL(output_db3_path);
+    VALIDATE_NOT_NULL(ctx);
+    if (!librealsense::is_db3_file(output_db3_path))
+        throw librealsense::invalid_value_exception("Output path must end with .db3 extension");
+    std::function<void(float)> progress_callback;
+    if (callback)
+        progress_callback = [callback, client_data](float progress) { callback(progress, client_data); };
+    librealsense::convert_bag_to_db3(input_bag_path, output_db3_path, ctx->ctx, progress_callback);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, input_bag_path, output_db3_path, ctx)
+
 rs2_device* rs2_create_record_device(const rs2_device* device, const char* file, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
@@ -2246,9 +2358,8 @@ rs2_device* rs2_create_record_device_ex(const rs2_device* device, const char* fi
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(file);
 
-    return new rs2_device({
-        std::make_shared<record_device>(device->device, std::make_shared<ros_writer>(file, compression_enabled != 0))
-        });
+    auto writer = create_writer_for_file(file, compression_enabled != 0);
+    return new rs2_device({ std::make_shared<record_device>(device->device, writer) });
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, device, file)
 
@@ -2893,6 +3004,12 @@ rs2_processing_block* rs2_create_m420_decoder(rs2_error** error) BEGIN_API_CALL
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
+rs2_processing_block* rs2_create_nv12_decoder(rs2_error** error) BEGIN_API_CALL
+{
+    return new rs2_processing_block{ std::make_shared<nv12_converter>(RS2_FORMAT_RGB8) };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
+
 rs2_processing_block* rs2_create_y411_decoder(rs2_error** error) BEGIN_API_CALL
 {
     return new rs2_processing_block{ std::make_shared<y411_converter>(RS2_FORMAT_RGB8) };
@@ -2940,13 +3057,22 @@ rs2_processing_block* rs2_create_decimation_filter_block(rs2_error** error) BEGI
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
-rs2_processing_block* rs2_create_rotation_filter_block( rs2_streams_list streams_to_rotate, rs2_error ** error ) BEGIN_API_CALL
+rs2_processing_block* rs2_create_rotation_filter_block( const rs2_stream * streams_to_rotate, int stream_count, rs2_error ** error ) BEGIN_API_CALL
 {
-    auto block = std::make_shared< librealsense::rotation_filter >( streams_to_rotate.list );
+    VALIDATE_LE( 0, stream_count );
+
+    std::vector< rs2_stream > streams;
+    if( stream_count > 0 )
+    {
+        VALIDATE_NOT_NULL( streams_to_rotate );
+        streams.assign( streams_to_rotate, streams_to_rotate + stream_count );
+    }
+
+    auto block = std::make_shared< librealsense::rotation_filter >( std::move( streams ) );
 
     return new rs2_processing_block{ block };
 }
-NOARGS_HANDLE_EXCEPTIONS_AND_RETURN( nullptr )
+HANDLE_EXCEPTIONS_AND_RETURN( nullptr, streams_to_rotate, stream_count )
 
 rs2_processing_block* rs2_create_temporal_filter_block(rs2_error** error) BEGIN_API_CALL
 {
@@ -3300,6 +3426,22 @@ rs2_stream_profile* rs2_software_sensor_add_pose_stream_ex(rs2_sensor* sensor, r
     return bs->add_pose_stream(pose_stream, is_default != 0)->get_c_wrapper();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, pose_stream.type, pose_stream.index, pose_stream.fmt, pose_stream.uid, is_default)
+
+rs2_stream_profile* rs2_software_sensor_add_perception_stream(rs2_sensor* sensor, rs2_perception_stream perception_stream, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
+    return bs->add_perception_stream(perception_stream)->get_c_wrapper();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, perception_stream.type, perception_stream.index, perception_stream.uid)
+
+rs2_stream_profile* rs2_software_sensor_add_perception_stream_ex(rs2_sensor* sensor, rs2_perception_stream perception_stream, int is_default, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
+    return bs->add_perception_stream(perception_stream, is_default != 0)->get_c_wrapper();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, perception_stream.type, perception_stream.index, perception_stream.uid, is_default)
 
 void rs2_software_sensor_add_read_only_option(rs2_sensor* sensor, rs2_option option, float val, rs2_error** error) BEGIN_API_CALL
 {
@@ -3770,6 +3912,20 @@ int rs2_check_firmware_compatibility(const rs2_device* device, const void* fw_im
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, fw_image, device)
 
+const char* rs2_get_firmware_min_version(const rs2_device* device, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(device);
+
+    auto fwud = std::dynamic_pointer_cast< firmware_check_interface >( device->device );
+    if( ! fwud )
+        throw std::runtime_error("This device does not support update protocol!");
+
+    thread_local std::string min_version;
+    min_version = fwud->get_firmware_min_version();
+    return min_version.c_str();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, device)
+
 void rs2_enter_update_state(const rs2_device* device, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
@@ -4134,7 +4290,7 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, fw_log_parsed_msg)
 unsigned int rs2_get_fw_log_parsed_timestamp(rs2_firmware_log_parsed_message* fw_log_parsed_msg, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(fw_log_parsed_msg);
-    return fw_log_parsed_msg->firmware_log_parsed->timestamp;
+    return static_cast<unsigned int>(fw_log_parsed_msg->firmware_log_parsed->timestamp);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, fw_log_parsed_msg)
 
@@ -4915,6 +5071,22 @@ void rs2_set_transmission_delay( const rs2_device * device, unsigned int delay, 
 }
 HANDLE_EXCEPTIONS_AND_RETURN( , device )
 
+unsigned int rs2_get_udp_ttl( const rs2_device * device, rs2_error ** error ) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL( device );
+    auto eth_config = VALIDATE_INTERFACE( device->device, librealsense::eth_config_device );
+    return eth_config->get_udp_ttl();
+}
+HANDLE_EXCEPTIONS_AND_RETURN( 0, device )
+
+void rs2_set_udp_ttl( const rs2_device * device, unsigned int ttl, rs2_error ** error ) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL( device );
+    auto eth_config = VALIDATE_INTERFACE( device->device, librealsense::eth_config_device );
+    return eth_config->set_udp_ttl( ttl );
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, device )
+
 void rs2_restore_default_eth_config( const rs2_device * device, rs2_error ** error ) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL( device );
@@ -4922,3 +5094,36 @@ void rs2_restore_default_eth_config( const rs2_device * device, rs2_error ** err
     return eth_config->restore_defaults();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device )
+
+unsigned int rs2_get_frame_object_detection_count(const rs2_frame* frame, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(frame);
+    auto od_frame = VALIDATE_INTERFACE((frame_interface*)frame, librealsense::object_detection_frame);
+    return static_cast<unsigned int>(od_frame->get_detection_count());
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, frame)
+
+void rs2_get_frame_object_detection(const rs2_frame* frame, unsigned int index, rs2_object_detection* detection, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(frame);
+    VALIDATE_NOT_NULL(detection);
+    auto od_frame = VALIDATE_INTERFACE((frame_interface*)frame, librealsense::object_detection_frame);
+    
+    if(index >= od_frame->get_detection_count() )
+        throw invalid_value_exception( "index " + std::to_string(index) + " is out of range (" +
+                                        std::to_string(od_frame->get_detection_count()) + ")" );
+
+    const auto & entry = od_frame->get_detection( index );
+    detection->class_id           = entry.detection_type;
+    detection->score              = entry.confidence;
+    detection->top_left_x         = entry.top_left_x;
+    detection->top_left_y         = entry.top_left_y;
+    detection->bottom_right_x     = entry.bottom_right_x;
+    detection->bottom_right_y     = entry.bottom_right_y;
+    detection->depth              = entry.distance;
+    detection->world_position     = entry.world_position;
+    detection->center_of_mass_x   = entry.image_x;
+    detection->center_of_mass_y   = entry.image_y;
+    detection->center_of_mass_valid = entry.com_valid ? 1 : 0;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, frame, index, output_arg(detection))

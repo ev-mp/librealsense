@@ -18,7 +18,7 @@ Please ensure to work with the supported Kernel versions listed [here](https://g
 
 ## Prerequisites
 
-Supported versions are:  **Ubuntu 20/22/24 LTS** versions. 
+Supported versions are:  **Ubuntu 20/22/24/26 LTS** versions. 
 > **Note:** The scripts and commands below invoke `wget, git, add-apt-repository` which may be blocked by router settings or a firewall. \
 Infrequently, apt-get mirrors or repositories may also cause timeout. For _librealsense_ users behind an enterprise firewall, \
 configuring the system-wide Ubuntu proxy generally resolves most timeout issues.
@@ -39,8 +39,11 @@ Some OEM/Vendors choose to lock the kernel for modifications. Unlocking this cap
    
 3. Install the core packages required to build _librealsense_ binaries and the affected kernel modules:
    ```sh
-   sudo apt-get install libssl-dev libusb-1.0-0-dev libudev-dev pkg-config libgtk-3-dev
+   sudo apt-get install libusb-1.0-0-dev
+   sudo apt-get install libudev-dev
+   sudo apt-get install libssl-dev pkg-config libgtk-3-dev
    ```
+   > Note: The installation is split into separate commands because some platforms encounter dependency issues when installing these packages in a single step. Running them separately helps avoid those issues.
    **Cmake Note:** certain _librealsense_ [CMAKE](https://cmake.org/download/) flags (e.g. CUDA) require version 3.8+ which is currently not made available via apt manager for Ubuntu LTS.
 4. Install build tools
    ```sh
@@ -82,7 +85,11 @@ if not the SDK will use a timer polling approach which is less sensitive for dev
    ```
    Notice: You can always remove permissions by running: `./scripts/setup_udev_rules.sh --uninstall`
 
-3. Build and apply patched kernel modules for:
+3. Build and apply patched kernel modules (**optional** — needed only for newly released cameras):
+
+    Most RealSense cameras are fully supported by the stock kernel and **do not require patching** — support for them, including per-frame metadata, is already part of the mainline _uvcvideo_ driver. \
+    Patching is only required for newly released camera models that are not yet recognized by the distribution kernel's _uvcvideo_ driver (without it, streaming works but per-frame metadata is not available).
+
     * Ubuntu 20/22/24 (focal/jammy/noble) with LTS kernel 5.15, 5.19, 6.5, 6.8, 6.11, 6.14 \
       `./scripts/patch-realsense-ubuntu-lts-hwe.sh`
     * Ubuntu 20 with LTS kernel (< 5.13) \

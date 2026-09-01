@@ -16,10 +16,12 @@ void init_options(py::module &m) {
         rs2_option id;
         rs2_option_type type;
         py::object value;
+        py::object range;  // None if the option has no range
 
         option_value( rs2::option_value const & value_ )
             : id( value_->id )
             , type( value_->type )
+            , range( value_.has_range() ? py::cast( value_.range() ) : py::cast< py::none >( Py_None ) )
         {
             if( ! value_->is_valid )
                 value = py::cast< py::none >( Py_None );
@@ -39,6 +41,7 @@ void init_options(py::module &m) {
         .def_readwrite( "id", &option_value::id )
         .def_readwrite( "value", &option_value::value )  // None if no value available
         .def_readwrite( "type", &option_value::type )
+        .def_readwrite( "range", &option_value::range )  // None if no range available
         .def( "__repr__",
               []( option_value const & self )
               {
@@ -122,6 +125,8 @@ void init_options(py::module &m) {
         .def("get_option_value_description", &rs2::options::get_option_value_description, "Get option value description "
              "(In case a specific option value holds special meaning)", "option"_a, "value"_a)
         .def("get_supported_options", &rs2::options::get_supported_options, "Retrieve list of supported options") // No docstring in C++
+        .def( "get_supported_option_values", &rs2::options::get_supported_option_values,
+              "Retrieve the supported options, each with its value and range", py::call_guard< py::gil_scoped_release >() )
         .def( "on_options_changed", &rs2::options::on_options_changed,
               "Sets a callback to notify in case options in this container change value", "callback"_a );
 

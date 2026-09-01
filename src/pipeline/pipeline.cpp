@@ -6,7 +6,6 @@
 #include "stream.h"
 #include "media/playback/playback_device.h"
 #include "media/record/record_device.h"
-#include "media/ros/ros_writer.h"
 #include <src/proc/syncer-processing-block.h>
 #include <src/core/frame-callback.h>
 #ifdef BUILD_WITH_DDS
@@ -22,7 +21,7 @@ namespace librealsense
     {
         pipeline::pipeline(std::shared_ptr<librealsense::context> ctx) :
             _ctx(ctx),
-            _dispatcher(10),
+            _dispatcher(10, "pipeline"),
             _hub( device_hub::make( ctx, RS2_PRODUCT_LINE_ANY_INTEL )),
             _synced_streams({ RS2_STREAM_COLOR, RS2_STREAM_DEPTH, RS2_STREAM_INFRARED, RS2_STREAM_FISHEYE })
         {}

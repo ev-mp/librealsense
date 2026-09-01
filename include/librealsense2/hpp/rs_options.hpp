@@ -16,9 +16,19 @@ namespace rs2
     {
         std::shared_ptr< const rs2_option_value > _value;
 
+        // Set only for values taken out of an options-list, which is what carries the ranges
+        std::shared_ptr< rs2_options_list > _list;
+        int _index = -1;
+
     public:
         explicit option_value( rs2_option_value const * handle )
             : _value( handle, rs2_delete_option_value )
+        {
+        }
+        option_value( rs2_option_value const * handle, std::shared_ptr< rs2_options_list > list, int index )
+            : _value( handle, rs2_delete_option_value )
+            , _list( std::move( list ) )
+            , _index( index )
         {
         }
         option_value( option_value const & ) = default;
@@ -55,6 +65,38 @@ namespace rs2
 
         rs2_option_value const * operator->() const { return _value.get(); }
         operator rs2_option_value const *() const { return _value.get(); }
+
+        /**
+        * \return whether a range is available with this value
+        */
+        bool has_range() const
+        {
+            rs2_option_range range;
+            return get_range( range );
+        }
+
+        /**
+        * The range of values this option accepts. Throws if no range is available.
+        */
+        option_range range() const
+        {
+            rs2_option_range range;
+            if( ! get_range( range ) )
+                throw std::runtime_error( std::string( "no range available for option " )
+                                          + rs2_option_to_string( _value ? _value->id : RS2_OPTION_COUNT ) );
+            return { range.min, range.max, range.def, range.step };
+        }
+
+    private:
+        bool get_range( rs2_option_range & range ) const
+        {
+            if( ! _list )
+                return false;
+            rs2_error * e = nullptr;
+            int const has_range = rs2_get_option_range_from_list( _list.get(), _index, &range, &e );
+            error::handle( e );
+            return has_range != 0;
+        }
     };
 
     class options_list
@@ -82,7 +124,7 @@ namespace rs2
             rs2_error * e = nullptr;
             auto value = rs2_get_option_value_from_list( _list.get(), static_cast< int >( index ), &e );
             error::handle( e );
-            return option_value( value );
+            return option_value( value, _list, static_cast< int >( index ) );
         }
 
         size_t size() const { return _size; }

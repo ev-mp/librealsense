@@ -38,6 +38,7 @@ namespace librealsense
 
         std::shared_ptr<stream_interface> _color_stream;
         std::shared_ptr<ds_color_common> _ds_color_common;
+        uint8_t _color_device_idx = -1;
 
     private:
         void register_options();
@@ -66,8 +67,10 @@ namespace librealsense
         friend class rs435i_device;
         friend class ds_color_common;
 
-        uint8_t _color_device_idx = -1;
         bool _separate_color;
+        // For D401 GMSL the color shares the depth sensor but streams from its own v4l2 node.
+        // This raw endpoint is bound to that node so RGB controls reach it (see create_color_device).
+        std::shared_ptr< uvc_sensor > _raw_color_ep;
         rsutils::lazy< std::vector< uint8_t > > _color_calib_table_raw;
         std::shared_ptr< rsutils::lazy< rs2_extrinsics > > _color_extrinsic;
     };

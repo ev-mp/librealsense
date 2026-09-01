@@ -20,6 +20,25 @@ The SDK allows depth and color streaming, and provides intrinsic and extrinsic c
   <a href="https://github.com/realsenseai/librealsense/network/members"><img src="https://img.shields.io/github/forks/realsenseai/librealsense.svg" alt="Forks"></a>
 </p>
 
+## Important Notice
+
+We are happy to announce that the RealSense GitHub repositories have been successfully migrated to the RealSenseAI organization.
+Please make sure to update your links to the new RealSenseAI organization for both cloning the repositories and accessing specific files within them.
+
+[https://github.com/**IntelRealSense**/librealsense](https://github.com/IntelRealSense/librealsense) --> [https://github.com/**realsenseai**/librealsense](https://github.com/realsenseai/librealsense)
+
+>Note 1: A redirection from the previous name IntelRealSense is currently in place, but we cannot guarantee how long it will remain active. We recommend that all users update their references to point to the new GitHub location.
+
+>Note 2: Users who install the SDK via APT are required to update the APT key as explained in the following [guide](https://github.com/realsenseai/librealsense/blob/development/doc/distribution_linux.md#installing-the-packages)
+
+>Note 3: New closed-source libraries are available on our [Perception Studio](https://www.realsenseai.com/perception-studio/) page. Recent drop includes close-range performance (min-z).
+
+#### Branch Policy
+We have updated our branch policy:
+From now on, we will also push beta releases to the master branch, so users can access up-to-date code and features.
+In the near future, beta binaries will also be pushed to public distribution servers (e.g., APT).
+The last validated official release can be found on our Releases page on GitHub.
+
 ## Use Cases
 
 Below are some of the many real-world applications powered by RealSense technology:
@@ -102,6 +121,30 @@ For a more custom installation, follow these steps to build the SDK from source.
 <a href="./doc/installation_windows.md"><img src="https://custom-icon-badges.demolab.com/badge/Windows_Guide-333?logo=windows11&logoColor=white" style="margin: 5px;" alt="Windows Guide"/></a>
 <a href="./doc/installation_osx.md"><img src="https://img.shields.io/badge/macOS_Guide-333?style=flat&logo=apple&logoColor=white" style="margin: 5px;" alt="macOS Guide"/></a>
 
+
+### AMD GPU Acceleration (HIP/ROCm)
+
+librealsense also supports GPU-accelerated processing on AMD GPUs via [ROCm/HIP](https://rocm.docs.amd.com/). Supported on both **Linux** (ROCm) and **Windows** (HIP SDK 7.1+).
+
+**Linux:**
+```bash
+cmake .. -DBUILD_WITH_HIP=ON
+cmake --build . -j$(nproc)
+```
+
+**Windows** (requires [HIP SDK for Windows](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)):
+```bash
+cmake .. -G Ninja -DBUILD_WITH_HIP=ON
+cmake --build .
+```
+
+By default, this targets multiple AMD architectures (gfx90a, gfx942, gfx1100, gfx1101 -- covering MI200, MI300, and RDNA3 GPUs). To build for a specific GPU:
+
+```bash
+cmake .. -DBUILD_WITH_HIP=ON -DCMAKE_HIP_ARCHITECTURES=gfx1100
+```
+
+> **Note:** `BUILD_WITH_CUDA` and `BUILD_WITH_HIP` are mutually exclusive. See [doc/amd-hip-support.md](doc/amd-hip-support.md) for details.
 
 ## Python Packages
 [![pyrealsense2](https://img.shields.io/pypi/v/pyrealsense2.svg?label=pyrealsense2&logo=pypi)](https://pypi.org/project/pyrealsense2/)

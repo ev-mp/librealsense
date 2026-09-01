@@ -37,6 +37,7 @@ void glfw_error_callback(int error, const char* description)
     std::cerr << "GLFW Driver Error: " << description << "\n";
 }
 
+
 namespace rs2
 {
     void GLAPIENTRY MessageCallback(GLenum source,
@@ -56,9 +57,7 @@ namespace rs2
 
     void prepare_config_file()
     {
-        config_file::instance().set_default(configurations::update::allow_rc_firmware, false);
         config_file::instance().set_default(configurations::update::recommend_calibration, true);
-        config_file::instance().set_default(configurations::update::recommend_updates, true);
         config_file::instance().set_default(configurations::update::sw_updates_url, server_versions_db_url);
         config_file::instance().set_default(configurations::update::sw_updates_official_server, true);
 
@@ -88,6 +87,19 @@ namespace rs2
 
         config_file::instance().set_default(configurations::viewer::commands_xml, "./Commands.xml");
         config_file::instance().set_default(configurations::viewer::hwlogger_xml, "./HWLoggerEvents.xml");
+
+        {
+            // set_nested_default() only writes a key if it's missing, so this is safe to run
+            // unconditionally - it backfills the grid keys into pre-existing config files too.
+            namespace cfg = configurations::viewer::viewport_grid_overlay;
+            auto& cf = config_file::instance();
+            cf.set_nested_default( cfg::horizontal_lines, 1   );
+            cf.set_nested_default( cfg::vertical_lines,   1   );
+            cf.set_nested_default( cfg::line_width,       1   );
+            cf.set_nested_default( cfg::line_color_r,     255 );
+            cf.set_nested_default( cfg::line_color_g,     255 );
+            cf.set_nested_default( cfg::line_color_b,     255 );
+        }
 
         std::string path;
         try
@@ -270,6 +282,14 @@ namespace rs2
 
             prepare_config_file();
 
+#ifdef __APPLE__
+            if( ! GLAD_GL_VERSION_3_0 )
+            {
+                config_file::instance().set( configurations::performance::glsl_for_processing, false );
+                config_file::instance().set( configurations::performance::glsl_for_rendering, false );
+            }
+#endif
+
             glfwDestroyWindow(ctx);
         }
 
@@ -281,8 +301,8 @@ namespace rs2
 
         _fullscreen = config_file::instance().get(configurations::window::is_fullscreen);
 
-        rs2_error* e = nullptr;
-        _title_str = rsutils::string::from() << _title << " v" << api_version_to_string(rs2_get_api_version(&e));
+        // RS2_API_FULL_VERSION_STR is the compile-time version (incl. build #); a loaded-library mismatch is caught separately via rs2_get_api_version()
+        _title_str = rsutils::string::from() << _title << " v" << RS2_API_FULL_VERSION_STR;
         auto debug = is_debug();
         if (debug)
         {
@@ -346,8 +366,15 @@ namespace rs2
         {
             int w = config_file::instance().get(configurations::window::width);
             int h = config_file::instance().get(configurations::window::height);
-            glfwSetWindowSize(_win, w, h);
-            
+            // Guard against a corrupt/legacy config with zero dimensions: XConfigureWindow rejects
+            // 0 width/height with BadValue. A normal desktop's window manager clamps such requests,
+            // but CI runs the viewer under Xvfb (headless X server, no WM) where Xlib aborts.
+            if (w > 0 && h > 0)
+                glfwSetWindowSize(_win, w, h);
+            else
+                rs2::log(RS2_LOG_SEVERITY_WARN,
+                    "Ignoring persisted window size (width/height <= 0); falling back to monitor default");
+
             if (config_file::instance().get(configurations::window::maximized))
                 glfwMaximizeWindow(_win);
         }
@@ -362,23 +389,29 @@ namespace rs2
             glDebugMessageCallback(MessageCallback, 0);
         }
 
+        glfwSetWindowUserPointer(_win, this);
+
         glfwSetWindowPosCallback(_win, [](GLFWwindow* w, int x, int y)
         {
-            config_file::instance().set(configurations::window::saved_pos, true);
-            config_file::instance().set(configurations::window::position_x, x);
-            config_file::instance().set(configurations::window::position_y, y);
+            auto self = reinterpret_cast<ux_window*>(glfwGetWindowUserPointer(w));
+            if (!self) return;
+            self->_pending_pos_x = x;
+            self->_pending_pos_y = y;
+            self->_pending_window_state = true;
+            self->_window_state_timer.start();
         });
 
-        glfwSetWindowSizeCallback( _win, []( GLFWwindow * window, int width, int height ) {
-            if( width > 0 && height > 0 )
-            {
-                config_file::instance().set( configurations::window::saved_size, true );
-                config_file::instance().set( configurations::window::width, width );
-                config_file::instance().set( configurations::window::height, height );
-                config_file::instance().set( configurations::window::maximized,
-                                             glfwGetWindowAttrib( window, GLFW_MAXIMIZED ) );
-            }
-        } );
+        glfwSetWindowSizeCallback(_win, [](GLFWwindow* w, int width, int height)
+        {
+            if (width <= 0 || height <= 0) return;
+            auto self = reinterpret_cast<ux_window*>(glfwGetWindowUserPointer(w));
+            if (!self) return;
+            self->_pending_win_width = width;
+            self->_pending_win_height = height;
+            self->_pending_maximized = glfwGetWindowAttrib(w, GLFW_MAXIMIZED);
+            self->_pending_window_state = true;
+            self->_window_state_timer.start();
+        });
 
         setup_icon();
 
@@ -389,7 +422,11 @@ namespace rs2
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
         io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;   // added in order to prevents cursor chang when interacting with other element (when nedded remove the flag accordingly)
         ImGui_ImplGlfw_InitForOpenGL(_win, true);
+#ifdef __APPLE__
+        ImGui_ImplOpenGL3_Init( "#version 120" );
+#else
         ImGui_ImplOpenGL3_Init();
+#endif
 
         if (_use_glsl_render)
             _2d_vis = std::make_shared<visualizer_2d>(std::make_shared<splash_screen_shader>());
@@ -398,9 +435,6 @@ namespace rs2
         imgui_easy_theming(_font_dynamic, _font_18, _monofont, font_size);
 
         // Register for UI-controller events
-        glfwSetWindowUserPointer(_win, this);
-
-
         glfwSetCursorPosCallback(_win, [](GLFWwindow* w, double cx, double cy)
         {
             ImGui_ImplGlfw_CursorPosCallback(w, cx, cy); // Forward the cursor position to ImGui
@@ -449,7 +483,7 @@ namespace rs2
         // Prepare the splash screen and do some initialization in the background
         int x, y, comp;
         auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
-        _splash_tex.upload_image(x, y, r);
+        _splash_tex->upload_image(x, y, r);
         stbi_image_free(r);
     }
 
@@ -506,11 +540,11 @@ namespace rs2
             shader->set_power(power);
             shader->set_ray_center(float2{ ox, oy });
             shader->end();
-            _2d_vis->draw_texture(_splash_tex.get_gl_handle(), opacity);
+            _2d_vis->draw_texture(_splash_tex->get_gl_handle(), opacity);
         }
         else
         {
-            _splash_tex.show({ 0.f,0.f,float(_width),float(_height) }, opacity);
+            _splash_tex->show({ 0.f,0.f,float(_width),float(_height) }, opacity);
         }
 
         std::string hourglass = std::string(rsutils::string::from() << textual_icons::hourglass);
@@ -523,7 +557,7 @@ namespace rs2
 
             if (!_missing_device)
             {
-                std::string rs_dev_detected = std::string(rsutils::string::from() << textual_icons::usb
+                _dev_stat_message = std::string(rsutils::string::from() << textual_icons::usb
                     << " RealSense device detected.");
                 _query_devices = false;
             }
@@ -683,6 +717,9 @@ namespace rs2
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImPlot::DestroyContext();
         RsImGui::PopNewFrame();
+        // Release the splash texture while the GL context is still current —
+        // member dtors below would otherwise run glDeleteTextures with no context.
+        _splash_tex.reset();
         glfwDestroyWindow(_win);
 
         glfwDestroyCursor(_hand_cursor);
@@ -691,9 +728,26 @@ namespace rs2
         glfwTerminate();
     }
 
+    void ux_window::flush_pending_window_state()
+    {
+        if (_pending_window_state && _window_state_timer.has_expired())
+        {
+            config_file::instance().set(configurations::window::saved_pos, true);
+            config_file::instance().set(configurations::window::position_x, _pending_pos_x);
+            config_file::instance().set(configurations::window::position_y, _pending_pos_y);
+            config_file::instance().set(configurations::window::saved_size, true);
+            config_file::instance().set(configurations::window::width, _pending_win_width);
+            config_file::instance().set(configurations::window::height, _pending_win_height);
+            config_file::instance().set(configurations::window::maximized, _pending_maximized);
+            _pending_window_state = false;
+        }
+    }
+
     void ux_window::begin_frame()
     {
         glfwPollEvents();
+
+        flush_pending_window_state();
 
         int state = glfwGetKey(_win, GLFW_KEY_F8);
         if (state == GLFW_PRESS)

@@ -1,4 +1,8 @@
+# License: Apache 2.0. See LICENSE file in root directory.
+# Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
+
 import asyncio
+import logging
 import uuid
 import weakref
 import threading
@@ -7,7 +11,7 @@ from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
 import cv2
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCConfiguration, RTCIceServer
-from aiortc.mediastreams import VideoStreamTrack
+from aiortc.mediastreams import MediaStreamError, VideoStreamTrack, VIDEO_CLOCK_RATE, VIDEO_TIME_BASE
 from av import VideoFrame
 from app.core.errors import RealSenseError
 from app.core.config import get_settings
@@ -21,39 +25,123 @@ class RealSenseVideoTrack(VideoStreamTrack):
         self.realsense_manager = realsense_manager
         self.device_id = device_id
         self.stream_type = stream_type
-        self._start = time.time()
+        # Not named _start: the VideoStreamTrack base class owns that attribute.
+        self._t0 = time.monotonic()
+        self._seq = 0
+        self._last_pts = -1
+        self._last_img = None
+        # Set by WebRTCManager; called once when the stream is gone so the
+        # session gets closed and the client can observe the disconnect.
+        self.on_gone = None
+
+    def _stream_alive(self) -> bool:
+        """True while this track's stream is still active on the device."""
+        try:
+            status = self.realsense_manager.get_stream_status(self.device_id)
+        except Exception:
+            return False
+        return status.is_streaming and any(
+            s.lower() == self.stream_type.lower() for s in status.active_streams
+        )
+
+    def _notify_gone(self) -> None:
+        callback, self.on_gone = self.on_gone, None
+        if callback:
+            try:
+                callback()
+            except Exception:
+                logging.exception("on_gone callback failed for %s", self.stream_type)
+
+    def _next_pts(self) -> int:
+        """Timestamp from the frame's real arrival time, so the receiver's
+        jitter buffer stays small and any camera frame rate is supported."""
+        pts = int((time.monotonic() - self._t0) * VIDEO_CLOCK_RATE)
+        if pts <= self._last_pts:
+            pts = self._last_pts + 1
+        self._last_pts = pts
+        return pts
+
+    def _to_video_frame(self, img) -> VideoFrame:
+        video_frame = VideoFrame.from_ndarray(img, format="rgb24")
+        video_frame.pts = self._next_pts()
+        video_frame.time_base = VIDEO_TIME_BASE
+        return video_frame
 
     async def recv(self):
+        if self.readyState != "live":
+            raise MediaStreamError
         try:
-            # Get frame from RealSense
-            frame_data = self.realsense_manager.get_latest_frame(self.device_id, self.stream_type)
+            # Await frame arrival on the loop (event-based, no executor thread).
+            # A slow consumer wakes to the newest frame, so backlog costs fps,
+            # never latency.
+            frame_data, self._seq = await self.realsense_manager.wait_for_frame_after(
+                self.device_id,
+                self.stream_type,
+                self._seq,
+            )
+
+            if frame_data is None:
+                # Gap vs gone: repeat the last frame through transient gaps
+                # (USB hiccup, hardware reset) for as long as the stream is
+                # active; end the track only when it is genuinely stopped.
+                if not self._stream_alive():
+                    raise MediaStreamError
+                if self._last_img is None:
+                    # Stream up but first frame not here yet — black keepalive.
+                    return self._to_video_frame(np.zeros((480, 640, 3), dtype=np.uint8))
+                return self._to_video_frame(self._last_img)
+
+            # Handle different data types and normalize to uint8
+            if frame_data.dtype == np.uint16:
+                # For uint16 data (IR Y16), use fast bit-shift normalization
+                # This assumes 10-bit or 12-bit data in 16-bit container
+                # Right shift by 8 gives good visualization for most IR sensors
+                frame_data = (frame_data >> 6).clip(0, 255).astype(np.uint8)
+            elif frame_data.dtype != np.uint8:
+                # Convert other dtypes to uint8
+                frame_data = frame_data.astype(np.uint8)
 
             # Convert to RGB format if necessary
             if len(frame_data.shape) == 3 and frame_data.shape[2] == 3:
-                # Already RGB, no conversion needed
+                # Already has 3 channels - RealSense colorizer outputs RGB format
+                # Use directly without conversion to preserve color scheme (blue=near, red=far)
                 img = frame_data
+            elif len(frame_data.shape) == 3 and frame_data.shape[2] == 4:
+                # RGBA/BGRA - convert to RGB
+                img = cv2.cvtColor(frame_data, cv2.COLOR_BGRA2RGB)
+            elif len(frame_data.shape) == 2:
+                # Grayscale (e.g., infrared Y8/Y16) - convert to RGB
+                img = cv2.cvtColor(frame_data, cv2.COLOR_GRAY2RGB)
             else:
-                # Convert to RGB
-                img = cv2.cvtColor(frame_data, cv2.COLOR_BGR2RGB)
-            # Create VideoFrame
-            video_frame = VideoFrame.from_ndarray(img, format="rgb24")
+                # Unknown format, try to use as-is
+                img = frame_data
 
-            # Set frame timestamp
-            pts, time_base = await self.next_timestamp()
-            video_frame.pts = pts
-            video_frame.time_base = time_base
-
-            return video_frame
+            self._last_img = img
+            return self._to_video_frame(img)
+        except MediaStreamError:
+            # End-of-track: aiortc's sender loop stops on this exception, but
+            # the peer connection would stay "connected" — close the session
+            # too so the client can observe the disconnect.
+            self._notify_gone()
+            raise
         except Exception as e:
-            # On error, return a black frame
+            status_code = getattr(e, 'status_code', None)
+            if status_code == 400:
+                # Stream stopped (get_latest_frame: "not streaming") — end the
+                # track instead of freezing on a stale image.
+                self._notify_gone()
+                raise MediaStreamError from e
+            # On error, return a black frame. Pace it: without a new frame to
+            # wait on, an un-delayed error path would spin the event loop.
+            await asyncio.sleep(1 / 30)
             width, height = 640, 480  # Default size
             img = np.zeros((height, width, 3), dtype=np.uint8)
-            video_frame = VideoFrame.from_ndarray(img, format="rgb24")
-            pts, time_base = await self.next_timestamp()
-            video_frame.pts = pts
-            video_frame.time_base = time_base
+            video_frame = self._to_video_frame(img)
 
-            print(f"Error getting frame: {str(e)}")
+            # Only log non-503 errors (503 = frames not yet available, which is normal briefly)
+            error_detail = getattr(e, 'detail', str(e))
+            if status_code != 503:
+                logging.exception("Error getting frame for %s: %s", self.stream_type, error_detail)
             return video_frame
 
 class WebRTCManager:
@@ -99,6 +187,9 @@ class WebRTCManager:
         # Add video tracks for each stream type
         for stream_type in stream_types:
             video_track = RealSenseVideoTrack(self.realsense_manager, device_id, stream_type)
+            # When the stream is gone, close the whole session so the client
+            # sees the peer connection drop instead of a frozen tile.
+            video_track.on_gone = lambda sid=session_id: asyncio.create_task(self.close_session(sid))
             pc.addTrack(video_track)
 
         # Create offer

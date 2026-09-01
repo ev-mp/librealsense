@@ -69,12 +69,24 @@ namespace rs2
     {
         for (option_value option : _embedded_filter->get_supported_option_values())
         {
-            _options_id_to_model[option->id] = create_option_model( option,
-                                                                opt_base_label,
-                                                                model,
-                                                                _embedded_filter,
-                                                                model ? &model->_options_invalidated : nullptr,
-                                                                error_message );
+            // Build the model first and insert only on success: an option whose range cannot be read
+            // throws, and map::operator[] would leave a default-constructed (null-endpoint) entry
+            // behind. Isolate per option so one bad control does not drop the rest.
+            try
+            {
+                auto om = create_option_model( option,
+                                               opt_base_label,
+                                               model,
+                                               _embedded_filter,
+                                               model ? &model->_options_invalidated : nullptr,
+                                               error_message );
+                _options_id_to_model[option->id] = std::move( om );
+            }
+            catch( const std::exception & e )
+            {
+                if( _viewer.not_model )
+                    _viewer.not_model->add_log( e.what(), RS2_LOG_SEVERITY_WARN );
+            }
         }
         _enabled = _embedded_filter->get_option(RS2_OPTION_EMBEDDED_FILTER_ENABLED);
 
@@ -90,7 +102,15 @@ namespace rs2
                         {
                             it->second.update_value(changed_option, *_viewer.not_model);
                             if (it->first == RS2_OPTION_EMBEDDED_FILTER_ENABLED)
-                                _enabled = (changed_option->as_integer != 0);
+                            {
+                                // rs2_option_value is a union over as_float/as_integer. For a FLOAT
+                                // option, only as_float is initialized - reading as_integer would
+                                // pick up the uninitialized upper 4 bytes (int64_t vs float).
+                                if (changed_option->is_valid)
+                                    _enabled = (changed_option->type == RS2_OPTION_TYPE_FLOAT)
+                                             ? (changed_option->as_float != 0.0f)
+                                             : (changed_option->as_integer != 0);
+                            }
                         }
                     }
                 });

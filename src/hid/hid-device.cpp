@@ -57,7 +57,7 @@ namespace librealsense
 
         rs_hid_device::rs_hid_device(rs_usb_device usb_device)
             : _usb_device(usb_device),
-              _action_dispatcher(10)
+              _action_dispatcher(10, "hid-device")
         {
             _id_to_sensor[REPORT_ID_GYROMETER_3D] = gyro;
             _id_to_sensor[REPORT_ID_ACCELEROMETER_3D] = accel;
@@ -132,7 +132,7 @@ namespace librealsense
                 _messenger.reset();
 #endif
                _running = false;
-            }, [this](){ return !_running; });
+            }, [this](){ return !_running; }, true);
         }
 
         void rs_hid_device::start_capture(hid_callback callback)
@@ -150,7 +150,7 @@ namespace librealsense
                 _handle_interrupts_thread = std::make_shared<active_object<>>([this](dispatcher::cancellable_timer cancellable_timer)
                 {
                     handle_interrupt();
-                });
+                }, "hid-interrupts");
 
                 _handle_interrupts_thread->start();
 
@@ -217,7 +217,7 @@ namespace librealsense
                     _messenger->submit_request(r);
 #endif
 
-            }, [this](){ return _running; });
+            }, [this](){ return _running; }, true);
         }
 
         void rs_hid_device::handle_interrupt()
