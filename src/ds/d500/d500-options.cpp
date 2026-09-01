@@ -154,6 +154,11 @@ namespace librealsense
         if( strong_sensor->is_streaming() )
             throw std::runtime_error( "Cannot change dual RGB rectification while streaming!" );
 
+        // Validate before reaching FW, so a rejected value never changes the device state
+        if( ! is_valid( value ) )
+            throw invalid_value_exception( rsutils::string::from()
+                                           << "set(...) failed! " << value << " is not a valid value" );
+
         command cmd( ds::d500_fw_cmd::CUSTOM_CMD, DUAL_RGB_RECTIFY_SUB_CMD, static_cast< uint32_t >( value ) );
         _hwm->send( cmd );
 
