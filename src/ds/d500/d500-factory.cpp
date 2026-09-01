@@ -137,6 +137,25 @@ namespace librealsense
             // Improved Close Range Depth - USB toggle
             register_feature( std::make_shared< close_range_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+
+            // Dual-RGB rectification toggle, supported by the D585 2C USB firmware only. Depth and both
+            // color streams share the depth sensor here, so its streaming state gates the option.
+            if( ! _is_mipi_device && ( get_pid() == ds::D585_2C_PID || get_pid() == ds::D585_2C_PROTO_PID ) )
+            {
+                auto rectification = std::make_shared< dual_rgb_rectification_option >( d500_device::_hw_monitor,
+                                                                                        get_raw_depth_sensor() );
+                try
+                {
+                    // FW keeps the setting across SDK restarts and offers no read command, so write the
+                    // default once to keep the reported value in sync with the device.
+                    rectification->set( rectification->get_range().def );
+                    get_depth_sensor().register_option( RS2_OPTION_DUAL_RGB_RECTIFICATION, rectification );
+                }
+                catch( const std::exception & e )
+                {
+                    LOG_WARNING( "Dual RGB rectification not available: " << e.what() );
+                }
+            }
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
