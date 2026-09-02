@@ -49,9 +49,12 @@ namespace rs2
 
         std::shared_ptr<rs2::embedded_filter> get_filter() { return _embedded_filter; }
 
-        void enable( bool e = true )
+        // error_message, if non-null, receives the reason when the device rejects the change
+        // (e.g. some composite controls cannot be toggled while the sensor is streaming) - without
+        // it the toggle would otherwise appear to silently do nothing.
+        void enable( bool e = true, std::string * error_message = nullptr )
         {
-            embedded_filter_enable_disable( e );
+            embedded_filter_enable_disable( e, error_message );
         }
         bool is_enabled() const { return _enabled; }
 
@@ -77,7 +80,7 @@ namespace rs2
             return _improved_close_range_editor.try_get_progress( progress );
         }
 
-        void embedded_filter_enable_disable(bool actual);
+        void embedded_filter_enable_disable(bool actual, std::string * error_message = nullptr);
 
     private:
         // Helpers used only by draw_improved_close_range_control_editor() - each renders one self-contained
@@ -86,6 +89,17 @@ namespace rs2
         // tracking). Split out so no single function mixes more than one field's concerns; none
         // of these are meant to be called from anywhere else. frame_max is passed as separate
         // x/y floats rather than ImVec2 so this header does not need to pull in imgui.h.
+        // Shared body for the four combo-box fields below - label on its own line, combo filling
+        // the full row width underneath (matching the numeric slider fields' own layout in this
+        // same panel, see draw_improved_close_range_slider_with_arrows()). value_offset converts
+        // between the field's own wire values and the 0-based index CustomComboBox needs (only
+        // downscale_ratio's wire values, 1 and 2, aren't already 0-based).
+        bool draw_improved_close_range_combo_field( const char * label,
+                                                     const char * id,
+                                                     const char * const labels[],
+                                                     int count,
+                                                     int & value,
+                                                     int value_offset );
         bool draw_improved_close_range_filter_type_field();
         bool draw_improved_close_range_downscale_ratio_field();
         bool draw_improved_close_range_shift_mode_field();

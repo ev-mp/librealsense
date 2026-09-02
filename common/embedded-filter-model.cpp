@@ -144,38 +144,49 @@ namespace rs2
     // matching the convention every other enum-valued option in the viewer already uses (see
     // option_model::draw_combobox() in common/option-model.cpp) - not a SliderInt whose format
     // string happens to show a name, which was never more than a slider styled to look like a
-    // choice list. touch()/finalize() drive the same debounced auto-commit every other field in
-    // this editor uses (see composite-control-editor.h).
-    bool embedded_filter_model::draw_improved_close_range_filter_type_field()
+    // choice list. Label sits on its own line, combo fills the full row width below it - matching
+    // the numeric slider fields' own layout in this panel (see
+    // draw_improved_close_range_slider_with_arrows()) - rather than squeezing the combo onto the
+    // same line as the label, which leaves it almost no width in this narrow side panel and no
+    // explicit PushItemWidth to fall back on. touch()/finalize() drive the same debounced
+    // auto-commit every other field in this editor uses (see composite-control-editor.h).
+    bool embedded_filter_model::draw_improved_close_range_combo_field( const char * label,
+                                                                        const char * id,
+                                                                        const char * const labels[],
+                                                                        int count,
+                                                                        int & value,
+                                                                        int value_offset )
     {
-        static const char * const labels[] = { "Downscale", "Lookup Shift" };
-        ImGui::Text( "Filter Type:" );
-        ImGui::SameLine();
-        int selected = _improved_close_range_editor.value.filter_type;
-        if( RsImGui::CustomComboBox( "##improved_close_range_filter_type", &selected, labels, 2 ) )
+        ImGui::Text( "%s", label );
+        ImGui::PushItemWidth( ImGui::GetContentRegionAvail().x );
+        ImGui::PushStyleColor( ImGuiCol_TextSelectedBg, { 1, 1, 1, 1 } );
+        int selected = value - value_offset;
+        bool changed = RsImGui::CustomComboBox( id, &selected, labels, count );
+        if( changed )
         {
-            _improved_close_range_editor.value.filter_type = selected;
+            value = selected + value_offset;
             _improved_close_range_editor.touch();
             _improved_close_range_editor.finalize();
         }
+        ImGui::PopStyleColor();
+        ImGui::PopItemWidth();
         return ImGui::IsItemActive();
+    }
+
+    bool embedded_filter_model::draw_improved_close_range_filter_type_field()
+    {
+        static const char * const labels[] = { "Downscale", "Lookup Shift" };
+        return draw_improved_close_range_combo_field( "Filter Type:", "##improved_close_range_filter_type",
+            labels, 2, _improved_close_range_editor.value.filter_type, 0 );
     }
 
     bool embedded_filter_model::draw_improved_close_range_downscale_ratio_field()
     {
-        // Wire values are 1 (x2) and 2 (x4), not 0-based like the other enum fields - convert to
-        // and from a 0-based combo index rather than changing the documented wire values.
+        // Wire values are 1 (x2) and 2 (x4), not 0-based like the other enum fields - value_offset
+        // converts to and from a 0-based combo index rather than changing the documented wire values.
         static const char * const labels[] = { "x2", "x4" };
-        ImGui::Text( "Downscale Ratio:" );
-        ImGui::SameLine();
-        int selected = _improved_close_range_editor.value.downscale_ratio - 1;
-        if( RsImGui::CustomComboBox( "##improved_close_range_downscale_ratio", &selected, labels, 2 ) )
-        {
-            _improved_close_range_editor.value.downscale_ratio = selected + 1;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize();
-        }
-        return ImGui::IsItemActive();
+        return draw_improved_close_range_combo_field( "Downscale Ratio:", "##improved_close_range_downscale_ratio",
+            labels, 2, _improved_close_range_editor.value.downscale_ratio, 1 );
     }
 
     bool embedded_filter_model::draw_improved_close_range_shift_mode_field()
@@ -183,16 +194,8 @@ namespace rs2
         // Lookup Shift: pick a fixed preset, or Manual - which draw_improved_close_range_control_editor()
         // reveals via a separate draw_improved_close_range_manual_editable_field() call for Shift Pixels.
         static const char * const labels[] = { "Shift 126px", "Shift 64px", "Manual" };
-        ImGui::Text( "Shift Mode:" );
-        ImGui::SameLine();
-        int selected = _improved_close_range_editor.value.shift_mode;
-        if( RsImGui::CustomComboBox( "##improved_close_range_shift_mode", &selected, labels, 3 ) )
-        {
-            _improved_close_range_editor.value.shift_mode = selected;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize();
-        }
-        return ImGui::IsItemActive();
+        return draw_improved_close_range_combo_field( "Shift Mode:", "##improved_close_range_shift_mode",
+            labels, 3, _improved_close_range_editor.value.shift_mode, 0 );
     }
 
     // The InputText half of draw_improved_close_range_manual_editable_field()'s two editing modes: a narrow,
@@ -311,16 +314,8 @@ namespace rs2
         // MinZ value itself is NOT surfaced to the user at this stage - "MinZ (computed)" reveals
         // no readback field at all, unlike "Manual" (see draw_improved_close_range_manual_editable_field()).
         static const char * const labels[] = { "Zero range", "MinZ (computed)", "Manual" };
-        ImGui::Text( "Threshold Mode:" );
-        ImGui::SameLine();
-        int selected = _improved_close_range_editor.value.threshold_mode;
-        if( RsImGui::CustomComboBox( "##improved_close_range_threshold_mode", &selected, labels, 3 ) )
-        {
-            _improved_close_range_editor.value.threshold_mode = selected;
-            _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize();
-        }
-        bool active = ImGui::IsItemActive();
+        bool active = draw_improved_close_range_combo_field( "Threshold Mode:", "##improved_close_range_threshold_mode",
+            labels, 3, _improved_close_range_editor.value.threshold_mode, 0 );
         if( ImGui::IsItemHovered() )
             ImGui::SetTooltip( "Zero range: fill only originally-empty depth pixels.\n"
                                 "MinZ (computed): firmware picks the threshold for the active resolution.\n"
@@ -416,7 +411,11 @@ namespace rs2
 
         float frame_left = ImGui::GetCursorScreenPos().x - 4.0f;
         float frame_top = ImGui::GetCursorScreenPos().y - 4.0f;
-        float frame_width = ImGui::GetContentRegionAvail().x -30.0f;
+        // Must match what the fields themselves push as their own item width (see
+        // draw_improved_close_range_combo_field()'s PushItemWidth(GetContentRegionAvail().x)) - any
+        // margin subtracted here but not there makes the border narrower than the widgets it's
+        // supposed to frame, so they visibly spill past its right edge.
+        float frame_width = ImGui::GetContentRegionAvail().x;
 
         // No separate Enable checkbox - the row header's own toggle (device-model.cpp's
         // draw_embedded_filters()) drives rs2_improved_close_range_control::enable directly. Grey the whole box
@@ -430,25 +429,47 @@ namespace rs2
         // right now" apart from "focus genuinely left the group" - only the latter should cut the
         // debounce countdown short. |= (not ||=): each call below draws real widgets as a side
         // effect and must run every frame regardless of the flag accumulated so far.
+        // Every field is always shown, even ones filter_type/shift_mode/threshold_mode currently
+        // make irrelevant - BeginDisabled()/EndDisabled() greys those out and blocks interaction
+        // instead of hiding them outright, so the layout stays put and the greyed row itself is
+        // the cue that toggling its controlling field above will make it available (unlike the
+        // whole-panel dim above, ImGui::BeginDisabled() genuinely blocks the click, since there's
+        // nothing coherent for it to do yet - contrast the whole-panel case, where any edit is
+        // meant to implicitly turn the filter back on).
         bool any_field_active = false;
         any_field_active |= draw_improved_close_range_filter_type_field();
 
-        if( _improved_close_range_editor.value.filter_type == 0 )
-        {
-            any_field_active |= draw_improved_close_range_downscale_ratio_field();
-        }
-        else
-        {
-            any_field_active |= draw_improved_close_range_shift_mode_field();
-            if( _improved_close_range_editor.value.shift_mode == 2 )
-                any_field_active |= draw_improved_close_range_manual_editable_field( "Shift Pixels:", "improved_close_range_shift",
-                    _improved_close_range_editor.value.shift_pixels, 0, 256, _improved_close_range_shift_edit_mode, _improved_close_range_shift_edit_buf );
-        }
+        const bool downscale_relevant = ( _improved_close_range_editor.value.filter_type == 0 );
+        if( ! downscale_relevant )
+            ImGui::BeginDisabled();
+        any_field_active |= draw_improved_close_range_downscale_ratio_field();
+        if( ! downscale_relevant )
+            ImGui::EndDisabled();
+
+        const bool shift_relevant = ( _improved_close_range_editor.value.filter_type == 1 );
+        if( ! shift_relevant )
+            ImGui::BeginDisabled();
+        any_field_active |= draw_improved_close_range_shift_mode_field();
+        if( ! shift_relevant )
+            ImGui::EndDisabled();
+
+        const bool shift_pixels_relevant = shift_relevant && ( _improved_close_range_editor.value.shift_mode == 2 );
+        if( ! shift_pixels_relevant )
+            ImGui::BeginDisabled();
+        any_field_active |= draw_improved_close_range_manual_editable_field( "Shift Pixels:", "improved_close_range_shift",
+            _improved_close_range_editor.value.shift_pixels, 0, 256, _improved_close_range_shift_edit_mode, _improved_close_range_shift_edit_buf );
+        if( ! shift_pixels_relevant )
+            ImGui::EndDisabled();
 
         any_field_active |= draw_improved_close_range_threshold_mode_field();
-        if( _improved_close_range_editor.value.threshold_mode == 2 )
-            any_field_active |= draw_improved_close_range_manual_editable_field( "Threshold (mm):", "improved_close_range_threshold",
-                _improved_close_range_editor.value.threshold_mm, 0, 65535, _improved_close_range_threshold_edit_mode, _improved_close_range_threshold_edit_buf );
+
+        const bool threshold_relevant = ( _improved_close_range_editor.value.threshold_mode == 2 );
+        if( ! threshold_relevant )
+            ImGui::BeginDisabled();
+        any_field_active |= draw_improved_close_range_manual_editable_field( "Threshold (mm):", "improved_close_range_threshold",
+            _improved_close_range_editor.value.threshold_mm, 0, 65535, _improved_close_range_threshold_edit_mode, _improved_close_range_threshold_edit_buf );
+        if( ! threshold_relevant )
+            ImGui::EndDisabled();
 
         ImGui::Dummy( ImVec2( 0, 2 ) );
         float frame_bottom = ImGui::GetCursorScreenPos().y;
@@ -478,7 +499,7 @@ namespace rs2
         ImGui::Unindent( -5.f );   // undo Indent(-5.f) above, exactly - see the comment there
     }
 
-    void embedded_filter_model::embedded_filter_enable_disable(bool actual)
+    void embedded_filter_model::embedded_filter_enable_disable(bool actual, std::string * error_message)
     {
         // Composite-only embedded filters (e.g. HKR Improved Close Range Control) register no
         // RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar option at all - route the row header's
@@ -498,10 +519,13 @@ namespace rs2
                 _improved_close_range_editor.initialized = true;
                 _enabled = actual;
             }
-            catch( const std::exception & )
+            catch( const std::exception & e )
             {
                 // Leave _enabled as it was - the toggle stays in its last known-good state
-                // rather than claiming a change happened when the device rejected it.
+                // rather than claiming a change happened when the device rejected it - but still
+                // report why, or the toggle just appears to silently do nothing.
+                if( error_message )
+                    *error_message = e.what();
             }
             return;
         }

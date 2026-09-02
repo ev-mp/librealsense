@@ -183,7 +183,11 @@ namespace rs2
                 0,       // flags
                 border_thickness );
 
-            if( ImGui::IsMouseHoveringRect( frame_min, frame_max ) )
+            // Skip when an inner widget (a combo, a slider, ...) is itself hovered - that widget
+            // either draws its own, more specific tooltip or none at all; either way this box-wide
+            // description would otherwise render directly on top of whatever field the mouse is
+            // over, which reads as if the field's own content had changed.
+            if( ImGui::IsMouseHoveringRect( frame_min, frame_max ) && ! ImGui::IsAnyItemHovered() )
             {
                 try
                 {

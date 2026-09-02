@@ -3242,7 +3242,7 @@ namespace rs2
 
                     const ImVec2 pos = ImGui::GetCursorPos();
 
-                    draw_later.push_back([windows_width, &window, sub, pos, &viewer, this, pb]() {
+                    draw_later.push_back([windows_width, &window, sub, pos, &viewer, this, pb, &error_message]() {
                         ImGui::SetCursorPos({ windows_width - 42, pos.y - 3 });
 
                         const bool pb_available = pb->is_available();
@@ -3286,7 +3286,7 @@ namespace rs2
 
                                 if (ImGui::Button(label.c_str(), button_size))
                                 {
-                                    pb->enable(true);
+                                    pb->enable(true, &error_message);
                                 }
                                 if (ImGui::IsItemHovered())
                                 {
@@ -3307,7 +3307,7 @@ namespace rs2
 
                                 if (ImGui::Button(label.c_str(), button_size))
                                 {
-                                    pb->enable(false);
+                                    pb->enable(false, &error_message);
                                 }
                                 if (ImGui::IsItemHovered())
                                 {
