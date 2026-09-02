@@ -118,6 +118,7 @@ namespace librealsense
         : public d500_active
         , public d500_motion
         , public d500_dual_color
+        , public d500_object_detection
         , public ds_advanced_mode_base
         , public extended_firmware_logger_device
     {
@@ -129,6 +130,7 @@ namespace librealsense
             , d500_active( dev_info )
             , d500_motion( dev_info )
             , d500_dual_color( dev_info )
+            , d500_object_detection( dev_info )
             , ds_advanced_mode_base()
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
@@ -143,7 +145,8 @@ namespace librealsense
         {
 
             std::vector< std::shared_ptr< stream_interface > > streams = { _depth_stream, _left_ir_stream, _right_ir_stream,
-                                                                           _color_stream_1, _color_stream_2 };
+                                                                           _color_stream_1, _color_stream_2,
+                                                                           _object_detection_stream };
             add_motion_streams( _ds_motion_common, streams );
             return create_default_matcher( streams );
         }
@@ -158,6 +161,7 @@ namespace librealsense
             tags.push_back({ RS2_STREAM_COLOR, 2, 1280, 720, RS2_FORMAT_RGB8, 25, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
+            tags.push_back({ RS2_STREAM_OBJECT_DETECTION, -1, -1, -1, RS2_FORMAT_Y8, -1, profile_tag::PROFILE_TAG_SUPERSET });
 
             return tags;
         };
