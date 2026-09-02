@@ -4,6 +4,7 @@
 import sys
 import os
 import subprocess
+import tempfile
 import re
 import pytest
 from pytest_check import check
@@ -27,6 +28,27 @@ pytestmark = [
     pytest.mark.timeout(500),
     pytest.mark.skipif(bool(os.environ.get('GITHUB_ACTIONS')), reason="not runnable on GHA"),
 ]
+
+
+# A FW tool that never returns blocks the whole pytest session, and if pytest is then killed the
+# tool survives as an orphan whose CWD pins the workspace directory (undeletable on Windows).
+FW_TOOL_TIMEOUT = 300  # seconds; a real flash + device reboot is well under 100s
+
+
+def run_fw_tool( cmd, timeout = FW_TOOL_TIMEOUT ):
+    """
+    Run a FW tool (rs-fw-update / rs-dds-config) bounded by `timeout`, from a CWD outside the
+    repo so a surviving process cannot pin the workspace. On timeout the child is killed and a
+    non-zero result is returned, so callers keep their normal reboot-wait and failure flow.
+    """
+    log.debug( f'running: {cmd}' )
+    sys.stdout.flush()
+    with tempfile.TemporaryDirectory() as tool_cwd:
+        try:
+            return subprocess.run( cmd, cwd=tool_cwd, timeout=timeout )
+        except subprocess.TimeoutExpired:
+            log.error( f'{cmd[0]} did not exit within {timeout} seconds; killed it' )
+            return subprocess.CompletedProcess( cmd, returncode=-1 )
 
 
 def wait_for_reboot( same_version ):
@@ -182,8 +204,7 @@ def recover_dds_device_on_golden_domain( serial, context, fw_updater_exe ):
         pytest.fail( f"Could not download gold recovery FW for {rec_name} ({serial}); cannot recover DFU device" )
     # 1) gold-flash on domain 0 (where a bricked DDS device lives)
     cmd = [fw_updater_exe, '-r', '-f', gold_fw, '-s', serial, '--domain-id', '0']
-    log.debug( f'running: {cmd}' )
-    result = subprocess.run( cmd )
+    result = run_fw_tool( cmd )
     if result.returncode != 0:
         pytest.fail( f"Gold-flash failed for {serial} (rc={result.returncode}); device may still be in DFU" )
     wait_for_reboot( same_version=False )
@@ -199,8 +220,7 @@ def recover_dds_device_on_golden_domain( serial, context, fw_updater_exe ):
         # its DDS domain to the rig's configured value.
         cmd = [dds_config_exe, '--serial-number', serial,
                '--transient-sdk-domain-id', '0', '--domain-id', str( config_domain )]
-        log.debug( f'running: {cmd}' )
-        result = subprocess.run( cmd )
+        result = run_fw_tool( cmd )
         if result.returncode != 0:
             log.warning( f"rs-dds-config returned rc={result.returncode}; camera may not be on DDS domain {config_domain}" )
         wait_for_reboot( same_version=False )
@@ -276,8 +296,7 @@ def test_fw_update( request, module_device_setup, test_context_var ):
             pytest.fail( f"Could not download gold recovery FW for {product_name}; cannot recover DFU device" )
         cmd = [fw_updater_exe, '-r', '-f', gold_fw, '-s', serial]
         del device, ctx
-        log.debug( f'running: {cmd}' )
-        subprocess.run( cmd )
+        run_fw_tool( cmd )
         recovered = True
         fw_compat.reload_d4xx_driver_on_jetson( context )
         # The device's identity changed: in DFU it exposed firmware_update_id only,
@@ -351,9 +370,7 @@ def test_fw_update( request, module_device_setup, test_context_var ):
 
     # for DDS devices we need to close device and context to detect it back after FW update
     del device, ctx
-    log.debug( f'running: {cmd}' )
-    sys.stdout.flush()
-    result = subprocess.run( cmd )   # may throw
+    result = run_fw_tool( cmd )
 
     # Wait for the camera to finish rebooting before doing anything else, REGARDLESS of
     # rs-fw-update's exit code. A non-zero exit doesn't necessarily mean no flash started:

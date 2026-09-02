@@ -151,9 +151,14 @@ void list_devices(rs2::context ctx)
 void waiting_for_device_to_reconnect(rs2::context& ctx, rs2::cli::value<std::string>& serial_number_arg)
 {
     std::cout << std::endl << "Waiting for device to reconnect..." << std::endl;
-    std::unique_lock<std::mutex> lk(mutex);
-    cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return !done || new_device; });
+    {
+        std::unique_lock<std::mutex> lk(mutex);
+        cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return !done || new_device; });
+    }
 
+    // Release `mutex` before querying: the devices-changed callback takes it too, and a device
+    // re-enumerating on several interfaces raises more than one event -- one landing here would
+    // block the watcher thread against this query and hang the tool past its wait timeout.
     if (done)
     {
         auto devs = ctx.query_devices();
