@@ -2,10 +2,12 @@
 // Copyright(c) 2025 RealSense, Inc. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_hkr_improved_close_range_control.h>
 
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 
 
 rs2::device get_dds_device()
@@ -137,6 +139,138 @@ try
 
     std::cout << "Setting toggle back to initial value: " << enabled << std::endl;
     dec_filter.set_option(RS2_OPTION_EMBEDDED_FILTER_ENABLED, enabled);
+
+    std::cout << std::endl;
+    std::cout << "Improved Close Range Depth (composite option)" << std::endl;
+    std::cout << "=========================================" << std::endl;
+
+    // Unlike Decimation above, this filter has no RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar
+    // option at all - its whole configuration, enable included, is one atomically-exchanged
+    // struct (see rs_hkr_improved_close_range_control.h). It's currently registered on the D500
+    // USB path only (see improved_close_range_filter_feature in
+    // src/ds/features/improved-close-range-filter-feature.cpp), not over DDS, so - unlike the
+    // rest of this file - it's looked up across every connected device rather than the one DDS
+    // device selected above.
+    // rs2::embedded_filter/rs2::depth_sensor have no default constructor - a 0-or-1-element
+    // vector stands in for "found or not" instead of a nullable local.
+    std::vector<rs2::embedded_filter> found_filter;
+    std::vector<rs2::depth_sensor> found_sensor;
+    for (auto&& d : rs2::context().query_devices())
+    {
+        auto ds = d.first<rs2::depth_sensor>();
+        if (!ds)
+            continue;
+        for (auto&& f : ds.query_embedded_filters())
+        {
+            if (f.supports_composite_option(RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL))
+            {
+                found_filter.push_back(f);
+                found_sensor.push_back(ds);
+                break;
+            }
+        }
+        if (!found_filter.empty())
+            break;
+    }
+
+    if (found_filter.empty())
+    {
+        std::cout << "No connected device exposes HKR Improved Close Range Control - skipping." << std::endl;
+    }
+    else
+    {
+        rs2::embedded_filter& close_range_filter = found_filter.front();
+        rs2::depth_sensor& close_range_depth_sensor = found_sensor.front();
+        const auto id = RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL;
+
+        // Typed get - the SDK's own bound struct (get_composite_option_as<T>()), not raw bytes;
+        // the same struct set_composite_option_from() below takes to write it back atomically.
+        rs2_improved_close_range_control original{};
+        try
+        {
+            original = close_range_filter.get_composite_option_as<rs2_improved_close_range_control>(id);
+        }
+        catch (const rs2::error& e)
+        {
+            // Registered but not actually functional on this device/FW is a real, expected
+            // outcome - supports_composite_option() only reflects static registration, never a
+            // live capability check.
+            std::cout << "Registered but not functional on this device/FW: " << e.what() << std::endl;
+            original.header.version = 0;
+        }
+
+        if (original.header.version == 0)
+        {
+            // get_composite_option_as() failed above - nothing more to demo.
+        }
+        else
+        {
+            auto close_range_profile = get_depth_profile(close_range_depth_sensor, nominal_width, nominal_height);
+            if (!close_range_profile)
+            {
+                std::cout << "No " << nominal_width << "x" << nominal_height
+                          << " depth profile available on this device for the demo - skipping." << std::endl;
+            }
+            else
+            {
+                // Streams a short burst on close_range_depth_sensor's own current configuration
+                // and returns the minimum non-zero (i.e. valid) depth value seen - a simple,
+                // honest way to show the effect without asserting anything about what's actually
+                // in front of the camera right now.
+                auto capture_min_valid_depth = [&](int frames_to_skip, int frames_to_measure) -> uint16_t
+                {
+                    rs2::frame_queue queue(1);
+                    close_range_depth_sensor.open(close_range_profile);
+                    close_range_depth_sensor.start(queue);
+
+                    for (int i = 0; i < frames_to_skip; ++i)
+                        queue.wait_for_frame();
+
+                    uint16_t min_depth = 0;
+                    for (int i = 0; i < frames_to_measure; ++i)
+                    {
+                        auto depth = queue.wait_for_frame().as<rs2::depth_frame>();
+                        auto data = reinterpret_cast<const uint16_t*>(depth.get_data());
+                        size_t pixel_count = (size_t)depth.get_width() * depth.get_height();
+                        for (size_t p = 0; p < pixel_count; ++p)
+                        {
+                            if (data[p] != 0 && (min_depth == 0 || data[p] < min_depth))
+                                min_depth = data[p];
+                        }
+                    }
+
+                    close_range_depth_sensor.stop();
+                    close_range_depth_sensor.close();
+                    return min_depth;
+                };
+
+                std::cout << "Streaming with Improved Close Range Depth OFF..." << std::endl;
+                auto cfg = original;
+                cfg.enable = 0;
+                close_range_filter.set_composite_option_from(id, cfg);
+                auto min_depth_off = capture_min_valid_depth(5, 10);
+                std::cout << "  Minimum valid depth (filter off): " << min_depth_off << " (depth units)" << std::endl;
+
+                std::cout << "Streaming with Improved Close Range Depth ON (Downscale x2)..." << std::endl;
+                cfg = original;
+                cfg.enable = 1;
+                cfg.filter_type = 0;      // Downscale
+                cfg.downscale_ratio = 1;  // x2
+                close_range_filter.set_composite_option_from(id, cfg);
+                auto min_depth_on = capture_min_valid_depth(5, 10);
+                std::cout << "  Minimum valid depth (filter on):  " << min_depth_on << " (depth units)" << std::endl;
+
+                if (min_depth_on > 0 && (min_depth_off == 0 || min_depth_on < min_depth_off))
+                    std::cout << "Improved Close Range Depth reported a closer minimum valid depth, as expected." << std::endl;
+                else
+                    std::cout << "No closer minimum valid depth observed this run - depends on what's actually "
+                                 "in front of the camera." << std::endl;
+
+                std::cout << "Restoring original configuration." << std::endl;
+                close_range_filter.set_composite_option_from(id, original);
+            }
+        }
+    }
 
     return EXIT_SUCCESS;
 }
