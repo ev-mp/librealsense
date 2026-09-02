@@ -93,6 +93,10 @@ macro(global_set_flags)
         add_definitions(-DBUILD_SHARED_LIBS)
     endif()
 
+    if (ENABLE_STATS)
+        add_definitions(-DENABLE_STATS)
+    endif()
+
     if (BUILD_WITH_CUDA)
         include(CMake/cuda_config.cmake)
     endif()
@@ -114,9 +118,16 @@ macro(global_set_flags)
             message(STATUS "CHECK_FOR_UPDATES depends on BUILD_GRAPHICAL_EXAMPLES flag, turning it off..")
             set(CHECK_FOR_UPDATES false)
         else()
-            include(CMake/external_libcurl.cmake)
             add_definitions(-DCHECK_FOR_UPDATES)
         endif()
+    endif()
+
+    # libcurl is needed by sw-update (CHECK_FOR_UPDATES) and RUM cloud upload (ENABLE_STATS).
+    # BUILD_WITH_LIBCURL is the derived "curl is linked" guard - gates the shared "Online Services"
+    # viewer tab that hosts both features.
+    if(CHECK_FOR_UPDATES OR ENABLE_STATS)
+        include(CMake/external_libcurl.cmake)
+        add_definitions(-DBUILD_WITH_LIBCURL)
     endif()
         
     add_definitions(-D${BACKEND} -DUNICODE)
