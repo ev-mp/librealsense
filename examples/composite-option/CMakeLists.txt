@@ -4,14 +4,14 @@ cmake_minimum_required(VERSION 3.10)
 
 project(RealsenseExamplesCompositeOption)
 
-# Reference sample: a "how do I use the composite-option API" walkthrough,
+# Reference sample: a "how do I use the composite-option API" sample,
 # exercising the FULL surface (enumeration, get, read-modify-write set, get_range, metadata
 # queries) against every composite option found on every embedded filter of every depth sensor of
 # every connected device - no fake/mock transport. Each composite option id found gets its own
 # try/catch, so a control that's registered but non-functional on this device/FW (e.g.
 # RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP's ctrl_id not being validated against real
 # firmware, see src/ds/d500/d500-factory.cpp's rs555_device comment) is reported per-id rather
-# than aborting the whole walkthrough - see rs-composite-option.cpp for the full sequence and
+# than aborting the whole sample - see rs-composite-option.cpp for the full sequence and
 # per-id dispatch. Drives everything through the REAL PUBLIC API
 # (rs2::options::get_supported_composite_options()/set_composite_option()/get_composite_option()/
 # get_composite_option_range()/is_composite_option_read_only()/get_composite_option_description()),
@@ -26,14 +26,14 @@ install(TARGETS rs-composite-option RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Sweeps every connected device's depth sensor(s), enumerates whichever
 # composite options each one supports, and prints the current value of each - against REAL
-# connected devices (no fake transport). See rs-improved-close-range-control-walkthrough.cpp.
-add_executable(rs-improved-close-range-control-walkthrough
-    rs-improved-close-range-control-walkthrough.cpp
+# connected devices (no fake transport). See rs-improved-close-range-control.cpp.
+add_executable(rs-improved-close-range-control
+    rs-improved-close-range-control.cpp
 )
-set_property(TARGET rs-improved-close-range-control-walkthrough PROPERTY CXX_STANDARD 14)
-target_link_libraries(rs-improved-close-range-control-walkthrough PRIVATE ${LRS_TARGET})
-set_target_properties (rs-improved-close-range-control-walkthrough PROPERTIES FOLDER Examples)
-install(TARGETS rs-improved-close-range-control-walkthrough RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+set_property(TARGET rs-improved-close-range-control PROPERTY CXX_STANDARD 14)
+target_link_libraries(rs-improved-close-range-control PRIVATE ${LRS_TARGET})
+set_target_properties (rs-improved-close-range-control PROPERTIES FOLDER Examples)
+install(TARGETS rs-improved-close-range-control RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # The C99 raw-API counterpart of rs-composite-option.cpp lives under examples/C/composite-ctl
 # (see rs-composite-ctl.c there) - Examples/C, not Examples, matching where every other pure-C

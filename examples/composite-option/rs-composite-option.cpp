@@ -1,7 +1,7 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// Reference sample - "how do I use the composite-option API" walkthrough, against REAL
+// Reference sample - "how do I use the composite-option API", against REAL
 // connected devices - no fake/mock transport. Full sequence:
 //
 //   1) rs2::context::query_devices()          - enumerate connected devices
@@ -15,23 +15,23 @@
 //      every filter must be walked to see every composite option a sensor exposes.
 //   4) ef.get_supported_composite_options()    - per filter, whichever composite option(s) it
 //      registers (zero is a valid, expected outcome for filters with scalar options only)
-//   5) for each id found, the FULL per-id application walkthrough below - dispatched to a typed
+//   5) for each id found, the FULL per-id application sequence below - dispatched to a typed
 //      handler because there is no generic "any composite option" cast (the SDK ships no per-id
 //      dispatch; the caller must know each id's documented wire struct, see
 //      include/librealsense2/h/rs_composite_option.h):
 //        - Get (before)   - get_composite_option(id), cast to the documented struct
 //        - Set            - read-modify-write: start from what was just read, change only the
-//                           fields this walkthrough means to change, send the WHOLE struct back
+//                           fields this sample means to change, send the WHOLE struct back
 //                           as one atomic transaction
 //        - Get (after)    - confirm against what was sent
 //        - Get range      - get_composite_option_range(id), cast to the documented range struct
 //        - Query info     - is_composite_option_read_only() / get_composite_option_description()
 //
-// Each id's walkthrough is wrapped in its own try/catch: a registered-but-non-functional control
+// Each id's sequence is wrapped in its own try/catch: a registered-but-non-functional control
 // (a real possibility - supports_composite_option()/get_supported_composite_options() only
 // reflect that the SDK's device-class code chose to register this id, never a live "does the
 // real firmware actually respond to it" check, see composite_xu_option::is_enabled() always
-// returning true) is reported as a per-id FAILED line rather than aborting the whole walkthrough,
+// returning true) is reported as a per-id FAILED line rather than aborting the whole sample,
 // so one broken control doesn't prevent seeing results for every other one.
 
 #include <librealsense2/rs.hpp>
@@ -248,7 +248,7 @@ namespace
     }
     // ---- end generic struct-printing machinery ---------------------------------------------
 
-    // Full read-modify-write + range + metadata walkthrough for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
+    // Full read-modify-write + range + metadata sequence for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
     void exercise_temporal_filter_dpp( rs2::options & opts, rs2_composite_option_id id )
     {
         // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
@@ -299,7 +299,7 @@ namespace
         print_struct( std::cout, improved_close_range_fields(), written );
     }
 
-    // Full read-modify-write + range + metadata walkthrough. Exercises both of the struct's
+    // Full read-modify-write + range + metadata sequence. Exercises both of the struct's
     // conditional axes (filter_type -> downscale_ratio/shift_mode+shift_pixels, threshold_mode ->
     // threshold_mm) instead of a single-field toggle, then restores the original value.
     void exercise_improved_close_range_control( rs2::options & opts, rs2_composite_option_id id )
@@ -347,7 +347,7 @@ namespace
                 after_threshold.threshold_mode == cfg.threshold_mode );
         }
 
-        // Restore the original value read at the very start - this walkthrough exercises real,
+        // Restore the original value read at the very start - this sample exercises real,
         // consequential state changes (unlike a single-field toggle), so leaving no lasting effect
         // on the device matters more here.
         opts.set_composite_option_from( id, original );
@@ -356,7 +356,7 @@ namespace
                   << ( restored.filter_type == original.filter_type && restored.downscale_ratio == original.downscale_ratio
                            && restored.shift_mode == original.shift_mode && restored.shift_pixels == original.shift_pixels
                            && restored.threshold_mode == original.threshold_mode && restored.threshold_mm == original.threshold_mm
-                       ? "ok" : "FAILED to restore - device may be left in the walkthrough's last test state" )
+                       ? "ok" : "FAILED to restore - device may be left in the sample's last test state" )
                   << '\n';
 
         // range.min/max/step/def are each a FULL rs2_improved_close_range_control - the same struct
@@ -371,9 +371,9 @@ namespace
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
     }
 
-    // Dispatches to the right typed walkthrough - there is no generic "any composite option"
+    // Dispatches to the right typed handler - there is no generic "any composite option"
     // mechanism by design (see file header); a new composite option id needs a case added here.
-    // Returns true on success, false if this id has no typed walkthrough registered (not a
+    // Returns true on success, false if this id has no typed handler registered (not a
     // failure, just unhandled) - actual device-transaction failures propagate as exceptions for
     // the caller to catch per-id.
     bool exercise_composite_option( rs2::options & opts, rs2_composite_option_id id )
@@ -381,11 +381,11 @@ namespace
         switch( id )
         {
         // TODO: re-enable once exercise_temporal_filter_dpp() is verified against real HKR
-        // Temporal Filter DPP hardware (not available at the time this walkthrough was written).
+        // Temporal Filter DPP hardware (not available at the time this sample was written).
         //case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true;
         case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:        exercise_improved_close_range_control( opts, id ); return true;
         default:
-            std::cout << "      (no typed walkthrough registered for this composite option id)\n";
+            std::cout << "      (no typed handler registered for this composite option id)\n";
             return false;
         }
     }
@@ -396,7 +396,7 @@ try
 {
     rs2::context ctx;
     auto devices = ctx.query_devices();
-    std::cout << "=== Composite-option API walkthrough ===\n";
+    std::cout << "=== Composite-option API sample ===\n";
     std::cout << "Found " << devices.size() << " device(s)\n";
 
     int attempted = 0, succeeded = 0, skipped = 0;

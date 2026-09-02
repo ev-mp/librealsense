@@ -1,15 +1,15 @@
 /* License: Apache 2.0. See LICENSE file in root directory. */
 /* Copyright(c) 2026 RealSense, Inc. All Rights Reserved. */
 
-/* C99 composite-option walkthrough - the same device sweep and the same full per-id exercise
+/* C99 composite-option sample - the same device sweep and the same full per-id exercise
    (Get, Set read-modify-write, Get again + verify, Get range, metadata) as the C++
-   rs-composite-option.cpp / rs-improved-close-range-control-walkthrough.cpp samples, through the raw C
+   rs-composite-option.cpp / rs-improved-close-range-control.cpp samples, through the raw C
    API instead: no exceptions (every rs2_error* is checked by hand), no templates (no
    get_composite_option_as<T>()/get_composite_option_range_as<TRange>() - every cast is a manual
    memcpy into the documented wire struct), no RAII (every list/device/sensor/filter/buffer freed
    explicitly), no generic field-printer machinery (no pointer-to-member in C - each struct's
    fields are just spelled out once, by hand, in print_improved_close_range_struct()/print_improved_close_range_range()).
-   Everything else - what gets read, written, and printed - matches the C++ walkthrough field for
+   Everything else - what gets read, written, and printed - matches the C++ sample field for
    field, so a C99-only caller has one place that shows the full surface of this API family. */
 
 #include <librealsense2/rs.h>
@@ -30,7 +30,7 @@ static const char * composite_option_name( rs2_composite_option_id id )
     }
 }
 
-/* C99 equivalent of the C++ walkthrough's print_bytes(): the untyped raw payload, before any
+/* C99 equivalent of the C++ sample's print_bytes(): the untyped raw payload, before any
    application-side cast. Short buffers (a single ~38-byte value) print on one line; long ones
    (the ~152-byte range payload - four bounds packed together) wrap into a rectangular grid
    instead of one unwieldy line, picking the fewest rows that keep every row's width in [32,64] so
@@ -58,7 +58,7 @@ static void print_bytes( const char * label, const unsigned char * data, int siz
     printf( "\n" );
 }
 
-/* C99 equivalent of the C++ walkthrough's generic print_struct(improved_close_range_fields(), ...) - no
+/* C99 equivalent of the C++ sample's generic print_struct(improved_close_range_fields(), ...) - no
    pointer-to-member table to drive it in C, so every field is spelled out here once, in wire
    order, matching rs_hkr_improved_close_range_control.h. */
 static void print_improved_close_range_struct( const rs2_improved_close_range_control * v )
@@ -77,7 +77,7 @@ static void print_improved_close_range_struct( const rs2_improved_close_range_co
     printf( "        %-16s = %d\n", "threshold_mm", v->threshold_mm );
 }
 
-/* C99 equivalent of the C++ walkthrough's generic print_range(improved_close_range_fields(), ...): one header
+/* C99 equivalent of the C++ sample's generic print_range(improved_close_range_fields(), ...): one header
    line naming the columns, then one row per field, name = [ min, max, default, step ]. */
 static void print_improved_close_range_range( const rs2_improved_close_range_control_range * r )
 {
@@ -133,7 +133,7 @@ failed:
     return 0;
 }
 
-/* Full read-modify-write + range + metadata walkthrough - the C99 equivalent of
+/* Full read-modify-write + range + metadata sequence - the C99 equivalent of
    exercise_improved_close_range_control() in rs-composite-option.cpp. Exercises both conditional
    axes (filter_type -> downscale_ratio/shift_mode+shift_pixels, threshold_mode -> threshold_mm)
    then restores the original value. A registered-but-non-functional control is a real
@@ -149,7 +149,7 @@ static int exercise_improved_close_range_control( const rs2_options * opts, rs2_
     rs2_improved_close_range_control_range range;
     int mode;
 
-    /* 1) Get (before) - both forms of the read, same as the C++ walkthrough: the raw untyped
+    /* 1) Get (before) - both forms of the read, same as the C++ sample: the raw untyped
        bytes get_composite_option() returns, and (here, by hand) the typed cast. */
     raw = rs2_get_composite_option( opts, id, &e );
     if( e )
@@ -219,7 +219,7 @@ static int exercise_improved_close_range_control( const rs2_options * opts, rs2_
         print_improved_close_range_struct( &after );
     }
 
-    /* Restore the original value read in step 1 - this walkthrough exercises real, consequential
+    /* Restore the original value read in step 1 - this sample exercises real, consequential
        state changes (unlike a single-field toggle), so leaving no lasting effect on the device
        matters more here. */
     if( ! improved_close_range_set_and_readback( opts, id, &current, &after ) )
@@ -228,7 +228,7 @@ static int exercise_improved_close_range_control( const rs2_options * opts, rs2_
             ( after.filter_type == current.filter_type && after.downscale_ratio == current.downscale_ratio
               && after.shift_mode == current.shift_mode && after.shift_pixels == current.shift_pixels
               && after.threshold_mode == current.threshold_mode && after.threshold_mm == current.threshold_mm )
-                ? "ok" : "FAILED to restore - device may be left in the walkthrough's last test state" );
+                ? "ok" : "FAILED to restore - device may be left in the sample's last test state" );
 
     /* 3) Get range - raw bytes, then the manual cast to rs2_improved_close_range_control_range
        (4 full copies of the struct - min/max/step/def, header fields included). */
@@ -275,10 +275,10 @@ skipped:
     return 0;
 }
 
-/* Dispatches to the right typed walkthrough - there is no generic "any composite option"
+/* Dispatches to the right typed handler - there is no generic "any composite option"
    mechanism by design (see rs_composite_option.h): a new composite option id needs a case added
-   here too, same as the C++ walkthrough's exercise_composite_option(). Returns 1 (succeeded), 0
-   (skipped - device/FW rejected something partway through), or -1 (no typed walkthrough
+   here too, same as the C++ sample's exercise_composite_option(). Returns 1 (succeeded), 0
+   (skipped - device/FW rejected something partway through), or -1 (no typed handler
    registered for this id at all - not counted as either, same as the C++ version leaving it out
    of both `succeeded` and `skipped`). */
 static int exercise_composite_option( const rs2_options * opts, rs2_composite_option_id id )
@@ -288,7 +288,7 @@ static int exercise_composite_option( const rs2_options * opts, rs2_composite_op
     case RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL:
         return exercise_improved_close_range_control( opts, id );
     default:
-        printf( "      (no typed walkthrough registered for this composite option id)\n" );
+        printf( "      (no typed handler registered for this composite option id)\n" );
         return -1;
     }
 }
