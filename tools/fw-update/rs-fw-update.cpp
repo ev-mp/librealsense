@@ -156,9 +156,6 @@ void waiting_for_device_to_reconnect(rs2::context& ctx, rs2::cli::value<std::str
         cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return !done || new_device; });
     }
 
-    // Release `mutex` before querying: the devices-changed callback takes it too, and a device
-    // re-enumerating on several interfaces raises more than one event -- one landing here would
-    // block the watcher thread against this query and hang the tool past its wait timeout.
     if (done)
     {
         auto devs = ctx.query_devices();
