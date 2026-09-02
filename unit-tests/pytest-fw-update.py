@@ -5,6 +5,7 @@ import sys
 import os
 import subprocess
 import tempfile
+import shutil
 import re
 import pytest
 from pytest_check import check
@@ -43,12 +44,14 @@ def run_fw_tool( cmd, timeout = FW_TOOL_TIMEOUT ):
     """
     log.debug( f'running: {cmd}' )
     sys.stdout.flush()
-    with tempfile.TemporaryDirectory() as tool_cwd:
-        try:
-            return subprocess.run( cmd, cwd=tool_cwd, timeout=timeout )
-        except subprocess.TimeoutExpired:
-            log.error( f'{cmd[0]} did not exit within {timeout} seconds; killed it' )
-            return subprocess.CompletedProcess( cmd, returncode=-1 )
+    tool_cwd = tempfile.mkdtemp()
+    try:
+        return subprocess.run( cmd, cwd=tool_cwd, timeout=timeout )
+    except subprocess.TimeoutExpired:
+        log.error( f'{cmd[0]} did not exit within {timeout} seconds; killed it' )
+        return subprocess.CompletedProcess( cmd, returncode=-1 )
+    finally:
+        shutil.rmtree( tool_cwd, ignore_errors=True )
 
 
 def wait_for_reboot( same_version ):
