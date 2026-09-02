@@ -89,17 +89,20 @@ namespace rs2
         // tracking). Split out so no single function mixes more than one field's concerns; none
         // of these are meant to be called from anywhere else. frame_max is passed as separate
         // x/y floats rather than ImVec2 so this header does not need to pull in imgui.h.
-        // Shared body for the four combo-box fields below - label on its own line, combo filling
-        // the full row width underneath (matching the numeric slider fields' own layout in this
-        // same panel, see draw_improved_close_range_slider_with_arrows()). value_offset converts
-        // between the field's own wire values and the 0-based index CustomComboBox needs (only
-        // downscale_ratio's wire values, 1 and 2, aren't already 0-based).
-        bool draw_improved_close_range_combo_field( const char * label,
-                                                     const char * id,
-                                                     const char * const labels[],
-                                                     int count,
-                                                     int & value,
-                                                     int value_offset );
+        // Shared body for the four enum fields below - an ImGui::SliderInt whose displayed text is
+        // the enum's own name rather than the raw integer, the same "slider enum" idiom shown in
+        // Dear ImGui's own widget demo (Sliders section) - not a dropdown/combo, so it costs no
+        // extra click to open before a value can be picked, and it supports the same drag/arrow-key
+        // interaction as every numeric slider in this panel (see
+        // draw_improved_close_range_slider_with_arrows()). value_offset converts between the
+        // field's own wire values and the 0-based index the slider works in (only downscale_ratio's
+        // wire values, 1 and 2, aren't already 0-based).
+        bool draw_improved_close_range_enum_field( const char * label,
+                                                    const char * id,
+                                                    const char * const labels[],
+                                                    int count,
+                                                    int & value,
+                                                    int value_offset );
         bool draw_improved_close_range_filter_type_field();
         bool draw_improved_close_range_downscale_ratio_field();
         bool draw_improved_close_range_shift_mode_field();

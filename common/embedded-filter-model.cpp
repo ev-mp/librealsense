@@ -2,7 +2,6 @@
 // Copyright(c) 2025 RealSense, Inc. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
-#include <realsense_imgui.h>
 #include <rsutils/easylogging/easyloggingpp.h>
 #include <algorithm>
 #include <cstdlib>
@@ -51,9 +50,9 @@ namespace rs2
         // with what's shown (e.g. a garbage shift_mode of 200 displays as "Manual" but `== 2`
         // never matches), and would leave the conditional branching in
         // draw_improved_close_range_control_editor() looking at an undefined case.
-        // RsImGui::CustomComboBox (used below) is separately bounds-checked against its own
-        // items_count, so this isn't needed to prevent a crash - only to keep the displayed value
-        // and the branching consistent with each other.
+        // draw_improved_close_range_enum_field() (used below) is separately bounds-checked against
+        // its own labels count, so this isn't needed to prevent a crash - only to keep the
+        // displayed value and the branching consistent with each other.
         void sanitize_improved_close_range_control( rs2_improved_close_range_control & v )
         {
             v.filter_type = std::min( std::max( v.filter_type, 0 ), 1 );
@@ -140,52 +139,73 @@ namespace rs2
         }
     }
 
-    // Real combo-box widget (RsImGui::CustomComboBox, see third-party/imgui/realsense_imgui.h),
-    // matching the convention every other enum-valued option in the viewer already uses (see
-    // option_model::draw_combobox() in common/option-model.cpp) - not a SliderInt whose format
-    // string happens to show a name, which was never more than a slider styled to look like a
-    // choice list. Label sits on its own line, combo fills the full row width below it - matching
-    // the numeric slider fields' own layout in this panel (see
-    // draw_improved_close_range_slider_with_arrows()) - rather than squeezing the combo onto the
-    // same line as the label, which leaves it almost no width in this narrow side panel and no
-    // explicit PushItemWidth to fall back on. touch()/finalize() drive the same debounced
-    // auto-commit every other field in this editor uses (see composite-control-editor.h).
-    bool embedded_filter_model::draw_improved_close_range_combo_field( const char * label,
-                                                                        const char * id,
-                                                                        const char * const labels[],
-                                                                        int count,
-                                                                        int & value,
-                                                                        int value_offset )
+    // "Slider enum" widget - an ImGui::SliderInt whose displayed text is the enum's own name
+    // (recomputed from the live value every frame) rather than a number, the same idiom Dear
+    // ImGui's own widget demo shows under Sliders ("slider enum") - see
+    // https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html. Deliberately not a
+    // dropdown/combo: picking a value is a single drag or click-to-position, no extra click to
+    // open a popup first, and it gets the same drag/arrow-key interaction as every numeric slider
+    // in this panel (see draw_improved_close_range_slider_with_arrows(), which this mirrors).
+    // touch()/finalize() drive the same debounced auto-commit every other field in this editor
+    // uses (see composite-control-editor.h): touch() on every drag tick so the countdown doesn't
+    // fire mid-drag, finalize() on release, or on a focused arrow-key nudge (fast_commit_delay).
+    bool embedded_filter_model::draw_improved_close_range_enum_field( const char * label,
+                                                                       const char * id,
+                                                                       const char * const labels[],
+                                                                       int count,
+                                                                       int & value,
+                                                                       int value_offset )
     {
+        // Width comes from the ambient PushItemWidth() the caller (draw_improved_close_range_control_editor())
+        // wraps the whole field block in - shared with every other slider in the box, not pushed here,
+        // so they all end at the exact same x regardless of field type.
         ImGui::Text( "%s", label );
-        ImGui::PushItemWidth( ImGui::GetContentRegionAvail().x );
-        ImGui::PushStyleColor( ImGuiCol_TextSelectedBg, { 1, 1, 1, 1 } );
         int selected = value - value_offset;
-        bool changed = RsImGui::CustomComboBox( id, &selected, labels, count );
-        if( changed )
+        const char * current_label = ( selected >= 0 && selected < count ) ? labels[selected] : "?";
+        if( ImGui::SliderInt( id, &selected, 0, count - 1, current_label ) )
         {
             value = selected + value_offset;
             _improved_close_range_editor.touch();
-            _improved_close_range_editor.finalize();
         }
-        ImGui::PopStyleColor();
-        ImGui::PopItemWidth();
+        if( ImGui::IsItemActive() )
+            _improved_close_range_editor.touch();
+        // Same fast_commit_delay as the arrow-key nudge below - releasing this slider IS the
+        // discrete choice (like a radio/checkbox click), so it gets the same near-immediate
+        // turnaround rather than the longer default commit_delay meant for the numeric fields'
+        // own release commits.
+        if( ImGui::IsItemDeactivatedAfterEdit() )
+            _improved_close_range_editor.finalize( _improved_close_range_editor.fast_commit_delay );
+        else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
+        {
+            if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) && selected < count - 1 )
+            {
+                value = selected + 1 + value_offset;
+                _improved_close_range_editor.touch();
+                _improved_close_range_editor.finalize( _improved_close_range_editor.fast_commit_delay );   // arrow-key nudge - fast turnaround
+            }
+            else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) && selected > 0 )
+            {
+                value = selected - 1 + value_offset;
+                _improved_close_range_editor.touch();
+                _improved_close_range_editor.finalize( _improved_close_range_editor.fast_commit_delay );   // arrow-key nudge - fast turnaround
+            }
+        }
         return ImGui::IsItemActive();
     }
 
     bool embedded_filter_model::draw_improved_close_range_filter_type_field()
     {
         static const char * const labels[] = { "Downscale", "Lookup Shift" };
-        return draw_improved_close_range_combo_field( "Filter Type:", "##improved_close_range_filter_type",
+        return draw_improved_close_range_enum_field( "Filter Type:", "##improved_close_range_filter_type",
             labels, 2, _improved_close_range_editor.value.filter_type, 0 );
     }
 
     bool embedded_filter_model::draw_improved_close_range_downscale_ratio_field()
     {
         // Wire values are 1 (x2) and 2 (x4), not 0-based like the other enum fields - value_offset
-        // converts to and from a 0-based combo index rather than changing the documented wire values.
+        // converts to and from a 0-based slider index rather than changing the documented wire values.
         static const char * const labels[] = { "x2", "x4" };
-        return draw_improved_close_range_combo_field( "Downscale Ratio:", "##improved_close_range_downscale_ratio",
+        return draw_improved_close_range_enum_field( "Downscale Ratio:", "##improved_close_range_downscale_ratio",
             labels, 2, _improved_close_range_editor.value.downscale_ratio, 1 );
     }
 
@@ -194,7 +214,7 @@ namespace rs2
         // Lookup Shift: pick a fixed preset, or Manual - which draw_improved_close_range_control_editor()
         // reveals via a separate draw_improved_close_range_manual_editable_field() call for Shift Pixels.
         static const char * const labels[] = { "Shift 126px", "Shift 64px", "Manual" };
-        return draw_improved_close_range_combo_field( "Shift Mode:", "##improved_close_range_shift_mode",
+        return draw_improved_close_range_enum_field( "Shift Mode:", "##improved_close_range_shift_mode",
             labels, 3, _improved_close_range_editor.value.shift_mode, 0 );
     }
 
@@ -232,7 +252,10 @@ namespace rs2
             {
                 value = (int)std::min( std::max( parsed, (long)min_v ), (long)max_v );
                 _improved_close_range_editor.touch();
-                _improved_close_range_editor.finalize();
+                // Shorter than the enum fields' default commit_delay - a typed-and-submitted
+                // number, like a slider drag release, doesn't carry the same "did I mean to pick
+                // that?" risk a discrete choice does.
+                _improved_close_range_editor.finalize( _improved_close_range_editor.numeric_commit_delay );
             }
             edit_mode = false;
         }
@@ -255,21 +278,23 @@ namespace rs2
             _improved_close_range_editor.touch();
         if( ImGui::IsItemActive() )
             _improved_close_range_editor.touch();
+        // Shorter than the enum fields' default commit_delay - dragging a plain value slider
+        // doesn't carry the same "did I mean to pick that?" risk a discrete choice does.
         if( ImGui::IsItemDeactivatedAfterEdit() )
-            _improved_close_range_editor.finalize();
+            _improved_close_range_editor.finalize( _improved_close_range_editor.numeric_commit_delay );
         else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
         {
             if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
             {
                 value = std::min( value + 1, max_v );
                 _improved_close_range_editor.touch();
-                _improved_close_range_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                _improved_close_range_editor.finalize( _improved_close_range_editor.fast_commit_delay );   // arrow-key nudge - fast turnaround
             }
             else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
             {
                 value = std::max( value - 1, min_v );
                 _improved_close_range_editor.touch();
-                _improved_close_range_editor.finalize( true );   // arrow-key nudge - fast turnaround
+                _improved_close_range_editor.finalize( _improved_close_range_editor.fast_commit_delay );   // arrow-key nudge - fast turnaround
             }
         }
         return ImGui::IsItemActive();
@@ -314,7 +339,7 @@ namespace rs2
         // MinZ value itself is NOT surfaced to the user at this stage - "MinZ (computed)" reveals
         // no readback field at all, unlike "Manual" (see draw_improved_close_range_manual_editable_field()).
         static const char * const labels[] = { "Zero range", "MinZ (computed)", "Manual" };
-        bool active = draw_improved_close_range_combo_field( "Threshold Mode:", "##improved_close_range_threshold_mode",
+        bool active = draw_improved_close_range_enum_field( "Threshold Mode:", "##improved_close_range_threshold_mode",
             labels, 3, _improved_close_range_editor.value.threshold_mode, 0 );
         if( ImGui::IsItemHovered() )
             ImGui::SetTooltip( "Zero range: fill only originally-empty depth pixels.\n"
@@ -329,9 +354,11 @@ namespace rs2
     // anywhere within reveal_margin of the corner (not just exactly on the tiny marker, which
     // would be fiddly to hit) swaps it for the real button in the same spot; moving away
     // collapses it back to "...". Drawn as an absolute-position overlay via SetCursorScreenPos
-    // rather than inline in the normal top-to-bottom flow, since its presence/absence shouldn't
-    // shift any of the fields above it - the cursor is restored afterward so the NEXT thing this
-    // panel draws isn't displaced.
+    // rather than inline in the normal top-to-bottom flow, so its presence/absence doesn't shift
+    // any of the fields above it - the cursor is restored afterward so the NEXT thing this panel
+    // draws isn't displaced. draw_improved_close_range_control_editor() reserves a blank row below
+    // the last field sized for this overlay's own (taller, expanded-button) height, so it sits in
+    // genuinely empty space instead of overlapping that field's row.
     bool embedded_filter_model::draw_improved_close_range_reset_to_default_overlay( rs2_composite_option_id id,
                                                                       std::string & error_message,
                                                                       float frame_max_x,
@@ -385,7 +412,9 @@ namespace rs2
         {
             ImVec2 marker_size = ImGui::CalcTextSize( "..." );
             ImGui::SetCursorScreenPos( ImVec2( frame_max.x - marker_size.x - 8.0f, frame_max.y - marker_size.y - 6.0f ) );
-            ImGui::TextDisabled( "..." );
+            // Full-brightness text, not TextDisabled's muted grey - the marker is easy to miss
+            // otherwise, and unlike the fields above it, it isn't meant to read as unavailable.
+            ImGui::Text( "..." );
         }
 
         ImGui::SetCursorScreenPos( saved_cursor );
@@ -411,11 +440,14 @@ namespace rs2
 
         float frame_left = ImGui::GetCursorScreenPos().x - 4.0f;
         float frame_top = ImGui::GetCursorScreenPos().y - 4.0f;
-        // Must match what the fields themselves push as their own item width (see
-        // draw_improved_close_range_combo_field()'s PushItemWidth(GetContentRegionAvail().x)) - any
-        // margin subtracted here but not there makes the border narrower than the widgets it's
-        // supposed to frame, so they visibly spill past its right edge.
         float frame_width = ImGui::GetContentRegionAvail().x;
+
+        // Every slider in the box (enum or numeric) shares this one pushed width rather than each
+        // picking its own - keeps them all ending at the exact same x. A few pixels narrower than
+        // the frame itself so they finish just inside its right edge instead of running flush
+        // against it, which read as the control overflowing its own border.
+        constexpr float slider_right_inset = 8.0f;
+        ImGui::PushItemWidth( frame_width - slider_right_inset );
 
         // No separate Enable checkbox - the row header's own toggle (device-model.cpp's
         // draw_embedded_filters()) drives rs2_improved_close_range_control::enable directly. Grey the whole box
@@ -471,14 +503,22 @@ namespace rs2
         if( ! threshold_relevant )
             ImGui::EndDisabled();
 
+        ImGui::PopItemWidth();
+
         ImGui::Dummy( ImVec2( 0, 2 ) );
+
+        // Reserve a blank row below the last field for the Reset-to-Default corner overlay - just
+        // enough for the collapsed "..." marker to clear the last field's own row, not the full
+        // height of the taller, expanded-button hover state (that would push the frame down
+        // further than the marker actually needs).
+        ImVec2 reset_button_size = ImGui::CalcTextSize( "Reset to Default" );
+        reset_button_size.y += ImGui::GetStyle().FramePadding.y * 2.0f;
+        ImGui::Dummy( ImVec2( 0, ( reset_button_size.y + 6.0f ) * 0.5f ) );
+
         float frame_bottom = ImGui::GetCursorScreenPos().y;
         ImVec2 frame_min( frame_left, frame_top );
         ImVec2 frame_max( frame_left + frame_width, frame_bottom );
 
-        // No line of its own is reserved for the reset overlay (frame_bottom sits right after the
-        // last field's 2px pad), so it may partially overlap that field's row rather than pushing
-        // the box taller.
         any_field_active |= draw_improved_close_range_reset_to_default_overlay( id, error_message, frame_max.x, frame_max.y );
 
         // Draws the dirty-state fade/border and sends the whole struct once the debounce timer
@@ -510,13 +550,21 @@ namespace rs2
         {
             try
             {
-                _improved_close_range_editor.value = _embedded_filter->get_composite_option_as< rs2_improved_close_range_control >(
-                    RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL );
-                sanitize_improved_close_range_control( _improved_close_range_editor.value );
-                print_improved_close_range_control( _improved_close_range_editor.value );
+                // Only re-read from the device if we don't already have a live-tracked value (the
+                // editor panel was never opened this session, or a previous read failed) - once we
+                // do, it already mirrors every write we've made, including this toggle's own past
+                // flips, so a fresh GET here is a second blocking XU transaction for no benefit -
+                // it roughly doubles how long the toggle takes to respond.
+                if( ! _improved_close_range_editor.initialized )
+                {
+                    _improved_close_range_editor.value = _embedded_filter->get_composite_option_as< rs2_improved_close_range_control >(
+                        RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL );
+                    sanitize_improved_close_range_control( _improved_close_range_editor.value );
+                    print_improved_close_range_control( _improved_close_range_editor.value );
+                    _improved_close_range_editor.initialized = true;
+                }
                 _improved_close_range_editor.value.enable = actual ? 1 : 0;
                 _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_IMPROVED_CLOSE_RANGE_CONTROL, _improved_close_range_editor.value );
-                _improved_close_range_editor.initialized = true;
                 _enabled = actual;
             }
             catch( const std::exception & e )

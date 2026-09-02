@@ -71,6 +71,12 @@ namespace rs2
         T value{};
         bool initialized = false;
 
+        // Named delay presets for finalize() below - public so a caller can pass one by name
+        // instead of a bare literal.
+        static constexpr double commit_delay = 1.7;           // seconds of quiet before auto-sending
+        static constexpr double numeric_commit_delay = 0.35;  // ditto, for a plain value slider/typed number
+        static constexpr double fast_commit_delay = 0.1;      // ditto, for keyboard arrow-key nudges
+
         // Seeds `value` from a real GET the first time this is called; a no-op afterward. Returns
         // whether `value` is safe to use (false only if the initial GET failed). `on_read`, if
         // set, is called with the freshly-read `value` right after this GET succeeds - the
@@ -107,14 +113,15 @@ namespace rs2
         }
 
         // Call once a field's edit is finalized (slider released, or immediately after a
-        // checkbox/radio click). Schedules the auto-commit out by commit_delay seconds, or by
-        // the much shorter fast_commit_delay when use_fast_delay is set - the caller's own way
-        // of saying "this particular edit came from a keyboard arrow-key nudge, not a mouse
-        // click/drag," which should feel closer to immediate feedback than the deliberate,
-        // give-me-a-moment-to-change-my-mind pause a mouse edit gets.
-        void finalize( bool use_fast_delay = false )
+        // checkbox/radio click). Schedules the auto-commit out by `delay_seconds` - the default,
+        // commit_delay, is the deliberate, give-me-a-moment-to-change-my-mind pause a discrete
+        // choice (radio/combo-style selection, Reset to Default) gets; pass the shorter
+        // numeric_commit_delay for a plain value slider/typed-number edit, which doesn't carry the
+        // same "did I mean to pick that?" risk, or fast_commit_delay for a keyboard arrow-key
+        // nudge, which should feel closer to immediate feedback than either.
+        void finalize( double delay_seconds = commit_delay )
         {
-            _commit_deadline = ImGui::GetTime() + ( use_fast_delay ? fast_commit_delay : commit_delay );
+            _commit_deadline = ImGui::GetTime() + delay_seconds;
             // A discrete edit (radio/checkbox click, keyboard arrow-key nudge) calls touch()+
             // finalize() together, synchronously, within the SAME frame as the
             // end_frame_and_maybe_commit() call below that just set this deadline - unlike a
@@ -235,8 +242,6 @@ namespace rs2
         double _commit_deadline = std::numeric_limits< double >::max();
         bool _just_finalized = false;
 
-        static constexpr double commit_delay = 1.7;          // seconds of quiet before auto-sending
-        static constexpr double fast_commit_delay = 0.1;     // ditto, for keyboard arrow-key nudges
         static constexpr float border_start_scale = 4.0f;    // 400% of normal width, right after an edit
         static constexpr float border_end_scale = 2.5f;      // 250% of normal width, right before commit
     };
