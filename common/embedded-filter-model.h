@@ -6,6 +6,7 @@
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_hdrd_control.h>
 #include <librealsense2/h/rs_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_decimation_filter_dpp.h>
 #include "composite-control-editor.h"
 #include <functional>
 #include <string>
@@ -51,6 +52,12 @@ namespace rs2
         // every field is a plain range-bounded number, so no BeginDisabled()-greyed relevance to track.
         void draw_temporal_filter_dpp_control_editor( std::string & error_message );
 
+        // Same scheme as draw_temporal_filter_dpp_control_editor() above, for
+        // RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP - a third, independent editor with a
+        // single manual-editable field (magnitude is currently a fixed [2,2] FW range, read
+        // live rather than hardcoded, so a future FW widening it needs no viewer change).
+        void draw_decimation_filter_dpp_control_editor( std::string & error_message );
+
         std::shared_ptr<rs2::embedded_filter> get_filter() { return _embedded_filter; }
 
         // error_message, if non-null, receives the reason when the device rejects the change
@@ -80,7 +87,9 @@ namespace rs2
         {
             if( _hdrd_editor.try_get_progress( progress ) )
                 return true;
-            return _temporal_filter_dpp_editor.try_get_progress( progress );
+            if( _temporal_filter_dpp_editor.try_get_progress( progress ) )
+                return true;
+            return _decimation_filter_dpp_editor.try_get_progress( progress );
         }
 
         void embedded_filter_enable_disable(bool actual, std::string * error_message = nullptr);
@@ -144,6 +153,24 @@ namespace rs2
                                                                  float frame_max_x,
                                                                  float frame_max_y );
 
+        // Helpers used only by draw_decimation_filter_dpp_control_editor() - same scheme as the
+        // temporal filter helpers above, applied to this struct's single manual-editable field.
+        bool draw_decimation_filter_dpp_manual_editable_field( const char * label,
+                                                                const char * id,
+                                                                int & value,
+                                                                int min_v,
+                                                                int max_v,
+                                                                bool & edit_mode,
+                                                                std::string & edit_buf );
+        bool draw_decimation_filter_dpp_manual_input( const char * id, int & value, int min_v, int max_v,
+                                                       bool & edit_mode, std::string & edit_buf );
+        bool draw_decimation_filter_dpp_slider_with_arrows( const char * id, int & value, int min_v, int max_v );
+        bool draw_decimation_filter_dpp_fields();
+        bool draw_decimation_filter_dpp_reset_to_default_overlay( rs2_composite_option_id id,
+                                                                   std::string & error_message,
+                                                                   float frame_max_x,
+                                                                   float frame_max_y );
+
         // The three concerns populate_options() used to inline directly, split out so each is
         // readable on its own: scalar rs2_option models, composite-option editor priming, and
         // the on_options_changed() callback that keeps them synced to later external changes.
@@ -188,5 +215,12 @@ namespace rs2
         std::string _temporal_filter_dpp_smooth_delta_edit_buf;
         bool _temporal_filter_dpp_persistency_index_edit_mode = false;
         std::string _temporal_filter_dpp_persistency_index_edit_buf;
+
+        // Same scheme as _hdrd_editor above, for RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP.
+        composite_control_editor< rs2_decimation_filter_dpp_config > _decimation_filter_dpp_editor;
+
+        // Per-field manual-entry toggle state for the single magnitude field.
+        bool _decimation_filter_dpp_magnitude_edit_mode = false;
+        std::string _decimation_filter_dpp_magnitude_edit_buf;
     };
 }

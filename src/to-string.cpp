@@ -636,6 +636,7 @@ std::string const & get_string( rs2_composite_option_id value )
 #define CASE( X ) STRARR( arr, COMPOSITE_OPTION, X );
         CASE( TEMPORAL_FILTER_DPP )
         CASE( HDRD_CONTROL )
+        CASE( DECIMATION_FILTER_DPP )
 #undef CASE
         return arr;
     }();

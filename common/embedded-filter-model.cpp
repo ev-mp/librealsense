@@ -79,6 +79,25 @@ namespace rs2
             for( auto & r : v.reserved )
                 r = 0;
         }
+
+        // Same scheme as print_hdrd_control() above, for RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP.
+        void print_decimation_filter_dpp_config( const rs2_decimation_filter_dpp_config & v )
+        {
+            LOG_DEBUG( "[Decimation Filter DPP GET] version=" << (int)v.header.version
+                       << " flags=" << (int)v.header.flags
+                       << " ctl_id=0x" << std::hex << v.header.ctl_id << std::dec
+                       << " param_count=" << (int)v.header.param_count
+                       << " param_type=" << (int)v.header.param_type
+                       << " enabled=" << v.enabled
+                       << " magnitude=" << v.magnitude );
+        }
+
+        // Same scheme as sanitize_temporal_filter_dpp_config() above.
+        void sanitize_decimation_filter_dpp_config( rs2_decimation_filter_dpp_config & v )
+        {
+            for( auto & r : v.reserved )
+                r = 0;
+        }
     }
 
     embedded_filter_model::embedded_filter_model(
@@ -143,6 +162,11 @@ namespace rs2
                 if( id == RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP )
                 {
                     draw_temporal_filter_dpp_control_editor( error_message );
+                    continue;
+                }
+                if( id == RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP )
+                {
+                    draw_decimation_filter_dpp_control_editor( error_message );
                     continue;
                 }
 
@@ -751,6 +775,240 @@ namespace rs2
         ImGui::Unindent( -5.f );
     }
 
+    // ==== RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP editor - same scheme as the others =====
+    // The InputText half - see draw_hdrd_manual_input() above, which this mirrors field for field.
+    bool embedded_filter_model::draw_decimation_filter_dpp_manual_input( const char * id, int & value, int min_v, int max_v,
+                                                                          bool & edit_mode, std::string & edit_buf )
+    {
+        char buf[32] = {};
+        strncpy( buf, edit_buf.c_str(), sizeof( buf ) - 1 );
+
+        float avail_width = ImGui::GetContentRegionAvail().x;
+        float input_width = ImGui::CalcTextSize( "000000" ).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + std::max( 0.0f, ( avail_width - input_width ) * 0.5f ) );
+        ImGui::PushItemWidth( input_width );
+        ImGui::PushStyleColor( ImGuiCol_Text, manual_edit_color );
+        std::string input_id = rsutils::string::from() << "##" << id << "_input";
+        bool submitted = ImGui::InputText( input_id.c_str(), buf, sizeof( buf ),
+                                            ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue );
+        ImGui::PopStyleColor();
+        ImGui::PopItemWidth();
+
+        if( submitted )
+        {
+            char * end = nullptr;
+            long parsed = std::strtol( buf, &end, 10 );
+            if( end != buf )
+            {
+                value = (int)std::min( std::max( parsed, (long)min_v ), (long)max_v );
+                _decimation_filter_dpp_editor.touch();
+                _decimation_filter_dpp_editor.finalize( _decimation_filter_dpp_editor.numeric_commit_delay );
+            }
+            edit_mode = false;
+        }
+        else
+            edit_buf = buf;
+
+        if( ImGui::IsItemActive() )
+            _decimation_filter_dpp_editor.touch();
+        return ImGui::IsItemActive();
+    }
+
+    // The slider half - see draw_hdrd_slider_with_arrows() above, which this mirrors field for field.
+    bool embedded_filter_model::draw_decimation_filter_dpp_slider_with_arrows( const char * id, int & value, int min_v, int max_v )
+    {
+        std::string slider_id = rsutils::string::from() << "##" << id;
+        if( ImGui::SliderInt( slider_id.c_str(), &value, min_v, max_v ) )
+            _decimation_filter_dpp_editor.touch();
+        if( ImGui::IsItemActive() )
+            _decimation_filter_dpp_editor.touch();
+        if( ImGui::IsItemDeactivatedAfterEdit() )
+            _decimation_filter_dpp_editor.finalize( _decimation_filter_dpp_editor.numeric_commit_delay );
+        else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
+        {
+            if( ImGui::IsKeyPressed( ImGuiKey_RightArrow ) )
+            {
+                value = std::min( value + 1, max_v );
+                _decimation_filter_dpp_editor.touch();
+                _decimation_filter_dpp_editor.finalize( _decimation_filter_dpp_editor.fast_commit_delay );
+            }
+            else if( ImGui::IsKeyPressed( ImGuiKey_LeftArrow ) )
+            {
+                value = std::max( value - 1, min_v );
+                _decimation_filter_dpp_editor.touch();
+                _decimation_filter_dpp_editor.finalize( _decimation_filter_dpp_editor.fast_commit_delay );
+            }
+        }
+        return ImGui::IsItemActive();
+    }
+
+    // One "label + pencil-toggle + (slider OR manual InputText)" field - see
+    // draw_hdrd_manual_editable_field() above, which this mirrors exactly.
+    bool embedded_filter_model::draw_decimation_filter_dpp_manual_editable_field( const char * label, const char * id, int & value,
+                                                                                   int min_v, int max_v, bool & edit_mode,
+                                                                                   std::string & edit_buf )
+    {
+        ImGui::Text( "%s", label );
+        ImGui::SameLine();
+        {
+            std::string edit_id = rsutils::string::from() << textual_icons::edit << "##" << id << "_edit";
+            const bool color_pushed = edit_mode;
+            if( color_pushed )
+                ImGui::PushStyleColor( ImGuiCol_Text, manual_edit_color );
+            if( ImGui::SmallButton( edit_id.c_str() ) )
+            {
+                if( ! edit_mode )
+                    edit_buf = std::to_string( value );
+                edit_mode = ! edit_mode;
+            }
+            if( color_pushed )
+                ImGui::PopStyleColor();
+            if( ImGui::IsItemHovered() )
+                ImGui::SetTooltip( edit_mode ? "Back to slider" : "Type an exact value" );
+        }
+
+        return edit_mode ? draw_decimation_filter_dpp_manual_input( id, value, min_v, max_v, edit_mode, edit_buf )
+                          : draw_decimation_filter_dpp_slider_with_arrows( id, value, min_v, max_v );
+    }
+
+    // Draws the single magnitude field - see draw_hdrd_fields() above. Range comes live from the
+    // device (get_composite_option_range_as() below), not hardcoded - FW currently reports a
+    // fixed [2,2], but this editor doesn't assume that stays true.
+    bool embedded_filter_model::draw_decimation_filter_dpp_fields()
+    {
+        int magnitude_min = _decimation_filter_dpp_editor.value.magnitude;
+        int magnitude_max = _decimation_filter_dpp_editor.value.magnitude;
+        try
+        {
+            auto range = _embedded_filter->get_composite_option_range_as< rs2_decimation_filter_dpp_range >(
+                RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP );
+            magnitude_min = range.min.magnitude;
+            magnitude_max = range.max.magnitude;
+        }
+        catch( const std::exception & )
+        {
+            // Best-effort range only - fall back to a degenerate [current,current] slider rather
+            // than disrupting the rest of the editor over a failed range query.
+        }
+
+        bool any_field_active = draw_decimation_filter_dpp_manual_editable_field( "Magnitude:", "decimation_filter_dpp_magnitude",
+            _decimation_filter_dpp_editor.value.magnitude, magnitude_min, magnitude_max,
+            _decimation_filter_dpp_magnitude_edit_mode, _decimation_filter_dpp_magnitude_edit_buf );
+        if( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Downscale factor - currently fixed by firmware." );
+
+        return any_field_active;
+    }
+
+    // Reset to Default corner overlay - see draw_hdrd_reset_to_default_overlay() above, which this
+    // mirrors exactly (same collapse/reveal/fade behavior), against this struct's own range/editor.
+    bool embedded_filter_model::draw_decimation_filter_dpp_reset_to_default_overlay( rs2_composite_option_id id,
+                                                                                      std::string & error_message,
+                                                                                      float frame_max_x,
+                                                                                      float frame_max_y )
+    {
+        bool any_active = false;
+        ImVec2 frame_max( frame_max_x, frame_max_y );
+        ImVec2 saved_cursor = ImGui::GetCursorScreenPos();
+
+        ImVec2 button_size = ImGui::CalcTextSize( "Reset to Default" );
+        button_size.x += ImGui::GetStyle().FramePadding.x * 2.0f;
+        button_size.y += ImGui::GetStyle().FramePadding.y * 2.0f;
+        ImVec2 button_pos( frame_max.x - button_size.x - 4.0f, frame_max.y - button_size.y - 4.0f );
+
+        constexpr float reveal_margin = 24.0f;
+        ImVec2 mouse = ImGui::GetIO().MousePos;
+        bool nearby = mouse.x >= button_pos.x - reveal_margin && mouse.x <= frame_max.x + reveal_margin
+                   && mouse.y >= button_pos.y - reveal_margin && mouse.y <= frame_max.y + reveal_margin;
+
+        if( nearby )
+        {
+            ImGui::SetCursorScreenPos( button_pos );
+            if( ImGui::Button( "Reset to Default##decimation_filter_dpp" ) )
+            {
+                try
+                {
+                    auto range = _embedded_filter->get_composite_option_range_as< rs2_decimation_filter_dpp_range >( id );
+                    _decimation_filter_dpp_editor.value = range.def;
+                    sanitize_decimation_filter_dpp_config( _decimation_filter_dpp_editor.value );
+                    _decimation_filter_dpp_editor.touch();
+                    _decimation_filter_dpp_editor.finalize();
+                }
+                catch( const std::exception & e )
+                {
+                    error_message = e.what();
+                }
+            }
+            any_active = ImGui::IsItemActive();
+            if( ImGui::IsItemHovered() )
+                ImGui::SetTooltip( "Restore all fields to the firmware-reported default values" );
+        }
+        else
+        {
+            ImVec2 marker_size = ImGui::CalcTextSize( "..." );
+            ImGui::SetCursorScreenPos( ImVec2( frame_max.x - marker_size.x - 8.0f, frame_max.y - marker_size.y - 6.0f ) );
+            ImGui::Text( "..." );
+        }
+
+        ImGui::SetCursorScreenPos( saved_cursor );
+        return any_active;
+    }
+
+    void embedded_filter_model::draw_decimation_filter_dpp_control_editor( std::string & error_message )
+    {
+        const auto id = RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP;
+
+        if( ! _decimation_filter_dpp_editor.ensure_initialized( _embedded_filter, id, error_message, print_decimation_filter_dpp_config ) )
+            return;
+        sanitize_decimation_filter_dpp_config( _decimation_filter_dpp_editor.value );
+
+        ImGui::Indent( -5.f );
+        ImGui::Dummy( ImVec2( 0, 2 ) );
+
+        float frame_left = ImGui::GetCursorScreenPos().x - 4.0f;
+        float frame_top = ImGui::GetCursorScreenPos().y - 4.0f;
+        float frame_width = ImGui::GetContentRegionAvail().x;
+
+        constexpr float slider_right_inset = 8.0f;
+        ImGui::PushItemWidth( frame_width - slider_right_inset );
+
+        // No separate Enable checkbox - the row header's own toggle drives
+        // rs2_decimation_filter_dpp_config::enabled directly, same as the others. Unlike them,
+        // the device itself also rejects a SET once Depth/IR is streaming (read-only while
+        // active) - end_frame_and_maybe_commit()'s own error_message surfaces that rejection.
+        const bool dim_while_disabled = ! _enabled;
+        if( dim_while_disabled )
+            ImGui::PushStyleVar( ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.35f );
+
+        bool any_field_active = draw_decimation_filter_dpp_fields();
+
+        ImGui::PopItemWidth();
+
+        ImGui::Dummy( ImVec2( 0, 2 ) );
+
+        ImVec2 reset_button_size = ImGui::CalcTextSize( "Reset to Default" );
+        reset_button_size.y += ImGui::GetStyle().FramePadding.y * 2.0f;
+        ImGui::Dummy( ImVec2( 0, ( reset_button_size.y + 6.0f ) * 0.5f ) );
+
+        float frame_bottom = ImGui::GetCursorScreenPos().y;
+        ImVec2 frame_min( frame_left, frame_top );
+        ImVec2 frame_max( frame_left + frame_width, frame_bottom );
+
+        any_field_active |= draw_decimation_filter_dpp_reset_to_default_overlay( id, error_message, frame_max.x, frame_max.y );
+
+        _decimation_filter_dpp_editor.end_frame_and_maybe_commit( _embedded_filter, id, error_message, frame_min, frame_max, any_field_active,
+            [this]( rs2_decimation_filter_dpp_config & v )
+            {
+                v.enabled = 1;
+                _enabled = true;
+            } );
+
+        if( dim_while_disabled )
+            ImGui::PopStyleVar();
+
+        ImGui::Unindent( -5.f );
+    }
+
     void embedded_filter_model::embedded_filter_enable_disable(bool actual, std::string * error_message)
     {
         // Composite-only embedded filters register no RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar
@@ -801,6 +1059,33 @@ namespace rs2
                 }
                 _temporal_filter_dpp_editor.value.enabled = actual ? 1 : 0;
                 _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, _temporal_filter_dpp_editor.value );
+                _enabled = actual;
+            }
+            catch( const std::exception & e )
+            {
+                if( error_message )
+                    *error_message = e.what();
+            }
+            return;
+        }
+
+        // Same scheme as HDRD above, for RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP. The device
+        // itself also rejects this SET while Depth/IR is streaming - that rejection surfaces via
+        // the caught exception below like any other, no special-casing needed here.
+        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ) )
+        {
+            try
+            {
+                if( ! _decimation_filter_dpp_editor.initialized )
+                {
+                    _decimation_filter_dpp_editor.value = _embedded_filter->get_composite_option_as< rs2_decimation_filter_dpp_config >(
+                        RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP );
+                    sanitize_decimation_filter_dpp_config( _decimation_filter_dpp_editor.value );
+                    print_decimation_filter_dpp_config( _decimation_filter_dpp_editor.value );
+                    _decimation_filter_dpp_editor.initialized = true;
+                }
+                _decimation_filter_dpp_editor.value.enabled = actual ? 1 : 0;
+                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP, _decimation_filter_dpp_editor.value );
                 _enabled = actual;
             }
             catch( const std::exception & e )
@@ -881,6 +1166,15 @@ namespace rs2
                     sanitize_temporal_filter_dpp_config( _temporal_filter_dpp_editor.value );
                     if( ! _embedded_filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
                         _enabled = _temporal_filter_dpp_editor.value.enabled != 0;
+                }
+            }
+            else if( id == RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP )
+            {
+                if( _decimation_filter_dpp_editor.ensure_initialized( _embedded_filter, id, error_message, print_decimation_filter_dpp_config ) )
+                {
+                    sanitize_decimation_filter_dpp_config( _decimation_filter_dpp_editor.value );
+                    if( ! _embedded_filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
+                        _enabled = _decimation_filter_dpp_editor.value.enabled != 0;
                 }
             }
         }
