@@ -11,7 +11,7 @@ namespace librealsense {
 class d500_depth_sensor;
 
 // Mirrors close_range_filter_feature exactly (see close-range-filter-feature.h) - wires the
-// HKR Temporal Filter DPP composite-option embedded filter (d500_temporal_embedded_filter) onto
+// Temporal Filter DPP composite-option embedded filter (d500_temporal_embedded_filter) onto
 // a d500_depth_sensor.
 class temporal_filter_feature : public feature_interface
 {

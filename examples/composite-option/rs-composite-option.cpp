@@ -24,8 +24,8 @@ namespace
     {
         switch( id )
         {
-        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-        case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:        return "HKR_HDRD_CONTROL";
+        case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP: return "TEMPORAL_FILTER_DPP";
+        case RS2_COMPOSITE_OPTION_HDRD_CONTROL:        return "HDRD_CONTROL";
         default:                                           return "UNKNOWN";
         }
     }
@@ -209,7 +209,7 @@ namespace
     }
     // ---- end generic struct-printing machinery ---------------------------------------------
 
-    // Full read-modify-write + range + metadata sequence for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
+    // Full read-modify-write + range + metadata sequence for RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP.
     void exercise_temporal_filter_dpp( rs2::options & opts, rs2_composite_option_id id )
     {
         // Both forms of the read, one after another - raw untyped bytes and the typed cast, two
@@ -348,8 +348,8 @@ namespace
     {
         switch( id )
         {
-        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true;
-        case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:        exercise_hdrd_control( opts, id ); return true;
+        case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP: exercise_temporal_filter_dpp( opts, id ); return true;
+        case RS2_COMPOSITE_OPTION_HDRD_CONTROL:        exercise_hdrd_control( opts, id ); return true;
         default:
             std::cout << "      (no typed handler registered for this composite option id)\n";
             return false;

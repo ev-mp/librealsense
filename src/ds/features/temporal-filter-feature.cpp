@@ -29,8 +29,8 @@ temporal_filter_feature::temporal_filter_feature( d500_depth_sensor & depth_sens
         raw_depth_ep,
         ds::DS5_HKR_TEMPORAL_FILTER_DPP,
         static_cast< uint32_t >( sizeof( rs2_temporal_filter_dpp_config ) ),
-        RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-        "HKR Temporal Filter DPP (prototype) - use rs2_set/get_composite_option, see rs_temporal_filter_dpp.h" ) );
+        RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP,
+        "Temporal Filter DPP (prototype) - use rs2_set/get_composite_option, see rs_temporal_filter_dpp.h" ) );
 }
 
 feature_id temporal_filter_feature::get_id() const

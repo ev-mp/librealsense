@@ -167,7 +167,7 @@ try
             continue;
         for (auto&& f : ds.query_embedded_filters())
         {
-            if (f.supports_composite_option(RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL))
+            if (f.supports_composite_option(RS2_COMPOSITE_OPTION_HDRD_CONTROL))
             {
                 found_filter.push_back(f);
                 found_sensor.push_back(ds);
@@ -180,13 +180,13 @@ try
 
     if (found_filter.empty())
     {
-        std::cout << "No connected device exposes HKR Improved Close Range Control - skipping." << std::endl;
+        std::cout << "No connected device exposes Improved Close Range Control - skipping." << std::endl;
     }
     else
     {
         rs2::embedded_filter& close_range_filter = found_filter.front();
         rs2::depth_sensor& close_range_depth_sensor = found_sensor.front();
-        const auto id = RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL;
+        const auto id = RS2_COMPOSITE_OPTION_HDRD_CONTROL;
 
         // Typed get - the SDK's own bound struct (get_composite_option_as<T>()), not raw bytes;
         // the same struct set_composite_option_from() below takes to write it back atomically.

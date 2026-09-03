@@ -41,13 +41,13 @@ namespace rs2
                            bool is_streaming,
                            std::string & error_message );
 
-        // Hardcoded editor for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL specifically. There is no
+        // Hardcoded editor for RS2_COMPOSITE_OPTION_HDRD_CONTROL specifically. There is no
         // generic per-field composite-option editor (would need per-struct schema knowledge
         // generic view code doesn't have) - same special-casing app code is expected to do.
         void draw_hdrd_control_editor( std::string & error_message );
 
         // Same scheme as draw_hdrd_control_editor() above, for
-        // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - a second, independent editor. Simpler:
+        // RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP - a second, independent editor. Simpler:
         // every field is a plain range-bounded number, so no BeginDisabled()-greyed relevance to track.
         void draw_temporal_filter_dpp_control_editor( std::string & error_message );
 
@@ -177,7 +177,7 @@ namespace rs2
         bool _hdrd_threshold_edit_mode = false;
         std::string _hdrd_threshold_edit_buf;
 
-        // Same scheme as _hdrd_editor above, for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
+        // Same scheme as _hdrd_editor above, for RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP.
         composite_control_editor< rs2_temporal_filter_dpp_config > _temporal_filter_dpp_editor;
 
         // Per-field manual-entry toggle state, same scheme as the HDRD ones above - one pair per

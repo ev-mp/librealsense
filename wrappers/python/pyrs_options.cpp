@@ -25,7 +25,7 @@ void init_options(py::module &m) {
         .def_readwrite( "param_type", &dpp_header::param_type );
 
     py::class_< rs2_hdrd_control >(
-        m, "hdrd_control", "HKR Improved Close Range Control composite option payload - see rs_hdrd_control.h." )
+        m, "hdrd_control", "Improved Close Range Control composite option payload - see rs_hdrd_control.h." )
         .def( py::init<>() )
         .def_readwrite( "header", &rs2_hdrd_control::header )
         .def_readwrite( "enable", &rs2_hdrd_control::enable )
@@ -58,7 +58,7 @@ void init_options(py::module &m) {
         .def_readwrite( "default", &rs2_hdrd_control_range::def );
 
     py::class_< rs2_temporal_filter_dpp_config >(
-        m, "temporal_filter_dpp_config", "HKR Temporal Filter DPP composite option payload - see rs_temporal_filter_dpp.h." )
+        m, "temporal_filter_dpp_config", "Temporal Filter DPP composite option payload - see rs_temporal_filter_dpp.h." )
         .def( py::init<>() )
         .def_readwrite( "header", &rs2_temporal_filter_dpp_config::header )
         .def_readwrite( "enabled", &rs2_temporal_filter_dpp_config::enabled )
@@ -259,7 +259,7 @@ void init_options(py::module &m) {
                 py::gil_scoped_release release;
                 return self.get_composite_option_as< rs2_hdrd_control >( id );
             },
-            "Typed counterpart to get_composite_option() for HKR Improved Close Range Control - returns a "
+            "Typed counterpart to get_composite_option() for Improved Close Range Control - returns a "
             "hdrd_control object (bound directly against the real C struct) instead of raw bytes.",
             "option"_a )
         .def(
@@ -269,7 +269,7 @@ void init_options(py::module &m) {
                 py::gil_scoped_release release;
                 self.set_composite_option_from( id, value );
             },
-            "Typed counterpart to set_composite_option() for HKR Improved Close Range Control.",
+            "Typed counterpart to set_composite_option() for Improved Close Range Control.",
             "option"_a,
             "value"_a )
         .def(
@@ -279,7 +279,7 @@ void init_options(py::module &m) {
                 py::gil_scoped_release release;
                 return self.get_composite_option_range_as< rs2_hdrd_control_range >( id );
             },
-            "Typed counterpart to get_composite_option_range() for HKR Improved Close Range Control.",
+            "Typed counterpart to get_composite_option_range() for Improved Close Range Control.",
             "option"_a )
         .def(
             "get_temporal_filter_dpp_config",
@@ -288,7 +288,7 @@ void init_options(py::module &m) {
                 py::gil_scoped_release release;
                 return self.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
             },
-            "Typed counterpart to get_composite_option() for HKR Temporal Filter DPP.",
+            "Typed counterpart to get_composite_option() for Temporal Filter DPP.",
             "option"_a )
         .def(
             "set_temporal_filter_dpp_config",
@@ -297,7 +297,7 @@ void init_options(py::module &m) {
                 py::gil_scoped_release release;
                 self.set_composite_option_from( id, value );
             },
-            "Typed counterpart to set_composite_option() for HKR Temporal Filter DPP.",
+            "Typed counterpart to set_composite_option() for Temporal Filter DPP.",
             "option"_a,
             "value"_a );
 

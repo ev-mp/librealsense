@@ -18,8 +18,8 @@ namespace
     {
         switch( id )
         {
-        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-        case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:        return "HKR_HDRD_CONTROL";
+        case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP: return "TEMPORAL_FILTER_DPP";
+        case RS2_COMPOSITE_OPTION_HDRD_CONTROL:        return "HDRD_CONTROL";
         default:                                           return "UNKNOWN";
         }
     }
@@ -61,10 +61,10 @@ namespace
         {
             switch( id )
             {
-            case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+            case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
                 print_temporal_filter_dpp( opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id ) );
                 break;
-            case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:
+            case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
                 print_hdrd_control( opts.get_composite_option_as< rs2_hdrd_control >( id ) );
                 break;
             default:

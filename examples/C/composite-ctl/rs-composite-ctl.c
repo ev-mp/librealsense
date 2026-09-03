@@ -18,8 +18,8 @@ static const char * composite_option_name( rs2_composite_option_id id )
 {
     switch( id )
     {
-    case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP: return "HKR_TEMPORAL_FILTER_DPP";
-    case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:        return "HKR_HDRD_CONTROL";
+    case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP: return "TEMPORAL_FILTER_DPP";
+    case RS2_COMPOSITE_OPTION_HDRD_CONTROL:        return "HDRD_CONTROL";
     default:                                           return "UNKNOWN";
     }
 }
@@ -457,9 +457,9 @@ static int exercise_composite_option( const rs2_options * opts, rs2_composite_op
 {
     switch( id )
     {
-    case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:
+    case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
         return exercise_hdrd_control( opts, id );
-    case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+    case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
         return exercise_temporal_filter_dpp( opts, id );
     default:
         printf( "      (no typed handler registered for this composite option id)\n" );

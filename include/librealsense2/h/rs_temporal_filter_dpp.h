@@ -3,7 +3,7 @@
 
 /** \file rs_temporal_filter_dpp.h
 * \brief
-* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP (see rs_composite_option.h).
+* Cast-target struct for RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP (see rs_composite_option.h).
 * Same shared HKR DPP wire layout (see rs_hdrd_control.h): dpp_header + 8 int32 param slots,
 * 4 used (38 bytes, little-endian, pack(1)); ctl_id = 0x0002.
 */
@@ -20,7 +20,7 @@ extern "C" {
 
 #pragma pack(push, 1)
 
-/** The entire 38-byte HKR Temporal Filter DPP payload, header included. */
+/** The entire 38-byte Temporal Filter DPP payload, header included. */
 typedef struct rs2_temporal_filter_dpp_config
 {
     dpp_header header;
@@ -40,7 +40,7 @@ typedef struct rs2_temporal_filter_dpp_config
 typedef char rs2_temporal_filter_dpp_config_wire_size_check[ ( sizeof( rs2_temporal_filter_dpp_config ) == 38 ) ? 1 : -1 ];
 
 /** {min, max, step, def} bounds for rs2_temporal_filter_dpp_config, as returned by
-* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP). Read-only - each
+* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP). Read-only - each
 * bound already carries its own header.version, so this wrapper has no version field of its own. */
 typedef struct rs2_temporal_filter_dpp_range
 {

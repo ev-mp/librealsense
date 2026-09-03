@@ -2884,27 +2884,27 @@ namespace rs2
                     }
                 }
 
-                // HKR Temporal Filter DPP "structured API" panel. Only rendered when the sensor
-                // exposes RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - checked via
+                // Temporal Filter DPP "structured API" panel. Only rendered when the sensor
+                // exposes RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP - checked via
                 // get_supported_composite_options(), a separate identity space from rs2_option.
                 // All fields are sent together in ONE atomic UVC transaction on "Apply".
                 auto supported_composite_options = sub->s->get_supported_composite_options();
                 bool has_temporal_filter_dpp = std::find(supported_composite_options.begin(),
                                                           supported_composite_options.end(),
-                                                          RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP)
+                                                          RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP)
                                              != supported_composite_options.end();
                 if (has_temporal_filter_dpp)
                 {
-                    label = rsutils::string::from() << "HKR Temporal Filter DPP (prototype)##" << id;
+                    label = rsutils::string::from() << "Temporal Filter DPP (prototype)##" << id;
                     if (ImGui::TreeNode(label.c_str()))
                     {
                         try
                         {
                             if (!sub->temporal_filter_dpp_populated)
                             {
-                                auto bytes = sub->s->get_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP);
+                                auto bytes = sub->s->get_composite_option(RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP);
                                 if (bytes.size() != sizeof(rs2_temporal_filter_dpp_config))
-                                    throw std::runtime_error("HKR Temporal Filter DPP: unexpected payload size from get_composite_option");
+                                    throw std::runtime_error("Temporal Filter DPP: unexpected payload size from get_composite_option");
 
                                 rs2_temporal_filter_dpp_config cfg{};
                                 memcpy(&cfg, bytes.data(), sizeof(cfg));
@@ -2942,7 +2942,7 @@ namespace rs2
                                 cfg.smooth_alpha = static_cast<int32_t>( std::lround( sub->temporal_filter_dpp_smooth_alpha * 1000.0f ) );
                                 cfg.smooth_delta = sub->temporal_filter_dpp_smooth_delta;
                                 cfg.persistency_index = sub->temporal_filter_dpp_persistency_index;
-                                sub->s->set_composite_option(RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &cfg, sizeof(cfg));
+                                sub->s->set_composite_option(RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, &cfg, sizeof(cfg));
                             }
                         }
                         catch (const error& e)

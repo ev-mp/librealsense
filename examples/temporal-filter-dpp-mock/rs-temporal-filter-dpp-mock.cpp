@@ -38,7 +38,7 @@ public:
 
     bool is_enabled() const override { return true; }
     bool is_read_only() const override { return false; }
-    const char * get_description() const override { return "HKR Temporal Filter DPP (fake, for testing)"; }
+    const char * get_description() const override { return "Temporal Filter DPP (fake, for testing)"; }
 
     // composite_option_interface: the fake "wire" - exactly one call per logical operation.
     std::vector< uint8_t > get_raw() const override
@@ -89,17 +89,17 @@ public:
     }
     const composite_option_interface & get_composite_option( rs2_composite_option_id id ) const override
     {
-        if( id != RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP )
+        if( id != RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP )
             throw std::runtime_error( "fake_options_container: unsupported composite option id" );
         return *_opt;
     }
     bool supports_composite_option( rs2_composite_option_id id ) const override
     {
-        return id == RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP;
+        return id == RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP;
     }
     std::vector< rs2_composite_option_id > get_supported_composite_options() const override
     {
-        return { RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP };
+        return { RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP };
     }
     std::string const & get_composite_option_name( rs2_composite_option_id ) const override { return _name; }
 
@@ -114,7 +114,7 @@ public:
 
 private:
     std::shared_ptr< fake_composite_option > _opt;
-    std::string _name = "HKR Temporal Filter DPP";
+    std::string _name = "Temporal Filter DPP";
 };
 
 // Lets this standalone test call the protected rs2::options(rs2_options*) constructor - the same
@@ -146,10 +146,10 @@ try
 
     // --- 1) Exercise the raw C API path: rs2_set_composite_option / rs2_get_composite_option ---
     rs2_error * e = nullptr;
-    rs2_set_composite_option( &wrapper, RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &sent, sizeof( sent ), &e );
+    rs2_set_composite_option( &wrapper, RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, &sent, sizeof( sent ), &e );
     rs2::error::handle( e );
 
-    auto buffer = rs2_get_composite_option( &wrapper, RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &e );
+    auto buffer = rs2_get_composite_option( &wrapper, RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, &e );
     rs2::error::handle( e );
     std::shared_ptr< const rs2_raw_data_buffer > buffer_guard( buffer, rs2_delete_raw_data );
 
@@ -169,15 +169,15 @@ try
 
     auto supported = handle.get_supported_composite_options();
     bool supports_temporal_filter_dpp
-        = std::find( supported.begin(), supported.end(), RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP ) != supported.end();
+        = std::find( supported.begin(), supported.end(), RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP ) != supported.end();
     if( ! supports_temporal_filter_dpp )
-        throw std::runtime_error( "get_supported_composite_options() unexpectedly missing RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP" );
+        throw std::runtime_error( "get_supported_composite_options() unexpectedly missing RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP" );
 
     rs2_temporal_filter_dpp_config sent2 = sent;
     sent2.persistency_index = 7;  // change one field to prove this second round trip is independent
-    handle.set_composite_option( RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, &sent2, sizeof( sent2 ) );
+    handle.set_composite_option( RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, &sent2, sizeof( sent2 ) );
 
-    auto bytes2 = handle.get_composite_option( RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP );
+    auto bytes2 = handle.get_composite_option( RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP );
     if( bytes2.size() != sizeof( rs2_temporal_filter_dpp_config ) )
         throw std::runtime_error( "get_composite_option() returned an unexpected payload size" );
 

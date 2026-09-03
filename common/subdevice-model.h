@@ -233,8 +233,8 @@ namespace rs2
         std::vector<std::shared_ptr<embedded_filter_model>> embedded_filters;
         bool embedded_filters_enabled = true;
 
-        // UI state for the HKR Temporal Filter DPP "structured API" panel (gated on
-        // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP support - see device-model.cpp). Widget
+        // UI state for the Temporal Filter DPP "structured API" panel (gated on
+        // RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP support - see device-model.cpp). Widget
         // values change locally until "Apply" issues one atomic set_composite_option() call.
         bool temporal_filter_dpp_populated = false;
         int temporal_filter_dpp_enabled = 0;

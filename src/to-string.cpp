@@ -634,8 +634,8 @@ std::string const & get_string( rs2_composite_option_id value )
     {
         std::vector< std::string > arr( RS2_COMPOSITE_OPTION_COUNT );
 #define CASE( X ) STRARR( arr, COMPOSITE_OPTION, X );
-        CASE( HKR_TEMPORAL_FILTER_DPP )
-        CASE( HKR_HDRD_CONTROL )
+        CASE( TEMPORAL_FILTER_DPP )
+        CASE( HDRD_CONTROL )
 #undef CASE
         return arr;
     }();

@@ -14,11 +14,11 @@ pytestmark = [
 
 
 def _find_hdrd_filter(sensor):
-    """Return the embedded filter exposing HKR Improved Close Range Control on this sensor, or None - the
+    """Return the embedded filter exposing Improved Close Range Control on this sensor, or None - the
     composite option lives on one of the sensor's embedded filters, its own independent options
     registry, not on the sensor itself (see rs2::embedded_filter)."""
     for embedded_filter in sensor.query_embedded_filters():
-        if rs.composite_option_id.hkr_hdrd_control in embedded_filter.get_supported_composite_options():
+        if rs.composite_option_id.hdrd_control in embedded_filter.get_supported_composite_options():
             return embedded_filter
     return None
 
@@ -92,26 +92,26 @@ def _restore_original_raw(embedded_filter, option_id, original_raw):
     embedded_filter.set_composite_option(option_id, expected_raw)
     readback_raw = bytearray(embedded_filter.get_composite_option(option_id))
     readback_raw[-4:] = b"\x00\x00\x00\x00"
-    assert bytes(readback_raw) == expected_raw, "failed to restore original HKR Improved Close Range Control value"
+    assert bytes(readback_raw) == expected_raw, "failed to restore original Improved Close Range Control value"
 
 
 def test_hdrd_control_basic_parameter_changes(test_device):
-    """Check whether HKR Improved Close Range Control is supported; if so, bounce its writable fields to new
+    """Check whether Improved Close Range Control is supported; if so, bounce its writable fields to new
     in-range values (verifying each readback) and restore the original value at the end."""
     dev, ctx = test_device
     depth_sensor = dev.first_depth_sensor()
     embedded_filter = _find_hdrd_filter(depth_sensor)
     if embedded_filter is None:
-        pytest.skip("HKR Improved Close Range Control composite option not supported on this device")
+        pytest.skip("Improved Close Range Control composite option not supported on this device")
 
-    option_id = rs.composite_option_id.hkr_hdrd_control
+    option_id = rs.composite_option_id.hdrd_control
     try:
         original_raw = embedded_filter.get_composite_option(option_id)
     except RuntimeError as e:
         # Registered but not actually functional on this device/FW is a real, expected outcome -
         # get_supported_composite_options() only reflects static registration, never a live
         # capability check.
-        pytest.skip(f"HKR Improved Close Range Control registered but not functional on this device/FW: {e}")
+        pytest.skip(f"Improved Close Range Control registered but not functional on this device/FW: {e}")
 
     # Typed get/set (see pyrs_options.cpp) - the SDK's own bound struct, no hand-rolled
     # struct.pack/unpack format string to keep in sync. Only the final restore-and-verify below

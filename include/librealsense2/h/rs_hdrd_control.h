@@ -3,7 +3,7 @@
 
 /** \file rs_hdrd_control.h
 * \brief
-* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL (see rs_composite_option.h). Wire
+* Cast-target struct for RS2_COMPOSITE_OPTION_HDRD_CONTROL (see rs_composite_option.h). Wire
 * layout: dpp_header + 8 int32 param slots, 7 used (38 bytes, little-endian, pack(1)); ctl_id =
 * 0x0008. Open item: activates at 720p/960p only - resolution-gating not yet encoded here.
 */
@@ -47,7 +47,7 @@ typedef struct rs2_hdrd_control
 typedef char rs2_hdrd_control_wire_size_check[ ( sizeof( rs2_hdrd_control ) == 38 ) ? 1 : -1 ];
 
 /** {min, max, step, def} bounds for rs2_hdrd_control, as returned by
-* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL). Read-only - each
+* rs2_get_composite_option_range(RS2_COMPOSITE_OPTION_HDRD_CONTROL). Read-only - each
 * bound already carries its own header.version, so this wrapper has no version field of its own. */
 typedef struct rs2_hdrd_control_range
 {

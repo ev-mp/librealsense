@@ -17,7 +17,7 @@ namespace rs2
 {
     namespace
     {
-        // DEBUG: every field read back from FW for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL - called
+        // DEBUG: every field read back from FW for RS2_COMPOSITE_OPTION_HDRD_CONTROL - called
         // only after a real GET, never an every-frame no-op re-read. LOG_DEBUG so this only
         // emits at DEBUG+ verbosity, not the default INFO level.
         void print_hdrd_control( const rs2_hdrd_control & v )
@@ -56,7 +56,7 @@ namespace rs2
             v.reserved[0] = 0;
         }
 
-        // Same scheme as print_hdrd_control() above, for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
+        // Same scheme as print_hdrd_control() above, for RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP.
         void print_temporal_filter_dpp_config( const rs2_temporal_filter_dpp_config & v )
         {
             LOG_DEBUG( "[Temporal Filter DPP GET] version=" << (int)v.header.version
@@ -132,7 +132,7 @@ namespace rs2
         {
             try
             {
-                if( id == RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL )
+                if( id == RS2_COMPOSITE_OPTION_HDRD_CONTROL )
                 {
                     // No always-visible description line here - draw_hdrd_control_editor shows
                     // it as a tooltip on hovering the framed control instead, to save vertical
@@ -140,7 +140,7 @@ namespace rs2
                     draw_hdrd_control_editor( error_message );
                     continue;
                 }
-                if( id == RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP )
+                if( id == RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP )
                 {
                     draw_temporal_filter_dpp_control_editor( error_message );
                     continue;
@@ -464,7 +464,7 @@ namespace rs2
 
     void embedded_filter_model::draw_hdrd_control_editor( std::string & error_message )
     {
-        const auto id = RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL;
+        const auto id = RS2_COMPOSITE_OPTION_HDRD_CONTROL;
 
         if( ! _hdrd_editor.ensure_initialized( _embedded_filter, id, error_message, print_hdrd_control ) )
             return;
@@ -526,7 +526,7 @@ namespace rs2
         ImGui::Unindent( -5.f );   // undo Indent(-5.f) above, exactly - see the comment there
     }
 
-    // ==== RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP editor - same scheme as the HDRD one =====
+    // ==== RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP editor - same scheme as the HDRD one =====
     // The InputText half - see draw_hdrd_manual_input() above, which this mirrors field for field.
     bool embedded_filter_model::draw_temporal_filter_dpp_manual_input( const char * id, int & value, int min_v, int max_v,
                                                                         bool & edit_mode, std::string & edit_buf )
@@ -700,7 +700,7 @@ namespace rs2
 
     void embedded_filter_model::draw_temporal_filter_dpp_control_editor( std::string & error_message )
     {
-        const auto id = RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP;
+        const auto id = RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP;
 
         if( ! _temporal_filter_dpp_editor.ensure_initialized( _embedded_filter, id, error_message, print_temporal_filter_dpp_config ) )
             return;
@@ -756,7 +756,7 @@ namespace rs2
         // Composite-only embedded filters register no RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar
         // option - route the toggle through the composite option's own `enable` field instead,
         // read-modify-write so the other fields go back as last reported, not zero-initialized.
-        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL ) )
+        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HDRD_CONTROL ) )
         {
             try
             {
@@ -766,13 +766,13 @@ namespace rs2
                 if( ! _hdrd_editor.initialized )
                 {
                     _hdrd_editor.value = _embedded_filter->get_composite_option_as< rs2_hdrd_control >(
-                        RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL );
+                        RS2_COMPOSITE_OPTION_HDRD_CONTROL );
                     sanitize_hdrd_control( _hdrd_editor.value );
                     print_hdrd_control( _hdrd_editor.value );
                     _hdrd_editor.initialized = true;
                 }
                 _hdrd_editor.value.enable = actual ? 1 : 0;
-                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL, _hdrd_editor.value );
+                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HDRD_CONTROL, _hdrd_editor.value );
                 _enabled = actual;
             }
             catch( const std::exception & e )
@@ -786,21 +786,21 @@ namespace rs2
             return;
         }
 
-        // Same scheme as HDRD above, for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
-        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP ) )
+        // Same scheme as HDRD above, for RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP.
+        if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP ) )
         {
             try
             {
                 if( ! _temporal_filter_dpp_editor.initialized )
                 {
                     _temporal_filter_dpp_editor.value = _embedded_filter->get_composite_option_as< rs2_temporal_filter_dpp_config >(
-                        RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP );
+                        RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP );
                     sanitize_temporal_filter_dpp_config( _temporal_filter_dpp_editor.value );
                     print_temporal_filter_dpp_config( _temporal_filter_dpp_editor.value );
                     _temporal_filter_dpp_editor.initialized = true;
                 }
                 _temporal_filter_dpp_editor.value.enabled = actual ? 1 : 0;
-                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, _temporal_filter_dpp_editor.value );
+                _embedded_filter->set_composite_option_from( RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP, _temporal_filter_dpp_editor.value );
                 _enabled = actual;
             }
             catch( const std::exception & e )
@@ -862,7 +862,7 @@ namespace rs2
             if( ! _embedded_filter->supports_composite_option( id ) )
                 continue;
 
-            if( id == RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL )
+            if( id == RS2_COMPOSITE_OPTION_HDRD_CONTROL )
             {
                 if( _hdrd_editor.ensure_initialized( _embedded_filter, id, error_message, print_hdrd_control ) )
                 {
@@ -874,7 +874,7 @@ namespace rs2
                         _enabled = _hdrd_editor.value.enable != 0;
                 }
             }
-            else if( id == RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP )
+            else if( id == RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP )
             {
                 if( _temporal_filter_dpp_editor.ensure_initialized( _embedded_filter, id, error_message, print_temporal_filter_dpp_config ) )
                 {

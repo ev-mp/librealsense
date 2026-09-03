@@ -416,7 +416,7 @@ public:
         {
             switch (id)
             {
-            case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:
+            case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
             {
                 rs2_hdrd_control v = filter.get_composite_option_as<rs2_hdrd_control>(id);
                 std::cout << "  enable          : " << v.enable << std::endl;
@@ -428,7 +428,7 @@ public:
                 std::cout << "  threshold_mm    : " << v.threshold_mm << std::endl;
                 break;
             }
-            case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+            case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
             {
                 rs2_temporal_filter_dpp_config v = filter.get_composite_option_as<rs2_temporal_filter_dpp_config>(id);
                 std::cout << "  enabled           : " << v.enabled << std::endl;
@@ -464,7 +464,7 @@ public:
 
         switch (id)
         {
-        case RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL:
+        case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
         {
             rs2_hdrd_control cfg;
             try
@@ -530,7 +530,7 @@ public:
             }
             break;
         }
-        case RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP:
+        case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
         {
             rs2_temporal_filter_dpp_config cfg;
             try
