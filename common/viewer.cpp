@@ -2964,19 +2964,21 @@ namespace rs2
                     temp_cfg.set(configurations::viewer::settings_tab, tab);
                 }
                 ImGui::PopStyleColor(2);
+#ifdef BUILD_WITH_LIBCURL
+                // One "Online Services" tab hosting both curl-backed features (updates + usage stats);
+                // each section renders only if its feature is compiled in.
                 ImGui::SameLine();
-
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 3 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 3 ? light_grey : light_blue);
-
-                if (ImGui::Button("Updates", { 120, 30 }))
+                if (ImGui::Button("Online Services", { 160, 30 }))
                 {
                     tab = 3;
                     config_file::instance().set(configurations::viewer::settings_tab, tab);
                     temp_cfg.set(configurations::viewer::settings_tab, tab);
                 }
-
                 ImGui::PopStyleColor(2);
+#endif
+
                 ImGui::PopFont();
                 ImGui::PopStyleColor(2); // button color
 
@@ -3380,8 +3382,6 @@ namespace rs2
                 if (tab == 3)
                 {
 #ifdef CHECK_FOR_UPDATES
-                    ImGui::Separator();
-
                     ImGui::Text("%s", "SW/FW Updates From Server:");
                     if (ImGui::IsItemHovered())
                     {
@@ -3423,6 +3423,64 @@ namespace rs2
                             temp_cfg.set(configurations::update::sw_updates_url, url_str);
                         }
                     }
+
+                    ImGui::Separator();
+#endif
+
+#ifdef ENABLE_STATS
+                    ImGui::Text("Real User Monitoring (RUM)");
+                    ImGui::Text("Anonymous usage statistics are collected locally. Cloud upload happens only with your consent.");
+
+                    bool cloud_enabled = temp_cfg.get_or_default(configurations::stats::rum_cloud_enabled, false);
+                    if (ImGui::Checkbox("Enable anonymous cloud upload", &cloud_enabled))
+                        temp_cfg.set(configurations::stats::rum_cloud_enabled, cloud_enabled);
+
+                    if (ImGui::Button("Export RUM data..."))
+                    {
+                        // The accumulated on-disk report (prior sessions); the live session is not
+                        // persisted until this context is destroyed, so it isn't included here. Skip
+                        // if there's no usage yet (missing file, or a post-upload reset stub).
+                        if (!_rum_uploader.saved_report_has_usage())
+                            not_model->add_notification({ "No RUM report saved yet", RS2_LOG_SEVERITY_INFO,
+                                RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                        else if (auto ret = file_dialog_open(save_file, "JSON\0*.json\0", NULL, NULL))
+                        {
+                            try
+                            {
+                                std::ofstream(ret) << _rum_uploader.saved_report();
+                            }
+                            catch (const std::exception& e) { LOG_ERROR("RUM export failed: " << e.what()); }
+                        }
+                    }
+                    ImGui::SameLine();
+                    // TODO: "Upload now" (and rum_uploader::upload_async) is a testing affordance to send
+                    // the accumulated on-disk report on demand; boot upload is the product path. Drop it once RUM is fully merged.
+                    // Gate on the saved consent, not the checkbox: upload() reads the persisted value,
+                    // so the button must stay disabled until the choice is applied (OK/Apply).
+                    bool consent_saved = config_file::instance().get_or_default(configurations::stats::rum_cloud_enabled, false);
+                    RsImGui::RsImButton([&]() {
+                        if (ImGui::Button("Upload now"))
+                        {
+                            if (!_rum_uploader.saved_report_has_usage())
+                                not_model->add_notification({ "No RUM report saved yet", RS2_LOG_SEVERITY_INFO,
+                                    RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                            else
+                                // Off the UI thread; the uploader skips if one is already in flight.
+                                // Capture not_model by value so the callback (on the upload thread) stays valid.
+                                _rum_uploader.upload_async(_rum_uploader.saved_report(),
+                                    [not_model = not_model](bool ok) {
+                                        not_model->add_notification({ ok ? "RUM report uploaded" : "RUM upload failed",
+                                            ok ? RS2_LOG_SEVERITY_INFO : RS2_LOG_SEVERITY_ERROR,
+                                            RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                                    });
+                        }
+                    }, !consent_saved);
+                    // AllowWhenDisabled: the button is disabled until consent is applied, but the
+                    // hint explaining why must still show on hover.
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        RsImGui::CustomTooltip(consent_saved
+                            ? "Upload the saved report now"
+                            : "Enable cloud upload above and click Apply first");
 #endif
                 }
                 }
@@ -4289,11 +4347,15 @@ namespace rs2
 
     void viewer_model::draw_zone_3d(Zone zone, const rs2::labeled_points& frame)
     {
+        const auto MM_TO_METER_SCALE = 0.001f; // coords are in mm, converts to meters
+        auto zone_to_draw = init_zone(zone, frame, MM_TO_METER_SCALE);
+        // Nothing to draw, and nothing opened: an exception between glBegin and glEnd would
+        // leave the GL state machine mid-primitive and fail every later call.
+        if( zone_to_draw.empty() )
+            return;
+
         glLineWidth(4.0f);
         glBegin(GL_LINE_LOOP);
-
-        const auto MM_TO_METER_SCALE = 0.001f; // coords are in mm, converts to meters
-        auto zone_to_draw = init_zone(zone, frame, MM_TO_METER_SCALE); 
         set_polygon_color(zone);
 
         for (vertex& v : zone_to_draw)
@@ -4344,25 +4406,35 @@ namespace rs2
             draw_zone_3d(Zone::Diagnostic, labeled_points);
         }
 
-        glBegin(GL_POINTS);
+        const rs2::vertex* vertices = nullptr;
+        const uint8_t* labels = nullptr;
+        size_t vertices_size = 0;
+        try
         {
-            auto vertices = last_labeled_points.get_vertices();
-            auto vertices_size = last_labeled_points.size();
-            auto labels = last_labeled_points.get_labels();
-            auto label_to_color3f = labeled_point_cloud_utilities::get_label_to_color3f();
+            vertices = last_labeled_points.get_vertices();
+            labels = last_labeled_points.get_labels();
+            vertices_size = last_labeled_points.size();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("Failed to read labeled point cloud data: " << e.what());
+            return;
+        }
 
-            /* this segment actually renders the labeled pointcloud */
-            for (int i = 0; i < vertices_size; ++i)
-            {
-                // Set the vertex color from the label value
-                auto label = labels[i];
-                auto color = label_to_color3f[static_cast<rs2_point_cloud_label>(label)];
-                glColor3f(color.x, color.y, color.z);
+        auto label_to_color3f = labeled_point_cloud_utilities::get_label_to_color3f();
 
-                // Draw the vertex
-                rs2::vertex vtx = { vertices[i].x, vertices[i].y, vertices[i].z };
-                glVertex3fv(std::move(vtx));
-            }
+        glBegin(GL_POINTS);
+        /* this segment actually renders the labeled pointcloud */
+        for (size_t i = 0; i < vertices_size; ++i)
+        {
+            // Set the vertex color from the label value
+            auto label = labels[i];
+            auto color = label_to_color3f[static_cast<rs2_point_cloud_label>(label)];
+            glColor3f(color.x, color.y, color.z);
+
+            // Draw the vertex
+            rs2::vertex vtx = { vertices[i].x, vertices[i].y, vertices[i].z };
+            glVertex3fv(std::move(vtx));
         }
         glEnd();
 
@@ -4417,6 +4489,15 @@ namespace rs2
             return points;
         }
 
+        // The polygons come from metadata that only the safety product supplies; the D500
+        // Mapping stream has none. get_frame_metadata() throws on an unsupported value, and
+        // this runs per frame from inside a glBegin block, so probe before reading.
+        for( int i = 0; i < 8; ++i )
+        {
+            if( ! frame.supports_frame_metadata( static_cast< rs2_frame_metadata_value >( md_value + i ) ) )
+                return points;   // empty -> caller draws nothing
+        }
+
         // assuming all md values are subsequent 
         vertex x0 = { static_cast<float>(frame.get_frame_metadata(static_cast<rs2_frame_metadata_value>(md_value))) * scale_factor,
                         static_cast<float>(frame.get_frame_metadata(static_cast<rs2_frame_metadata_value>(md_value + 1))) * scale_factor, 0 };
@@ -4456,11 +4537,13 @@ namespace rs2
 
     void viewer_model::draw_zone_2d(Zone zone, const rect& draw_within, const frame& frame)
     {
-        glLineWidth(3.0f);
-        glBegin(GL_LINE_LOOP);
-
         auto MM_TO_CM_SCALE = 0.1f;  // coords are in mm, converts to cm
         auto zone_to_draw = init_zone(zone, frame, MM_TO_CM_SCALE);
+        if( zone_to_draw.empty() )
+            return;
+
+        glLineWidth(3.0f);
+        glBegin(GL_LINE_LOOP);
         set_polygon_color(zone);
 
         constexpr GLfloat width = 512; // range of Y values for polygons - -2.56 - +2.56 meters
