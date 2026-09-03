@@ -20,6 +20,10 @@ target_sources( ${PROJECT_NAME}
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_advanced_mode_command.h"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_eth_config.h"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_rum.h"
+        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_composite_option.h"
+        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_dpp_header.h"
+        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_temporal_filter_dpp.h"
+        "${CMAKE_CURRENT_LIST_DIR}/librealsense2/h/rs_hdrd_control.h"
 
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/hpp/rs_types.hpp"
         "${CMAKE_CURRENT_LIST_DIR}/librealsense2/hpp/rs_context.hpp"

@@ -233,6 +233,15 @@ namespace rs2
         std::vector<std::shared_ptr<embedded_filter_model>> embedded_filters;
         bool embedded_filters_enabled = true;
 
+        // UI state for the Temporal Filter DPP "structured API" panel (gated on
+        // RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP support - see device-model.cpp). Widget
+        // values change locally until "Apply" issues one atomic set_composite_option() call.
+        bool temporal_filter_dpp_populated = false;
+        int temporal_filter_dpp_enabled = 0;
+        float temporal_filter_dpp_smooth_alpha = 0.4f;
+        int temporal_filter_dpp_smooth_delta = 20;
+        int temporal_filter_dpp_persistency_index = 3;
+
         bool uvmapping_calib_full = false;
         device_model* dev_model;
         std::string _opt_base_label;
