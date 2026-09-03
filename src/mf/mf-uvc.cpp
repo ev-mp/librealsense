@@ -354,8 +354,16 @@ namespace librealsense
             if (pHeader->MembersCount < 1)
                 throw std::exception("no data ksprop");
 
-            // The data fields are up to four bytes
-            auto field_width = std::min(sizeof(uint32_t), (size_t)length);
+            // Each entry in the underlying KS reply is exactly `length` bytes wide (pStruct is
+            // advanced by `length` between entries below) - so the copy amount must be `length`
+            // too, not an artificial 4-byte cap. That cap was correct for classic scalar PU/CT
+            // controls (a value is genuinely at most a 4-byte int there, so length itself is <=4
+            // and this was a no-op), but silently truncated multi-field composite XU controls
+            // (e.g. HKR Improved Close Range Control's 38-byte rs2_hdrd_control, RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL):
+            // the destination vector was correctly sized to the full option_range_size, but only
+            // its first 4 bytes ever got populated from the device's real response - every field
+            // past that offset silently stayed at std::vector's zero-init default, regardless of
+            // what the device actually reported.
             auto option_range_size = std::max(sizeof(uint32_t), (size_t)length);
             switch (pHeader->MembersFlags)
             {
@@ -363,20 +371,25 @@ namespace librealsense
             case KSPROPERTY_MEMBER_RANGES:
             case KSPROPERTY_MEMBER_STEPPEDRANGES:
             {
-                if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER) + 3 * sizeof(UCHAR))
+                // Must cover the two fixed headers PLUS the 3 variable-length entries (step, min,
+                // max) that follow them - not just 3 placeholder bytes - otherwise a short/
+                // malformed KS reply (DescriptionSize satisfied only for the legacy <=4-byte case)
+                // would let the memcpy calls below read past the end of the real reply.
+                if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER)
+                                                 + 3 * static_cast<size_t>(length))
                 {
                     throw std::exception("no data ksprop");
                 }
 
                 auto pStruct = next_struct;
                 cfg.step.resize(option_range_size);
-                std::memcpy( cfg.step.data(), pStruct, field_width );
+                std::memcpy( cfg.step.data(), pStruct, length );
                 pStruct += length;
                 cfg.min.resize(option_range_size);
-                std::memcpy( cfg.min.data(), pStruct, field_width );
+                std::memcpy( cfg.min.data(), pStruct, length );
                 pStruct += length;
                 cfg.max.resize(option_range_size);
-                std::memcpy( cfg.max.data(), pStruct, field_width );
+                std::memcpy( cfg.max.data(), pStruct, length );
                 return;
             }
             case KSPROPERTY_MEMBER_VALUES:
@@ -388,13 +401,16 @@ namespace librealsense
 
                 if (pHeader->Flags == KSPROPERTY_MEMBER_FLAG_DEFAULT && pHeader->MembersCount == 1)
                 {
-                    if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER) + sizeof(UCHAR))
+                    // Same reasoning as the RANGES case above - must cover the single variable-
+                    // length `def` entry, not a placeholder byte.
+                    if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER)
+                                                     + static_cast<size_t>(length))
                     {
                         throw std::exception("no data ksprop");
                     }
 
                     cfg.def.resize(option_range_size);
-                    std::memcpy( cfg.def.data(), next_struct, field_width );
+                    std::memcpy( cfg.def.data(), next_struct, length );
                 }
                 return;
             }
