@@ -16,7 +16,6 @@
 #include <cstdio>
 #include <random>
 #include <chrono>
-#include <atomic>
 
 
 #ifdef _WIN32
@@ -134,30 +133,22 @@ char const * backend()
 }  // namespace
 
 
-static std::atomic< bool > g_collector_alive{ false };
-
 rum_collector::rum_collector()
     : _source_id( load_or_create_source_id() )
     , _session_id( generate_source_id() )
 {
-    g_collector_alive.store( true );
-}
-
-rum_collector::~rum_collector()
-{
-    g_collector_alive.store( false );
-}
-
-bool rum_collector::alive()
-{
-    return g_collector_alive.load();
 }
 
 
 rum_collector & rum_collector::instance()
 {
-    static rum_collector inst;
-    return inst;
+    // Never destroyed on purpose: on_context_closed() flushes through this from ~context, which can
+    // run during process exit, when the destruction order of this singleton vs. the context is
+    // unspecified (different translation units) - a normally-destroyed static would be a
+    // use-after-free. The single allocation is reclaimed by the OS at exit (it stays "still
+    // reachable" via this pointer, so it is not reported as a leak by Valgrind or LeakSanitizer).
+    static rum_collector * const inst = new rum_collector();
+    return *inst;
 }
 
 

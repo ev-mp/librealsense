@@ -25,7 +25,6 @@ class rum_collector
 {
 public:
     static rum_collector & instance();
-    static bool alive();
 
     // Record a created device, keyed by "<name>-<connection>"; connection / fw / mipi are stored as
     // values. `serial` is used ONLY in memory to count distinct units this session (reconnects of
@@ -62,7 +61,6 @@ public:
 
 private:
     rum_collector();
-    ~rum_collector();
 
     // Fold a not-yet-uploaded report already on disk into the in-memory tallies, so data
     // accumulates across sessions until a successful upload resets the file. Called from flush().
