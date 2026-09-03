@@ -25,7 +25,7 @@ public:
 
     // Each call performs EXACTLY ONE UVC control transaction (one set_xu/get_xu). The bytes are
     // an opaque blob whose layout is documented on the corresponding rs2_composite_option_id (see
-    // rs_composite_option.h / rs_hkr_temporal_filter_dpp.h).
+    // rs_composite_option.h / rs_temporal_filter_dpp.h).
     //
     // get_raw returns a vector sized exactly to this option's known wire size - the caller has
     // no generic way to know that size in advance, so the SDK owns the allocation (mirrors

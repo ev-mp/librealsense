@@ -6,8 +6,8 @@
    raw C API: no exceptions, no templates, no RAII, no pointer-to-member field tables. */
 
 #include <librealsense2/rs.h>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
 #include "example.h"   /* shared check_error()/print_device_info() used by every Examples/C sample */
 
 #include <stdio.h>
@@ -52,7 +52,7 @@ static void print_bytes( const char * label, const unsigned char * data, int siz
 
 /* C99 equivalent of the C++ sample's generic print_struct(hdrd_fields(), ...) - no
    pointer-to-member table to drive it in C, so every field is spelled out here once, in wire
-   order, matching rs_hkr_hdrd_control.h. */
+   order, matching rs_hdrd_control.h. */
 static void print_hdrd_struct( const rs2_hdrd_control * v )
 {
     printf( "        %-16s = %d\n", "version", (int)v->header.version );

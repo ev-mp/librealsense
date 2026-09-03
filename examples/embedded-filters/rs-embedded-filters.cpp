@@ -2,7 +2,7 @@
 // Copyright(c) 2025 RealSense, Inc. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
+#include <librealsense2/h/rs_hdrd_control.h>
 
 #include <iostream>
 #include <string>

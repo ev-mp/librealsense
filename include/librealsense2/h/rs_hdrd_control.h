@@ -1,15 +1,15 @@
 /* License: Apache 2.0. See LICENSE file in root directory.
    Copyright(c) 2026 RealSense, Inc. All Rights Reserved. */
 
-/** \file rs_hkr_hdrd_control.h
+/** \file rs_hdrd_control.h
 * \brief
 * Cast-target struct for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL (see rs_composite_option.h). Wire
 * layout: dpp_header + 8 int32 param slots, 7 used (38 bytes, little-endian, pack(1)); ctl_id =
 * 0x0008. Open item: activates at 720p/960p only - resolution-gating not yet encoded here.
 */
 
-#ifndef LIBREALSENSE_RS2_HKR_HDRD_CONTROL_H
-#define LIBREALSENSE_RS2_HKR_HDRD_CONTROL_H
+#ifndef LIBREALSENSE_RS2_HDRD_CONTROL_H
+#define LIBREALSENSE_RS2_HDRD_CONTROL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,4 +60,4 @@ typedef struct rs2_hdrd_control_range
 #ifdef __cplusplus
 }
 #endif
-#endif  // LIBREALSENSE_RS2_HKR_HDRD_CONTROL_H
+#endif  // LIBREALSENSE_RS2_HDRD_CONTROL_H

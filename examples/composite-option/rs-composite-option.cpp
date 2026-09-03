@@ -6,8 +6,8 @@
 // typed Get/Set/Get/Range/metadata sequence, in its own try/catch so one broken control doesn't abort the rest.
 
 #include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
 
 #include <algorithm>
 #include <cstdint>

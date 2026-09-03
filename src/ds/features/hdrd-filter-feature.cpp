@@ -9,7 +9,7 @@
 #include <src/uvc-sensor.h>
 
 #include <librealsense2/h/rs_composite_option.h>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
+#include <librealsense2/h/rs_hdrd_control.h>
 
 
 namespace librealsense {
@@ -28,7 +28,7 @@ hdrd_filter_feature::hdrd_filter_feature( d500_depth_sensor & depth_sensor )
         ds::DS5_HKR_HDRD_CONTROL,
         static_cast< uint32_t >( sizeof( rs2_hdrd_control ) ),
         RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL,
-        "HKR Improved Close Range Control (prototype) - use rs2_set/get_composite_option, see rs_hkr_hdrd_control.h" ) );
+        "HKR Improved Close Range Control (prototype) - use rs2_set/get_composite_option, see rs_hdrd_control.h" ) );
 }
 
 feature_id hdrd_filter_feature::get_id() const

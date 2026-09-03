@@ -22,9 +22,9 @@ extern "C" {
 * scalar options. */
 typedef enum rs2_composite_option_id
 {
-    /** HKR Depth Post-Processing "Temporal Filter" - see rs_hkr_temporal_filter_dpp.h. */
+    /** HKR Depth Post-Processing "Temporal Filter" - see rs_temporal_filter_dpp.h. */
     RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-    /** HKR/D5X5 Improved Close Range control - see rs_hkr_hdrd_control.h. */
+    /** HKR/D5X5 Improved Close Range control - see rs_hdrd_control.h. */
     RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL,
     RS2_COMPOSITE_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
 } rs2_composite_option_id;

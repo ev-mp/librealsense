@@ -3,8 +3,8 @@
 
 #include "pyrealsense2.h"
 #include <librealsense2/hpp/rs_options.hpp>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
 
 using rsutils::json;
 
@@ -25,7 +25,7 @@ void init_options(py::module &m) {
         .def_readwrite( "param_type", &dpp_header::param_type );
 
     py::class_< rs2_hdrd_control >(
-        m, "hdrd_control", "HKR Improved Close Range Control composite option payload - see rs_hkr_hdrd_control.h." )
+        m, "hdrd_control", "HKR Improved Close Range Control composite option payload - see rs_hdrd_control.h." )
         .def( py::init<>() )
         .def_readwrite( "header", &rs2_hdrd_control::header )
         .def_readwrite( "enable", &rs2_hdrd_control::enable )
@@ -47,7 +47,7 @@ void init_options(py::module &m) {
               } );
 
     py::class_< rs2_hdrd_control_range >(
-        m, "hdrd_control_range", "Supported {min,max,step,default} bounds for hdrd_control - see rs_hkr_hdrd_control.h." )
+        m, "hdrd_control_range", "Supported {min,max,step,default} bounds for hdrd_control - see rs_hdrd_control.h." )
         .def( py::init<>() )
         .def_readwrite( "min", &rs2_hdrd_control_range::min )
         .def_readwrite( "max", &rs2_hdrd_control_range::max )
@@ -58,7 +58,7 @@ void init_options(py::module &m) {
         .def_readwrite( "default", &rs2_hdrd_control_range::def );
 
     py::class_< rs2_temporal_filter_dpp_config >(
-        m, "temporal_filter_dpp_config", "HKR Temporal Filter DPP composite option payload - see rs_hkr_temporal_filter_dpp.h." )
+        m, "temporal_filter_dpp_config", "HKR Temporal Filter DPP composite option payload - see rs_temporal_filter_dpp.h." )
         .def( py::init<>() )
         .def_readwrite( "header", &rs2_temporal_filter_dpp_config::header )
         .def_readwrite( "enabled", &rs2_temporal_filter_dpp_config::enabled )

@@ -2910,7 +2910,7 @@ namespace rs2
                                 memcpy(&cfg, bytes.data(), sizeof(cfg));
                                 sub->temporal_filter_dpp_enabled = cfg.enabled;
                                 // Wire value is normalized [0,1] scaled into [0,1000] (every DPP
-                                // param slot is an int32 - see rs_hkr_temporal_filter_dpp.h) -
+                                // param slot is an int32 - see rs_temporal_filter_dpp.h) -
                                 // converted back to a plain [0,1] float for the slider below.
                                 sub->temporal_filter_dpp_smooth_alpha = cfg.smooth_alpha / 1000.0f;
                                 sub->temporal_filter_dpp_smooth_delta = cfg.smooth_delta;

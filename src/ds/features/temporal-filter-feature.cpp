@@ -10,7 +10,7 @@
 #include <src/uvc-sensor.h>
 
 #include <librealsense2/h/rs_composite_option.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
 
 
 namespace librealsense {
@@ -30,7 +30,7 @@ temporal_filter_feature::temporal_filter_feature( d500_depth_sensor & depth_sens
         ds::DS5_HKR_TEMPORAL_FILTER_DPP,
         static_cast< uint32_t >( sizeof( rs2_temporal_filter_dpp_config ) ),
         RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-        "HKR Temporal Filter DPP (prototype) - use rs2_set/get_composite_option, see rs_hkr_temporal_filter_dpp.h" ) );
+        "HKR Temporal Filter DPP (prototype) - use rs2_set/get_composite_option, see rs_temporal_filter_dpp.h" ) );
 }
 
 feature_id temporal_filter_feature::get_id() const

@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 #include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
 #include "helper.h"
 
 using namespace helper;

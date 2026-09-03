@@ -6,8 +6,8 @@
 // value, through the public C++ wrapper (rs2::options), a thin pass-through to the C API.
 
 #include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
-#include <librealsense2/h/rs_hkr_hdrd_control.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
 
 #include <iostream>
 #include <string>

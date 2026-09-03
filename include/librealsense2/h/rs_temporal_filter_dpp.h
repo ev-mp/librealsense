@@ -1,15 +1,15 @@
 /* License: Apache 2.0. See LICENSE file in root directory.
    Copyright(c) 2026 RealSense, Inc. All Rights Reserved. */
 
-/** \file rs_hkr_temporal_filter_dpp.h
+/** \file rs_temporal_filter_dpp.h
 * \brief
 * Cast-target struct for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP (see rs_composite_option.h).
-* Same shared HKR DPP wire layout (see rs_hkr_hdrd_control.h): dpp_header + 8 int32 param slots,
+* Same shared HKR DPP wire layout (see rs_hdrd_control.h): dpp_header + 8 int32 param slots,
 * 4 used (38 bytes, little-endian, pack(1)); ctl_id = 0x0002.
 */
 
-#ifndef LIBREALSENSE_RS2_HKR_TEMPORAL_FILTER_DPP_H
-#define LIBREALSENSE_RS2_HKR_TEMPORAL_FILTER_DPP_H
+#ifndef LIBREALSENSE_RS2_TEMPORAL_FILTER_DPP_H
+#define LIBREALSENSE_RS2_TEMPORAL_FILTER_DPP_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,4 +53,4 @@ typedef struct rs2_temporal_filter_dpp_range
 #ifdef __cplusplus
 }
 #endif
-#endif  // LIBREALSENSE_RS2_HKR_TEMPORAL_FILTER_DPP_H
+#endif  // LIBREALSENSE_RS2_TEMPORAL_FILTER_DPP_H

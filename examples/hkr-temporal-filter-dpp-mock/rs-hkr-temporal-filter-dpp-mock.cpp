@@ -140,7 +140,7 @@ try
 
     rs2_temporal_filter_dpp_config sent{};
     sent.enabled = 1;
-    sent.smooth_alpha = 400;  // normalized [0,1] scaled into [0,1000] - see rs_hkr_temporal_filter_dpp.h
+    sent.smooth_alpha = 400;  // normalized [0,1] scaled into [0,1000] - see rs_temporal_filter_dpp.h
     sent.smooth_delta = 20;
     sent.persistency_index = 3;
 
