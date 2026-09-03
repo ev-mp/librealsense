@@ -141,6 +141,10 @@ void on_notification( rs2_notification_category category )
 
 void on_context_closed() noexcept
 {
+    // ~context can run during process exit (static teardown); if the collector singleton is already
+    // gone, skip rather than flush through a destroyed object (a use-after-free crash on exit).
+    if( ! rum_collector::alive() )
+        return;
     try
     {
         rum_collector::instance().flush();

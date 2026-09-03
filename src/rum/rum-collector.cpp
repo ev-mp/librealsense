@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <random>
 #include <chrono>
+#include <atomic>
 
 
 #ifdef _WIN32
@@ -133,10 +134,23 @@ char const * backend()
 }  // namespace
 
 
+static std::atomic< bool > g_collector_alive{ false };
+
 rum_collector::rum_collector()
     : _source_id( load_or_create_source_id() )
     , _session_id( generate_source_id() )
 {
+    g_collector_alive.store( true );
+}
+
+rum_collector::~rum_collector()
+{
+    g_collector_alive.store( false );
+}
+
+bool rum_collector::alive()
+{
+    return g_collector_alive.load();
 }
 
 
