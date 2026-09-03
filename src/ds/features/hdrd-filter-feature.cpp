@@ -19,10 +19,9 @@ namespace librealsense {
 
 hdrd_filter_feature::hdrd_filter_feature( d500_depth_sensor & depth_sensor )
 {
-    // Registers the ONE composite option this filter exposes, mirroring
-    // temporal_filter_feature exactly. ds::DS5_HKR_HDRD_CONTROL/rs2_hdrd_control drive the same
-    // physical XU control formerly exposed as the scalar "Improved Close Range Depth" option
-    // (close_range_xu_option, since removed).
+    // Registers the ONE composite option this filter exposes, mirroring temporal_filter_feature.
+    // ds::DS5_HKR_HDRD_CONTROL drives the same physical XU control formerly exposed as the
+    // scalar "Improved Close Range Depth" option (close_range_xu_option, since removed).
     auto raw_depth_ep = std::dynamic_pointer_cast< uvc_sensor >( depth_sensor.get_raw_sensor() );
     depth_sensor.add_embedded_filter( std::make_shared< hdrd_embedded_filter >(
         raw_depth_ep,

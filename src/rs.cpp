@@ -4918,14 +4918,9 @@ void rs2_set_application_config(
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, application_config_json_str)
 
-// See include/librealsense2/h/rs_composite_option.h. One generic family of entry points for
-// every composite option, keyed by rs2_composite_option_id - a separate id space from
-// rs2_option. Each call performs exactly one UVC control transaction (one get_xu/set_xu) - the
-// whole payload travels together, atomically.
-// Dispatch works by looking up the id directly in the given rs2_options* container's OWN
-// composite-option registry (a sensor OR an embedded_filter - both wrap rs2_options*) - no
-// casting involved, since composite_option_interface is returned by reference straight from that
-// registry, exactly like get_option() does for scalar options.
+// See rs_composite_option.h. One generic family of entry points for every composite option,
+// keyed by rs2_composite_option_id, a separate id space from rs2_option. Each call performs
+// exactly one UVC transaction, looked up directly in the container's own composite registry.
 void rs2_set_composite_option(
     const rs2_options* options,
     rs2_composite_option_id option,

@@ -374,10 +374,8 @@ namespace rs2
         };
 
         /**
-        * See rs_composite_option.h for the underlying generic C API and the atomicity contract
-        * (single UVC transaction per call). These four methods are the entire public C++ surface
-        * for composite options: direct calls straight through to the corresponding rs2_* C
-        * function, mirroring how get_option()/set_option() above do it for scalar options.
+        * See rs_composite_option.h for the underlying C API and atomicity contract (one UVC
+        * transaction per call) - these methods just forward to the corresponding rs2_* function.
         */
 
         /**
@@ -425,11 +423,9 @@ namespace rs2
         }
 
         /**
-        * typed counterpart to get_composite_option() - casts the raw payload directly into T
-        * instead of handing back bytes for the caller to memcpy themselves. Validates that the
-        * device returned exactly sizeof(T) bytes, and - only for structs with a composed
-        * dpp_header, e.g. rs2_hdrd_control - that its version is DPP_HEADER_CURRENT_VERSION (see
-        * rs_dpp_header.h), rejecting anything else, unpopulated (0) included.
+        * typed counterpart to get_composite_option() - casts the raw payload directly into T.
+        * Validates sizeof(T) matches, and for structs with a composed dpp_header, that its
+        * version is DPP_HEADER_CURRENT_VERSION (see rs_dpp_header.h), unpopulated (0) included.
         * \param[in] id   composite option id to read
         * \return         T, populated from the option's current raw payload
         */
@@ -443,10 +439,8 @@ namespace rs2
 
         /**
         * typed counterpart to get_composite_option_range() - casts the raw {min,max,step,def}
-        * payload directly into TRange (e.g. rs2_hdrd_control_range) instead of handing back
-        * bytes. Validates that the device returned exactly sizeof(TRange) bytes; the range
-        * wrapper has no version field of its own, but each of its four bounds does, and each is
-        * checked against DPP_HEADER_CURRENT_VERSION the same way (see check_version_supported()).
+        * payload into TRange. Validates sizeof(TRange); the wrapper itself has no version field,
+        * but each of its four bounds does, each checked the same way as check_version_supported().
         * \param[in] id   composite option id to read
         * \return         TRange, populated from the option's raw range payload
         */
@@ -459,11 +453,9 @@ namespace rs2
         }
 
         /**
-        * typed counterpart to set_composite_option() - sends value itself instead of a raw
-        * pointer+size pair. For structs that carry a `header.version` field, rejects a value
-        * whose version isn't DPP_HEADER_CURRENT_VERSION - the most likely real bug being caught
-        * here is a get-modify-set that only touched one field and left the rest, header included,
-        * zero-initialized.
+        * typed counterpart to set_composite_option() - sends value itself. For structs carrying a
+        * `header.version` field, rejects a value whose version isn't current - most likely a
+        * get-modify-set that left the header zero-initialized.
         * \param[in] id      composite option id to write
         * \param[in] value   the caller's struct matching the option's documented wire layout
         */
@@ -557,10 +549,8 @@ namespace rs2
         }
 
     private:
-        // Shared unwrap helper for get_composite_option()/get_composite_option_range() - the SDK
-        // heap-allocates the result (the caller has no generic way to know an arbitrary composite
-        // option's wire size in advance), so this hides the raw rs2_raw_data_buffer/manual-free
-        // entirely (mirrors rs2::safety_sensor::get_safety_preset's exact unwrap pattern).
+        // Shared unwrap helper for get_composite_option()/get_composite_option_range() - hides the
+        // raw rs2_raw_data_buffer/manual-free (mirrors safety_sensor::get_safety_preset's pattern).
         static std::vector< uint8_t > unwrap_raw_data_buffer( const rs2_raw_data_buffer * buffer, rs2_error * e )
         {
             std::shared_ptr< const rs2_raw_data_buffer > guard( buffer, rs2_delete_raw_data );
@@ -579,9 +569,8 @@ namespace rs2
         }
 
         // ---- typed composite-option cast helpers (get_composite_option_as() and friends) -----
-        //
-        // Detects whether T has a `.header.version` member via a composed dpp_header (see
-        // rs_dpp_header.h) - value structs like rs2_hdrd_control.
+        // Detects whether T has a `.header.version` member via a composed dpp_header - value
+        // structs like rs2_hdrd_control.
         template< typename U >
         class has_header_version
         {
@@ -612,13 +601,9 @@ namespace rs2
         {
         }
 
-        // This is what makes the version field worth having at all: reject anything other than
-        // DPP_HEADER_CURRENT_VERSION (see rs_dpp_header.h) up front - including 0, the
-        // "never populated" sentinel a get-modify-set that skipped the get would leave behind -
-        // rather than silently misreading a struct laid out by a wire version this SDK build
-        // doesn't actually know. Applied both when parsing a device's raw payload
-        // (cast_composite_payload() below, covering get_composite_option_as() and
-        // get_composite_option_range_as()) and before sending one (set_composite_option_from()).
+        // This is what makes the version field worth having: reject anything other than
+        // DPP_HEADER_CURRENT_VERSION up front - including 0, the "never populated" sentinel - rather
+        // than silently misreading a struct laid out by a wire version this build doesn't know.
         template< typename T >
         static typename std::enable_if< has_header_version< T >::value >::type
         check_version_supported( const T & value )

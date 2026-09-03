@@ -1,30 +1,9 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// Composite-option device sweep, against whatever RealSense devices are
-// actually connected (no fake transport). Sequence:
-//   1) enumerate connected devices (rs2_query_devices)
-//   2) for each device, walk its sensors and find any depth sensor(s)
-//   3) for each depth sensor, walk its embedded filters (rs2_query_embedded_filters) - composite
-//      options like Improved Close Range/Temporal Filter DPP are registered on an embedded filter's OWN options
-//      registry (see e.g. src/ds/d500/hdrd-embedded-filter.h's register_composite_option
-//      call), NOT on the depth sensor's own registry directly, matching how the viewer itself
-//      only ever queries composite options through rs2::embedded_filter
-//      (common/embedded-filter-model.cpp), never through rs2::sensor. Calling
-//      get_supported_composite_options() straight on the sensor will always come back empty.
-//   4) for each embedded filter, ask whether it supports composite options at all
-//      (rs2_get_composite_options_list) - an embedded filter may expose ordinary rs2_option
-//      scalar options only, with no composite options, and that's a valid outcome, not an error
-//   5) if it does, print every supported composite option id
-//   6) for each one, read its current value straight from the device
-//      (rs2_get_composite_option) and print every field - e.g. the Temporal Filter DPP prints
-//      enabled/smooth_alpha/smooth_delta/persistency_index, Improved Close Range prints its own 7 logical fields
-//      plus the shared dppc_header
-//
-// Drives everything through the real public C++ wrapper (rs2::options, see rs_options.hpp),
-// which is a thin pass-through to the C API this is meant to exercise: rs2_get_composite_option,
-// rs2_get_composite_options_list, rs2_supports_composite_option, rs2_get_composite_option_range,
-// rs2_is_composite_option_read_only, rs2_get_composite_option_description.
+// Composite-option device sweep against whatever RealSense devices are actually connected.
+// Walks device -> depth sensor -> embedded filter -> each supported id, printing its current
+// value, through the public C++ wrapper (rs2::options), a thin pass-through to the C API.
 
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
@@ -74,10 +53,8 @@ namespace
                    << " threshold_mm=" << v.threshold_mm << '\n';
     }
 
-    // Prints every field of `id`'s current value read straight from the device, dispatching to
-    // the right typed cast - there is no generic "print any composite option" mechanism by
-    // design (see rs_composite_option.h: the caller is responsible for knowing each option's
-    // documented wire struct), so a new composite option needs a case added here too.
+    // Prints every field of `id`'s current value, dispatching to the right typed cast - no
+    // generic "print any composite option" mechanism by design, so a new id needs a case here too.
     void print_composite_option_value( const rs2::options & opts, rs2_composite_option_id id )
     {
         try

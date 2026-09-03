@@ -86,11 +86,9 @@ RS2_ENUM_HELPERS( rs2_point_cloud_label, POINT_CLOUD_LABEL )
 RS2_ENUM_HELPERS( rs2_calib_location, CALIB_LOCATION )
 RS2_ENUM_HELPERS( rs2_embedded_filter_type, EMBEDDED_FILTER_TYPE )
 RS2_ENUM_HELPERS( rs2_gyro_sensitivity, GYRO_SENSITIVITY )
-// rs2_composite_option_id: a completely separate id space from rs2_option (see
-// rs_composite_option.h) - deliberately uses the plain enum-helpers machinery (no registry),
-// unlike rs2_option's is_valid()/get_string() below. std::string const& (not const char*) return
-// type for get_string(), mirroring rs2_option_type, since options_container::get_composite_option_name()
-// returns std::string const&.
+// rs2_composite_option_id: a separate id space from rs2_option - deliberately uses the plain
+// enum-helpers machinery (no registry), unlike rs2_option's is_valid()/get_string() below.
+// std::string const& return type mirrors rs2_option_type, since get_composite_option_name() needs it.
 RS2_ENUM_HELPERS_CUSTOMIZED( rs2_composite_option_id, 0, RS2_COMPOSITE_OPTION_COUNT - 1, std::string const & )
 
 

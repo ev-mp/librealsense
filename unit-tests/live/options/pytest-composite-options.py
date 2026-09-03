@@ -25,12 +25,9 @@ def _find_hdrd_filter(sensor):
 
 def _bounce_field_pair(embedded_filter, option_id, original, range, filter_type, field):
     """filter_type selects which of two field-pairs is meaningful: downscale_ratio under Downscale
-    (0), shift_pixels (when shift_mode is Manual) under Lookup Shift (1) - unlike the old 5-field
-    layout these are mutually exclusive branches, not independent fields, so each is only bounced
-    while its own branch is actually selected. Sets `field` to a new in-range value, verifies the
-    readback, then restores filter_type/shift_mode/`field` together before returning, so each
-    change is independently verified and reverted rather than compounding on top of the last.
-    Returns whether there was room to change `field` at all."""
+    (0), shift_pixels (Manual shift_mode) under Lookup Shift (1) - mutually exclusive branches.
+    Sets `field` to a new in-range value, verifies, then restores everything. Returns whether
+    there was room to change `field` at all."""
     lo, hi = getattr(range.min, field), getattr(range.max, field)
     if lo >= hi:
         log.info(f"{field}: no room to change, range is [{lo}, {hi}]")
@@ -87,14 +84,8 @@ def _bounce_threshold(embedded_filter, option_id, original, range):
 
 def _restore_original_raw(embedded_filter, option_id, original_raw):
     """Always restore the very first raw payload read from the device, regardless of what
-    happened above - the strongest guarantee that this test leaves no lasting side effects.
-    `reserved` (rs_hkr_hdrd_control.h's trailing int32_t reserved[1], the last 4 bytes of the
-    struct - #pragma pack(1) guarantees no trailing padding) MUST be zero on SET; a real device
-    can hand back a non-zero value there on GET (same case sanitize_hdrd_control() exists for on
-    the C++/viewer side), and sending original_raw verbatim would resend that byte, risking the
-    SET being rejected. Zero it in both the buffer we send and the one we compare the readback
-    against - the device's own semantics make a byte-exact restore of a "must be zero" field
-    meaningless if it wasn't zero to begin with."""
+    happened above. `reserved` MUST be zero on SET, but a real device can hand back non-zero on
+    GET - zero it in both the sent buffer and the readback comparison before restoring."""
     expected_raw = bytearray(original_raw)
     expected_raw[-4:] = b"\x00\x00\x00\x00"
     expected_raw = bytes(expected_raw)
@@ -121,10 +112,9 @@ def test_hdrd_control_basic_parameter_changes(test_device):
         # capability check.
         pytest.skip(f"HKR Improved Close Range Control registered but not functional on this device/FW: {e}")
 
-    # Typed get/set (see wrappers/python/pyrs_options.cpp) - the SDK's own bound struct, no
-    # hand-rolled struct.pack/unpack format string to keep in sync with the wire layout. Only the
-    # final restore-and-verify below uses the raw bytes, for the strongest possible guarantee
-    # (byte-exact, header and reserved fields included).
+    # Typed get/set (see pyrs_options.cpp) - the SDK's own bound struct, no hand-rolled
+    # struct.pack/unpack format string to keep in sync. Only the final restore-and-verify below
+    # uses the raw bytes, for the strongest possible guarantee.
     original = embedded_filter.get_hdrd_control(option_id)
     range = embedded_filter.get_hdrd_control_range(option_id)
 

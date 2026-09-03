@@ -1,22 +1,12 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// A completely independent, standalone interface backing a "composite option": a multi-field
-// control whose fields are exchanged atomically (see include/librealsense2/h/rs_composite_option.h
-// for the public entry points this backs). This is NOT a specialization of, and shares NO common
-// ancestor with, librealsense::option/option_interface - not even via a common base class. A
-// class implementing composite_option_interface (see librealsense::composite_xu_option,
-// src/ds/composite-xu-option.h) implements ONLY this interface: there is no set(float)/query()
-// anywhere on it, so the entire class of bug that motivated this design (generic code that
-// iterates every registered rs2_option and blindly calls get_option()/set_option() on each one,
-// unexpectedly throwing when it lands on a composite entry) is structurally impossible, not
-// defensively guarded against - a composite option is never reachable through the scalar-option
-// enumeration/registry (options_container::get_supported_options()/get_option()) at all.
+// A standalone interface backing a "composite option": a multi-field control exchanged
+// atomically (see rs_composite_option.h). NOT related to librealsense::option/option_interface -
+// no set(float)/query(), so it's structurally unreachable through the scalar-option registry.
 //
-// Composite options live in their own registry, keyed by their own id type
-// (rs2_composite_option_id - see rs_composite_option.h), on the SAME options_container that also
-// holds ordinary rs2_option-keyed options (see src/core/options-container.h) - two fully separate
-// maps on one class, not two classes.
+// Composite options live in their own registry, keyed by rs2_composite_option_id, on the SAME
+// options_container that also holds ordinary rs2_option-keyed options - two separate maps, one class.
 
 #pragma once
 
@@ -43,11 +33,9 @@ public:
     virtual std::vector< uint8_t > get_raw() const = 0;
     virtual void set_raw( const void * data, size_t size ) = 0;
 
-    // Backs rs2_get_composite_option_range. Generic convention (reusable for ANY composite
-    // option, not just this one): four back-to-back payloads, each the option's normal wire size
-    // (as returned by get_raw()) - min, max, step, def, in that order. No version field: a range
-    // is always freshly read and returned whole, never hand-built and sent back, so there is
-    // nothing for a version to guard against.
+    // Backs rs2_get_composite_option_range. Generic convention: four back-to-back payloads, each
+    // the option's normal wire size - min, max, step, def, in that order. No version field: a
+    // range is always freshly read and returned whole, never hand-built and sent back.
     virtual std::vector< uint8_t > get_raw_range() const = 0;
 
     // Real, meaningful metadata for a composite control, just as it is for a scalar option -

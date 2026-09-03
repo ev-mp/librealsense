@@ -1,42 +1,13 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// Test scaffolding - NOT a real hardware round trip.
+// Test scaffolding - NOT a real hardware round trip. Proves the E2E behavior of the generic
+// "composite option" mechanism using a minimal in-memory fake composite_option_interface
+// standing in for a real device-backed composite_xu_option, driven through the real public API.
 //
-// This standalone program proves the E2E behavior of the GENERIC "composite option" mechanism
-// (see include/librealsense2/h/rs_composite_option.h and src/composite-option-interface.h) as
-// applied to one concrete composite option - RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - using
-// a minimal in-memory fake composite_option_interface implementation standing in for a real
-// device-backed librealsense::composite_xu_option (src/ds/composite-xu-option.h). No physical
-// HKR/D555 device is required, present, or touched - this is software-only scaffolding, not a
-// hardware test.
-//
-// Composite options are a fully independent identity/registry space from ordinary rs2_option
-// scalar options (see rs_composite_option.h) - this test drives the mechanism entirely through
-// the REAL PUBLIC ENTRY POINTS for THAT space:
-//   - the C API: rs2_set_composite_option / rs2_get_composite_option
-//   - the C++ wrapper: rs2::options::get_composite_option()/set_composite_option() - direct
-//     calls, no handle/wrapper type and no is<T>()/as<T>() casting (composite options are never
-//     reached by casting a scalar option - they live in their own registry from the start).
-// The "device" being driven is a minimal fake librealsense::composite_option_interface
-// implementation (fake_composite_option, below), registered on a minimal fake
-// librealsense::options_interface (fake_options_container) in ITS OWN composite-option registry
-// (kept completely separate from that container's - empty - scalar rs2_option registry), wrapped
-// in the same rs2_options C-struct that a real rs2::sensor/rs2::embedded_filter wraps (see
-// src/proc/synthetic-stream.h) - so the public API code path exercised here is identical to what
-// a real sensor goes through, only the very last step (the simulated "wire") is faked.
-//
-// What this proves:
-//   1. Round-trip correctness: a payload sent via rs2_set_composite_option comes back
-//      byte-identical from rs2_get_composite_option, once cast into this example's own
-//      rs2_temporal_filter_dpp_config (the SDK DOES ship this one struct publicly - see
-//      include/librealsense2/h/rs_hkr_temporal_filter_dpp.h).
-//   2. Atomicity: exactly one set_raw()/get_raw() call reaches the fake "wire" per logical
-//      rs2_set_composite_option()/rs2_get_composite_option() call - i.e. the whole payload
-//      always travels as a single transaction, never as separate per-field writes/reads. This
-//      is the non-negotiable atomicity requirement from the HKR/FW spec, and is exactly the
-//      contract librealsense::composite_xu_option::get_raw()/set_raw() implement via a single
-//      get_xu()/set_xu() call each against the real device.
+// What this proves: (1) round-trip correctness - a sent payload comes back byte-identical; (2)
+// atomicity - exactly one set_raw()/get_raw() call reaches the fake "wire" per logical
+// operation, never split per-field, the non-negotiable requirement from the HKR/FW spec.
 
 #include <librealsense2/rs.hpp>
 
@@ -56,11 +27,8 @@ using namespace librealsense;
 namespace {
 
 // Minimal fake composite option standing in for librealsense::composite_xu_option. Implements
-// ONLY composite_option_interface - no relationship whatsoever to librealsense::option -
-// matching the real class exactly: there is no set(float)/query() anywhere to (mis)use.
-// get_raw()/set_raw() are this test's "wire": each is called exactly once per
-// rs2_get_composite_option()/rs2_set_composite_option() call, and the counters below are the
-// atomicity proof.
+// ONLY composite_option_interface, matching the real class exactly. get_raw()/set_raw() are
+// this test's "wire": each is called exactly once per logical call, counters below prove it.
 class fake_composite_option : public composite_option_interface
 {
 public:
@@ -96,11 +64,8 @@ private:
 };
 
 // Minimal fake options container: implements librealsense::options_interface directly (no
-// dependency on options_container, so this executable has no link-time dependency on anything
-// beyond the genuine extern "C" API exported by realsense2 - see CMakeLists.txt). Holds no
-// scalar rs2_option at all - only exactly one registered composite option:
-// RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - demonstrating the two registries are completely
-// separate (this container legitimately supports zero scalar options).
+// dependency on options_container). Holds no scalar rs2_option at all - only the one
+// registered composite option, demonstrating the two registries are completely separate.
 class fake_options_container : public options_interface
 {
 public:
@@ -152,10 +117,8 @@ private:
     std::string _name = "HKR Temporal Filter DPP";
 };
 
-// Lets this standalone test call the protected rs2::options(rs2_options*) constructor - the
-// same one rs2::sensor/rs2::embedded_filter use internally - so
-// get_composite_option()/set_composite_option() can be exercised exactly as a real
-// sensor/embedded_filter would use them.
+// Lets this standalone test call the protected rs2::options(rs2_options*) constructor - the same
+// one rs2::sensor/rs2::embedded_filter use internally - to exercise get/set_composite_option().
 class fake_options_handle : public rs2::options
 {
 public:

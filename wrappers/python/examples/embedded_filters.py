@@ -11,22 +11,9 @@ import pyrealsense2 as rs
 
 
 '''
-Aim of this example is to show how the python API for embedded filters must be used.
-Scenario is:
-1. Get connected DDS device
-2. Get its depth sensor
-3. Get its embedded filters
-4. For each embedded filter: show supported options and print current values
-5. For each embedded filter: show supported COMPOSITE options and print current values too -
-   these are a completely separate identity space from the ordinary (scalar) options above (see
-   rs2_composite_option_id in rs_composite_option.h): a single multi-field control exchanged
-   atomically, in ONE UVC transaction. Each id known to this example is registered below against
-   its typed accessor method (e.g. get_hdrd_control()) - the Python equivalent of
-   the C++ wrapper's get_composite_option_as<T>() template call (see
-   wrappers/python/pyrs_options.cpp) - so what comes back is a real object bound field-for-field
-   against the actual C struct, not raw bytes. Fields are then read off that object by
-   introspection, so this example carries no hand-maintained wire layout of its own: no struct
-   format string, no byte offsets, no field list to keep in sync by hand.
+Shows how the python API for embedded filters is used: connect, get the depth sensor's embedded
+filters, then for each one print its scalar options AND its composite options (a separate,
+atomically-exchanged identity space - see _COMPOSITE_OPTION_ACCESSORS below).
 '''
 
 def list_embedded_filter_options(embedded_filter):
@@ -37,13 +24,9 @@ def list_embedded_filter_options(embedded_filter):
     print("\n")
 
 
-# Typed accessor method registered per known composite-option id - the SDK ships no generic "any
-# composite option" cast (there is no per-id dispatch table, in C++ or Python), so a new composite
-# option still needs an entry here, same as every other composite-option sample in this repo
-# dispatches by known id. Unlike a raw wire-layout table though, nothing here names a byte offset
-# or format string: the registered method returns a real typed object (see
-# rs.hdrd_control / rs.temporal_filter_dpp_config in pyrs_options.cpp), and
-# _typed_fields() below reads its fields back by introspection.
+# Typed accessor method registered per known composite-option id - no generic "any composite
+# option" cast exists, so a new id needs an entry here. The registered method returns a real
+# typed object (see pyrs_options.cpp), and _typed_fields() below reads it by introspection.
 _COMPOSITE_OPTION_ACCESSORS = {
     rs.composite_option_id.hkr_hdrd_control: 'get_hdrd_control',
     rs.composite_option_id.hkr_temporal_filter_dpp: 'get_temporal_filter_dpp_config',
@@ -79,9 +62,7 @@ def list_embedded_filter_composite_options(embedded_filter):
             value = getattr(embedded_filter, accessor_name)(id)
         except RuntimeError as e:
             # Registered but not actually functional on this device/FW is a real, expected
-            # outcome (supports_composite_option()/get_supported_composite_options() only
-            # reflect static registration, never a live capability check) - report and move on
-            # rather than treating it as fatal, same as the C++/C99 samples' per-id try/catch.
+            # outcome - report and move on rather than treating it as fatal.
             print("    SKIPPED (registered but not functional on this device/FW): {}".format(e))
             continue
 

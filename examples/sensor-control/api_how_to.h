@@ -363,10 +363,9 @@ public:
 
     static rs2::embedded_filter get_an_embedded_filter_from_a_sensor(const rs2::sensor& sensor)
     {
-        // Composite options (see get_a_composite_option() below) are not exposed directly on a
-        // sensor - each one lives on one of the sensor's EMBEDDED FILTERs, its own independent
-        // options registry (see rs2::embedded_filter). A sensor can have several embedded
-        // filters, and not every one of them necessarily exposes any composite option at all.
+        // Composite options are not exposed directly on a sensor - each lives on one of the
+        // sensor's EMBEDDED FILTERs, its own independent options registry. A sensor can have
+        // several, and not every one necessarily exposes any composite option at all.
         std::vector<rs2::embedded_filter> filters = sensor.query_embedded_filters();
         if (filters.empty())
             throw std::runtime_error("This sensor has no embedded filters");
@@ -385,10 +384,9 @@ public:
 
     static rs2_composite_option_id get_a_composite_option(const rs2::embedded_filter& filter)
     {
-        // Composite options are a completely separate identity space from the ordinary
-        // (scalar) rs2_option controls seen in get_sensor_option() above: a single multi-field
-        // control whose fields are all exchanged together, atomically, in ONE UVC transaction -
-        // see rs2_composite_option_id in rs_composite_option.h.
+        // Composite options are a completely separate identity space from the ordinary (scalar)
+        // rs2_option controls seen in get_sensor_option() above: a single multi-field control
+        // whose fields are all exchanged together, atomically, in ONE UVC transaction.
         std::vector<rs2_composite_option_id> ids = filter.get_supported_composite_options();
         if (ids.empty())
             throw std::runtime_error("This embedded filter has no composite options");
@@ -411,11 +409,9 @@ public:
 
     static void print_composite_option_value(const rs2::embedded_filter& filter, rs2_composite_option_id id)
     {
-        // Unlike get_sensor_option() above, there is no generic "any composite option" cast -
-        // the SDK ships no per-id dispatch, so the caller is expected to know each id's
-        // documented wire struct (see rs_hkr_hdrd_control.h / rs_hkr_temporal_filter_dpp.h) and
-        // cast accordingly via get_composite_option_as<T>(). A new composite option needs a case
-        // added here too.
+        // Unlike get_sensor_option() above, there is no generic "any composite option" cast - the
+        // caller is expected to know each id's documented wire struct and cast accordingly via
+        // get_composite_option_as<T>(). A new composite option needs a case added here too.
         try
         {
             switch (id)
@@ -457,9 +453,8 @@ public:
     static void change_composite_option(const rs2::embedded_filter& filter, rs2_composite_option_id id)
     {
         // Each composite option is exchanged as ONE atomic struct, unlike change_sensor_option()
-        // above (one rs2_option, one value) - so changing even a single field here still means a
-        // read-modify-write of the WHOLE struct: read the current value, change only the field
-        // the user picked, and send the entire thing back in a single set_composite_option_from() call.
+        // above - so changing even a single field means a read-modify-write of the WHOLE struct:
+        // read current, change only the picked field, send the entire thing back.
 
         if (filter.is_composite_option_read_only(id))
         {

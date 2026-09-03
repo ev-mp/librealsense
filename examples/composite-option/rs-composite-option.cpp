@@ -1,38 +1,9 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-// Reference sample - "how do I use the composite-option API", against REAL
-// connected devices - no fake/mock transport. Full sequence:
-//
-//   1) rs2::context::query_devices()          - enumerate connected devices
-//   2) dev.query_sensors() + is<depth_sensor>() - find each device's depth sensor(s)
-//   3) sensor.query_embedded_filters()         - composite options live on a sensor's EMBEDDED
-//      FILTERs, each its OWN independent options registry - NOT on the depth sensor's own
-//      registry directly (see src/ds/d500/composite-embedded-filter.cpp's register_composite_option
-//      call, used by both hdrd-embedded-filter.h and temporal-filter-feature.cpp). Calling
-//      get_supported_composite_options() straight on the sensor always comes back empty; querying
-//      only ONE embedded filter only ever shows that filter's own id(s), never another filter's -
-//      every filter must be walked to see every composite option a sensor exposes.
-//   4) ef.get_supported_composite_options()    - per filter, whichever composite option(s) it
-//      registers (zero is a valid, expected outcome for filters with scalar options only)
-//   5) for each id found, the FULL per-id application sequence below - dispatched to a typed
-//      handler because there is no generic "any composite option" cast (the SDK ships no per-id
-//      dispatch; the caller must know each id's documented wire struct, see
-//      include/librealsense2/h/rs_composite_option.h):
-//        - Get (before)   - get_composite_option(id), cast to the documented struct
-//        - Set            - read-modify-write: start from what was just read, change only the
-//                           fields this sample means to change, send the WHOLE struct back
-//                           as one atomic transaction
-//        - Get (after)    - confirm against what was sent
-//        - Get range      - get_composite_option_range(id), cast to the documented range struct
-//        - Query info     - is_composite_option_read_only() / get_composite_option_description()
-//
-// Each id's sequence is wrapped in its own try/catch: a registered-but-non-functional control
-// (a real possibility - supports_composite_option()/get_supported_composite_options() only
-// reflect that the SDK's device-class code chose to register this id, never a live "does the
-// real firmware actually respond to it" check, see composite_xu_option::is_enabled() always
-// returning true) is reported as a per-id FAILED line rather than aborting the whole sample,
-// so one broken control doesn't prevent seeing results for every other one.
+// Reference sample - "how do I use the composite-option API", against REAL connected devices.
+// Walks every device -> depth sensor -> embedded filter -> each composite id found gets a full
+// typed Get/Set/Get/Range/metadata sequence, in its own try/catch so one broken control doesn't abort the rest.
 
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_hkr_temporal_filter_dpp.h>
@@ -59,15 +30,9 @@ namespace
         }
     }
 
-    // Prints a composite option's raw payload as a byte array - the untyped form
-    // get_composite_option() returns, before any application-side cast. Short buffers (e.g. a
-    // single ~38-byte value) print on one line; long ones (e.g. a ~156-byte range payload - four
-    // bounds packed together) wrap into a rectangular grid instead of one unwieldy line. The
-    // per-line width is chosen per call, not fixed at 32, so the LAST row isn't a ragged
-    // leftover: pick the fewest rows that keep every row's width <= 64, then divide the buffer
-    // evenly across that many rows - every row (including the last) lands somewhere in [32,64]
-    // and, whenever the size divides evenly, all rows come out the same width. E.g. 156 bytes ->
-    // 3 rows of 52, not 4 rows of 32 + one ragged row of 28.
+    // Prints a composite option's raw payload as a byte array. Short buffers print on one line;
+    // long ones wrap into a rectangular grid: pick the fewest rows keeping each row's width
+    // <=64, then divide the buffer evenly, so the last row isn't a ragged leftover.
     void print_bytes( const char * label, const std::vector< uint8_t > & raw )
     {
         constexpr size_t wrap_threshold = 60;
@@ -90,22 +55,15 @@ namespace
             }
         }
 
-        // std::setfill (unlike std::setw) is sticky - it stays in effect on the stream until
-        // explicitly changed again, so it must be restored here or every later std::setw(...)
-        // call on std::cout (e.g. field_printer's name-column padding) silently inherits '0'
-        // instead of the default space.
+        // std::setfill (unlike std::setw) is sticky - restored here or every later std::setw(...)
+        // call on std::cout would silently inherit '0' instead of the default space.
         std::cout << std::dec << std::setfill( ' ' ) << '\n';
     }
 
     // ---- Generic "print any struct's fields" machinery -------------------------------------
-    //
-    // Same shape as librealsense::md_attribute_parser_base / md_uvc_header_parser<St, Attribute>
-    // in src/metadata-parser.h: a pointer-to-member (Attribute S::*) is captured once, at
-    // construction, behind a common NON-TEMPLATED base interface - that's what lets a list of
-    // these be iterated generically without the iterating code ever knowing S or Attribute.
-    // print_struct() below has zero field names hardcoded in it and works for ANY struct type;
-    // only the small per-type static table (hdrd_fields()/temporal_filter_dpp_fields()) needs to
-    // name each field, exactly once, ever.
+    // A pointer-to-member (Attribute S::*) is captured once, at construction, behind a common
+    // NON-TEMPLATED base interface, so a list of these can be iterated without ever knowing S or
+    // Attribute. print_struct() has zero field names hardcoded; only the per-type table does.
 
     // uint8_t/int8_t stream as characters via the default operator<< - not useful for a byte-
     // sized numeric field like dpp_header::version - so route those through an int cast.
@@ -119,10 +77,8 @@ namespace
     {
     public:
         virtual const char * name() const = 0;
-        // name_width is the widest field name in this print_struct() call's whole table,
-        // computed once up front - every row pads its name to that same width (spaces, not a
-        // literal '\t') so "=" lands in the same column on every line regardless of how each
-        // individual field name's length happens to fall relative to the terminal's tab stops.
+        // name_width is the widest field name in this table, computed once up front - every row
+        // pads its name to that width (spaces) so "=" lands in the same column on every line.
         virtual void print( std::ostream & os, const void * struct_ptr, size_t name_width ) const = 0;
         // Just this field's value, no name/no newline - used by print_range() to lay several
         // struct instances (min/max/def/step) out on one row instead of one block per struct.
@@ -256,10 +212,8 @@ namespace
     // Full read-modify-write + range + metadata sequence for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP.
     void exercise_temporal_filter_dpp( rs2::options & opts, rs2_composite_option_id id )
     {
-        // Both forms of the read, one after another - the raw untyped bytes get_composite_option()
-        // returns, and the typed convenience cast get_composite_option_as<T>() returns. Two
-        // separate real GETs (device round trips), shown side by side purely to illustrate both
-        // APIs - production code would normally only need the typed one.
+        // Both forms of the read, one after another - raw untyped bytes and the typed cast, two
+        // separate real GETs, shown side by side purely to illustrate both APIs.
         print_bytes( "Get (before)", opts.get_composite_option( id ) );
         auto current = opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id );
         std::cout << "      Get (before):\n";
@@ -387,11 +341,9 @@ namespace
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
     }
 
-    // Dispatches to the right typed handler - there is no generic "any composite option"
-    // mechanism by design (see file header); a new composite option id needs a case added here.
-    // Returns true on success, false if this id has no typed handler registered (not a
-    // failure, just unhandled) - actual device-transaction failures propagate as exceptions for
-    // the caller to catch per-id.
+    // Dispatches to the right typed handler - no generic "any composite option" mechanism by
+    // design, so a new id needs a case added here. Returns false if unhandled (not a failure);
+    // actual device-transaction failures propagate as exceptions for the caller to catch.
     bool exercise_composite_option( rs2::options & opts, rs2_composite_option_id id )
     {
         switch( id )
@@ -449,10 +401,8 @@ try
                     }
                     catch( const rs2::error & e )
                     {
-                        // Registered but not actually functional on this device/FW (see file
-                        // header - supports_composite_option()/get_supported_composite_options()
-                        // only reflect static registration, never a live capability check) - skip
-                        // it and keep going rather than treating this as a failure.
+                        // Registered but not actually functional on this device/FW - skip it and
+                        // keep going rather than treating this as a failure.
                         ++skipped;
                         std::cout << "      SKIPPED (registered but not functional on this device/FW): " << e.what() << '\n';
                     }

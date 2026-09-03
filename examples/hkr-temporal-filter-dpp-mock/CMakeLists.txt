@@ -4,16 +4,9 @@ cmake_minimum_required(VERSION 3.10)
 
 project(RealsenseExamplesHkrTemporalFilterDppMock)
 
-# Test scaffolding proving the atomicity + round-trip behavior of the generic
-# "composite option" mechanism (include/librealsense2/h/rs_composite_option.h,
-# src/composite-option-interface.h) as applied to RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP,
-# against a fake in-memory librealsense::composite_option_interface implementation standing in for
-# real HKR/D555 hardware (librealsense::composite_xu_option, src/ds/composite-xu-option.h), which
-# is not present on this dev machine. Drives the mechanism through the REAL PUBLIC ENTRY POINTS
-# (rs2_set_composite_option/rs2_get_composite_option and the direct
-# rs2::options::get_composite_option()/set_composite_option() C++ methods - no casting/handle
-# type involved) rather than bypassing into an internal transport class directly, so it links
-# against realsense2 like any other example.
+# Test scaffolding proving the atomicity + round-trip behavior of the generic composite-option
+# mechanism against a fake in-memory composite_option_interface standing in for real HKR/D555
+# hardware, driven through the real public entry points - see rs-hkr-temporal-filter-dpp-mock.cpp.
 add_executable(rs-hkr-temporal-filter-dpp-mock
     rs-hkr-temporal-filter-dpp-mock.cpp
 )

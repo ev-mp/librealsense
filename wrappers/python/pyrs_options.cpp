@@ -12,14 +12,9 @@ using rsutils::json;
 void init_options(py::module &m) {
     /** rs_options.hpp **/
 
-    // Typed struct bindings for the two known composite-option wire layouts,
-    // bound directly against the real C structs (rs_hkr_hdrd_control.h /
-    // rs_hkr_temporal_filter_dpp.h) via pointer-to-member - same mechanism as
-    // rs2_intrinsics/rs2_extrinsics/rs2_vector above (see c_files.cpp) - so there is exactly ONE
-    // place, on each side, that names a field: the C++ struct itself, and this binding (which
-    // reads its types straight from it). If the struct's shape ever changes, this binding fails
-    // to compile instead of a hand-duplicated Python struct.unpack() format string silently
-    // misinterpreting the new bytes.
+    // Typed struct bindings for the two known composite-option wire layouts, bound directly
+    // against the real C structs via pointer-to-member (same mechanism as rs2_intrinsics above)
+    // so a shape change fails to compile instead of silently misinterpreting bytes.
     py::class_< dpp_header >(
         m, "dpp_header", "Wire header shared by the HKR DPP composite-option control family - see rs_dpp_header.h." )
         .def( py::init<>() )
@@ -198,13 +193,9 @@ void init_options(py::module &m) {
               "Retrieve the supported options, each with its value and range", py::call_guard< py::gil_scoped_release >() )
         .def( "on_options_changed", &rs2::options::on_options_changed,
               "Sets a callback to notify in case options in this container change value", "callback"_a )
-        // Composite options are a completely separate identity space from
-        // ordinary rs2_option scalar options above (see rs2_composite_option_id in
-        // rs_composite_option.h). Mirrors the C++ wrapper's own "four methods, raw bytes only, no
-        // is<T>()/as<T>() casting" surface (see rs2::options::set_composite_option() and friends
-        // in rs_options.hpp) - Python has no templates either, so get/set hand back/take raw
-        // bytes for the caller to pack/unpack with the `struct` module against the documented
-        // wire layout (see e.g. rs_hkr_hdrd_control.h), same as the C99 sample does by hand.
+        // Composite options are a completely separate identity space from ordinary rs2_option
+        // scalar options above. Mirrors the C++ wrapper's "raw bytes only, no is<T>()/as<T>()"
+        // surface - Python has no templates either, so get/set hand back/take raw bytes.
         .def(
             "get_composite_option",
             []( rs2::options const & self, rs2_composite_option_id id ) -> py::bytes
@@ -258,14 +249,9 @@ void init_options(py::module &m) {
               "Get a composite option's human-readable description.", "option"_a )
         .def( "get_supported_composite_options", &rs2::options::get_supported_composite_options,
               "Retrieve the list of composite option ids this options container supports." )
-        // Typed counterparts to get/set_composite_option() above, for the two known wire layouts
-        // bound just above - the Python equivalent of the C++ wrapper's own
-        // get_composite_option_as<T>()/set_composite_option_from<T>()/
-        // get_composite_option_range_as<TRange>() templates. Python has no templates, so each
-        // known struct gets its own named method rather than one generic one - same "no generic
-        // any-composite-option dispatch, a new id needs code added" rule every other
-        // composite-option sample in this repo already follows (see e.g.
-        // print_composite_option_value() in examples/sensor-control/api_how_to.h).
+        // Typed counterparts to get/set_composite_option() above - the Python equivalent of the
+        // C++ wrapper's own get_composite_option_as<T>() templates. Python has no templates, so
+        // each known struct gets its own named method rather than one generic one.
         .def(
             "get_hdrd_control",
             []( rs2::options const & self, rs2_composite_option_id id ) -> rs2_hdrd_control

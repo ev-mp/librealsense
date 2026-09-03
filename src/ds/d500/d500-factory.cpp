@@ -146,11 +146,9 @@ namespace librealsense
                 register_feature( std::make_shared< temporal_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
 
-            // HKR Improved Close Range Control composite option - USB toggle. Formerly
-            // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
-            // consolidated onto the generic composite-option mechanism - see hdrd-filter-feature.h.
-            // Gated on FW: older firmware still speaks the old scalar-only semantics at this same
-            // XU control id (0x14), not the new composite/dpp_header wire format.
+            // HKR Improved Close Range Control composite option - USB toggle, formerly the
+            // scalar "Improved Close Range Depth". Gated on FW: older firmware still speaks the
+            // old scalar-only semantics at this same XU control id (0x14).
             if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< hdrd_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
@@ -238,12 +236,9 @@ namespace librealsense
             if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< temporal_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
 
-            // HKR Improved Close Range Control composite option - USB toggle. Formerly
-            // "Improved Close Range Depth" (close_range_filter_feature, scalar enable-only);
-            // consolidated onto the generic composite-option mechanism - see hdrd-filter-feature.h.
-            // Skipped on MIPI: the V4L2 backend has no CID for the depth-XU selector (0x14). Also
-            // gated on FW: older firmware still speaks the old scalar-only semantics at this same
-            // XU control id, not the new composite/dpp_header wire format.
+            // HKR Improved Close Range Control composite option - USB toggle, formerly the
+            // scalar "Improved Close Range Depth". Skipped on MIPI (no V4L2 CID for the depth-XU
+            // selector 0x14); gated on FW for older scalar-only semantics at this same id.
             if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< hdrd_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
@@ -472,9 +467,7 @@ namespace librealsense
             }
 
             // HKR Improved Close Range Control composite option - D555 only, same FW gate as
-            // above. Formerly "Improved Close Range Depth", a scalar enable-only option
-            // (close_range_filter_feature, now retired); consolidated onto the generic
-            // composite-option mechanism instead - see rs_hkr_hdrd_control.h.
+            // above. Formerly the scalar "Improved Close Range Depth" (now retired).
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< hdrd_filter_feature >(

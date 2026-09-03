@@ -13,14 +13,10 @@ namespace librealsense {
 // see composite-embedded-filter.h for what this alias actually registers, and
 // temporal-filter-feature.cpp for the other instantiation.
 //
-// This addresses the SAME physical XU control (unit 3, selector 0x14) that used to be exposed as
-// "Improved Close Range Depth" - a scalar, enable-only RS2_OPTION_EMBEDDED_FILTER_ENABLED option
-// (close_range_xu_option, since removed). Consolidated onto this composite option instead, which
-// exposes all 7 fields (enable, filter_type, downscale_ratio, shift_mode, shift_pixels,
-// threshold_mode, threshold_mm) atomically rather than just enable. Note this means
-// RS2_OPTION_EMBEDDED_FILTER_ENABLED is no longer registered for this filter, so any generic
-// caller that assumed every embedded filter has it (e.g. common/embedded-filter-model.cpp in the
-// viewer) will throw for this one - a known, accepted consequence of the consolidation.
+// Addresses the SAME physical XU control (unit 3, selector 0x14) that used to be exposed as
+// "Improved Close Range Depth", a scalar enable-only option (since removed) - consolidated onto
+// this composite option's all 7 fields. RS2_OPTION_EMBEDDED_FILTER_ENABLED is no longer
+// registered for this filter, so a caller assuming every filter has it will throw - accepted.
 using hdrd_embedded_filter
     = composite_embedded_filter< close_range_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_CLOSE_RANGE >;
 

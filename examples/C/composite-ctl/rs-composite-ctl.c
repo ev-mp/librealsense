@@ -1,16 +1,9 @@
 /* License: Apache 2.0. See LICENSE file in root directory. */
 /* Copyright(c) 2026 RealSense, Inc. All Rights Reserved. */
 
-/* C99 composite-option sample - the same device sweep and the same full per-id exercise
-   (Get, Set read-modify-write, Get again + verify, Get range, metadata) as the C++
-   rs-composite-option.cpp / rs-hdrd-control.cpp samples, through the raw C
-   API instead: no exceptions (every rs2_error* is checked by hand), no templates (no
-   get_composite_option_as<T>()/get_composite_option_range_as<TRange>() - every cast is a manual
-   memcpy into the documented wire struct), no RAII (every list/device/sensor/filter/buffer freed
-   explicitly), no generic field-printer machinery (no pointer-to-member in C - each struct's
-   fields are just spelled out once, by hand, in print_hdrd_struct()/print_hdrd_range()).
-   Everything else - what gets read, written, and printed - matches the C++ sample field for
-   field, so a C99-only caller has one place that shows the full surface of this API family. */
+/* C99 composite-option sample - the same device sweep and full per-id exercise (Get, Set
+   read-modify-write, Get again + verify, Get range, metadata) as the C++ samples, through the
+   raw C API: no exceptions, no templates, no RAII, no pointer-to-member field tables. */
 
 #include <librealsense2/rs.h>
 #include <librealsense2/h/rs_hkr_hdrd_control.h>
@@ -31,11 +24,9 @@ static const char * composite_option_name( rs2_composite_option_id id )
     }
 }
 
-/* C99 equivalent of the C++ sample's print_bytes(): the untyped raw payload, before any
-   application-side cast. Short buffers (a single ~38-byte value) print on one line; long ones
-   (the ~152-byte range payload - four bounds packed together) wrap into a rectangular grid
-   instead of one unwieldy line, picking the fewest rows that keep every row's width in [32,64] so
-   the last row isn't a ragged leftover. */
+/* C99 equivalent of the C++ sample's print_bytes(): the untyped raw payload. Short buffers print
+   on one line; long ones wrap into a rectangular grid, picking the fewest rows keeping each
+   row's width in [32,64] so the last row isn't a ragged leftover. */
 static void print_bytes( const char * label, const unsigned char * data, int size )
 {
     const int wrap_threshold = 60;
@@ -101,11 +92,9 @@ static void print_hdrd_range( const rs2_hdrd_control_range * r )
 #undef HDRD_ROW
 }
 
-/* C99 equivalent of the C++ sample's print_struct(temporal_filter_dpp_fields(), ...) - see
-   print_hdrd_struct() above for why this is spelled out by hand instead of driven by a
-   pointer-to-member table. smooth_alpha is a normalized [0,1] value scaled into [0,1000] (every
-   DPP param slot is an int32 - see rs_hkr_temporal_filter_dpp.h), so it prints as a plain %d like
-   every other field here, not a float. */
+/* C99 equivalent of print_struct(temporal_filter_dpp_fields(), ...) - see print_hdrd_struct()
+   above. smooth_alpha is [0,1] scaled into [0,1000] (every DPP param slot is an int32), so it
+   prints as a plain %d like every other field, not a float. */
 static void print_temporal_filter_dpp_struct( const rs2_temporal_filter_dpp_config * v )
 {
     printf( "        %-16s = %d\n", "version", (int)v->header.version );
@@ -207,10 +196,8 @@ failed:
 }
 
 /* Full read-modify-write + range + metadata sequence - the C99 equivalent of
-   exercise_temporal_filter_dpp() in rs-composite-option.cpp. A registered-but-non-functional
-   control is a real possibility on real hardware - reported as SKIPPED via `goto skipped` rather
-   than aborting the whole program. Returns 1 if every step succeeded, 0 if skipped partway
-   through. */
+   exercise_temporal_filter_dpp() in rs-composite-option.cpp. A non-functional control is
+   reported as SKIPPED via `goto skipped` rather than aborting the whole program. */
 static int exercise_temporal_filter_dpp( const rs2_options * opts, rs2_composite_option_id id )
 {
     rs2_error * e = NULL;
@@ -322,11 +309,8 @@ skipped:
 }
 
 /* Full read-modify-write + range + metadata sequence - the C99 equivalent of
-   exercise_hdrd_control() in rs-composite-option.cpp. Exercises both conditional
-   axes (filter_type -> downscale_ratio/shift_mode+shift_pixels, threshold_mode -> threshold_mm)
-   then restores the original value. A registered-but-non-functional control is a real
-   possibility on real hardware - reported as SKIPPED via `goto skipped` rather than aborting the
-   whole program. Returns 1 if every step succeeded, 0 if skipped partway through. */
+   exercise_hdrd_control() in rs-composite-option.cpp. Exercises both conditional axes then
+   restores the original value; a non-functional control is reported via `goto skipped`. */
 static int exercise_hdrd_control( const rs2_options * opts, rs2_composite_option_id id )
 {
     rs2_error * e = NULL;
@@ -466,12 +450,9 @@ skipped:
     return 0;
 }
 
-/* Dispatches to the right typed handler - there is no generic "any composite option"
-   mechanism by design (see rs_composite_option.h): a new composite option id needs a case added
-   here too, same as the C++ sample's exercise_composite_option(). Returns 1 (succeeded), 0
-   (skipped - device/FW rejected something partway through), or -1 (no typed handler
-   registered for this id at all - not counted as either, same as the C++ version leaving it out
-   of both `succeeded` and `skipped`). */
+/* Dispatches to the right typed handler - no generic "any composite option" mechanism by design,
+   so a new id needs a case here too. Returns 1 (succeeded), 0 (skipped), or -1 (no typed
+   handler registered - not counted as either). */
 static int exercise_composite_option( const rs2_options * opts, rs2_composite_option_id id )
 {
     switch( id )

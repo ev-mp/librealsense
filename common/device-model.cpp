@@ -326,10 +326,8 @@ namespace rs2
 
         auto path = rsutils::os::get_special_folder( rsutils::os::special_folder::user_documents );
         path += "librealsense2/presets/";
-        // glob_rec() (third-party/filesystem/glob.h) throws whenever opendir() fails - which is
-        // the common, expected case here (most machines have never created this folder). Check
-        // first instead of relying on the exception: avoids a first-chance throw/catch on nearly
-        // every device refresh, which was showing up as debugger noise unrelated to any real bug.
+        // glob_rec() throws whenever opendir() fails - the common case here (most machines never
+        // created this folder). Check first to avoid a first-chance throw/catch on every refresh.
         if( isDir( path, nullptr ) )
         {
             try
@@ -2886,19 +2884,10 @@ namespace rs2
                     }
                 }
 
-                // HKR Temporal Filter DPP "structured API" panel. Only
-                // rendered for a sensor that actually exposes
-                // RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - composite options are a
-                // completely separate identity space from ordinary rs2_option scalar options, so
-                // support is checked via get_supported_composite_options(), not via
-                // supports()/is<T>()/as<T>() casting. Uses the DIRECT
-                // get_composite_option()/set_composite_option() C++ methods, which call
-                // rs2_get_composite_option/rs2_set_composite_option under the hood - no wrapper
-                // handle type. The SDK ships a public struct for this one prototype control
-                // (rs2_temporal_filter_dpp_config, see rs_hkr_temporal_filter_dpp.h) that this
-                // viewer casts the raw bytes to/from. All fields are sent together in ONE atomic
-                // UVC transaction when "Apply" is clicked - never as separate per-field option
-                // writes.
+                // HKR Temporal Filter DPP "structured API" panel. Only rendered when the sensor
+                // exposes RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP - checked via
+                // get_supported_composite_options(), a separate identity space from rs2_option.
+                // All fields are sent together in ONE atomic UVC transaction on "Apply".
                 auto supported_composite_options = sub->s->get_supported_composite_options();
                 bool has_temporal_filter_dpp = std::find(supported_composite_options.begin(),
                                                           supported_composite_options.end(),
@@ -3269,11 +3258,9 @@ namespace rs2
                             int font_size = window.get_font_size();
                             const ImVec2 button_size = { font_size * 2.f, font_size * 1.5f };
 
-                            // While this filter's composite editor (e.g. Improved Close Range) has a debounced
-                            // commit pending, tint the toggle with the exact same gold->blue ramp
-                            // the editor's own framed box fades through (before it snaps to idle
-                            // on commit), so the row header echoes "about to send" instead of
-                            // just sitting in its last on/off color.
+                            // While this filter's composite editor has a debounced commit pending,
+                            // tint the toggle with the same gold->blue ramp the editor's own
+                            // framed box fades through, so the row header echoes "about to send".
                             float dirty_progress = 0.0f;
                             const bool composite_dirty = pb->has_pending_composite_commit(dirty_progress);
                             ImVec4 dirty_tint = composite_control_dirty_blend(dirty_progress);

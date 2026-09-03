@@ -27,11 +27,9 @@ public:
     virtual std::vector< rs2_option > get_supported_options() const = 0;
     virtual std::string const & get_option_name( rs2_option ) const = 0;
 
-    // Composite-option twin of the five methods above - a fully separate identity space (see
-    // src/composite-option-interface.h / rs_composite_option.h), never mixed with the scalar
-    // rs2_option accessors: get_supported_options()/get_supported_composite_options() are two
-    // disjoint enumerations, so generic code walking one never sees an entry that belongs to the
-    // other.
+    // Composite-option twin of the five methods above - a fully separate identity space, never
+    // mixed with the scalar rs2_option accessors: get_supported_options() and
+    // get_supported_composite_options() are two disjoint enumerations.
     virtual composite_option_interface & get_composite_option( rs2_composite_option_id id ) = 0;
     virtual const composite_option_interface & get_composite_option( rs2_composite_option_id id ) const = 0;
     virtual bool supports_composite_option( rs2_composite_option_id id ) const = 0;

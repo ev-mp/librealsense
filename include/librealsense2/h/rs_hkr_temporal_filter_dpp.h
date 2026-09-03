@@ -3,12 +3,9 @@
 
 /** \file rs_hkr_temporal_filter_dpp.h
 * \brief
-* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP, exchanged via
-* rs2_set_composite_option/rs2_get_composite_option/rs2_get_composite_option_range (see
-* rs_composite_option.h). Same shared wire layout as every other control in the HKR DPP family
-* (see rs_hkr_hdrd_control.h): dpp_header (see rs_dpp_header.h) + 8 fixed int32 param slots, 4
-* used here (4 reserved, MUST be zero on SET) - 38 bytes total, little-endian, #pragma pack(1).
-* ctl_id = 0x0002 (dpp_temporal_filter), confirmed against a real device.
+* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP (see rs_composite_option.h).
+* Same shared HKR DPP wire layout (see rs_hkr_hdrd_control.h): dpp_header + 8 int32 param slots,
+* 4 used (38 bytes, little-endian, pack(1)); ctl_id = 0x0002.
 */
 
 #ifndef LIBREALSENSE_RS2_HKR_TEMPORAL_FILTER_DPP_H
@@ -29,10 +26,8 @@ typedef struct rs2_temporal_filter_dpp_config
     dpp_header header;
 
     int32_t enabled;             /**< 0 = Off, 1 = On. Default 0 */
-    int32_t smooth_alpha;        /**< Normalized [0,1] scaled into [0,1000] (the DPP family's
-                                  * fixed-point convention for a fractional param - every param
-                                  * slot is an int32, so a 0..1 value is sent as 0..1000 rather
-                                  * than raw IEEE-754 float bits). Default 400 (0.4) */
+    int32_t smooth_alpha;        /**< Normalized [0,1] scaled into [0,1000] (every param slot is
+                                  * an int32, not a float). Default 400 (0.4) */
     int32_t smooth_delta;        /**< Range [1,100], step 1. Default 20 */
     int32_t persistency_index;   /**< Range [0,8], step 1. Default 3 */
 

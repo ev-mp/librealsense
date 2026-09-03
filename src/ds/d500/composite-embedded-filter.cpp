@@ -21,10 +21,8 @@ composite_embedded_filter< Base, Type >::composite_embedded_filter(
     this->register_composite_option( option_id, opt );
 }
 
-// The only two composite-option embedded filters that exist today. Adding
-// another one elsewhere in the SDK means adding its own explicit instantiation line here (plus a
-// thin alias header/RS2_EXTENSION_* base for it, if one is needed at more than one call site) -
-// never a hand-written subclass body.
+// The only two composite-option embedded filters that exist today. Adding another one means
+// adding its own explicit instantiation line here, never a hand-written subclass body.
 template class composite_embedded_filter< temporal_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_TEMPORAL >;
 template class composite_embedded_filter< close_range_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_CLOSE_RANGE >;
 

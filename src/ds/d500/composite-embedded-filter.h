@@ -13,13 +13,9 @@
 
 namespace librealsense {
 
-// Generic HKR/D5X5 composite-option embedded filter: registers ONE composite_xu_option (see
-// src/ds/composite-xu-option.h) under `option_id`, in this filter's OWN options container
-// (inherited via `Base` -> embedded_filter_base) - NOT directly on d500_depth_sensor. `Base`
-// supplies the RS2_EXTENSION_* identity (e.g. temporal-embedded-filter.h), `Type` the
-// rs2_embedded_filter_type it reports; every other difference between composite-option filters
-// (ctrl_id/wire_size/option_id/description) is a constructor argument, not a subclass - see
-// hdrd-embedded-filter.h and temporal-filter-feature.cpp for the two current instantiations.
+// Generic HKR/D5X5 composite-option embedded filter: registers ONE composite_xu_option under
+// `option_id`, in this filter's OWN options container (via `Base`), NOT directly on
+// d500_depth_sensor. Every per-feature difference is a constructor argument, not a subclass.
 template< class Base, rs2_embedded_filter_type Type >
 class composite_embedded_filter : public Base
 {

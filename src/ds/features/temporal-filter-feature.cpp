@@ -20,12 +20,9 @@ namespace librealsense {
 
 temporal_filter_feature::temporal_filter_feature( d500_depth_sensor & depth_sensor )
 {
-    // Registers the ONE composite option this filter exposes. Adding another
-    // composite option elsewhere in the SDK never needs a new class - just another
-    // composite_xu_option instance with its own (xu, ctrl_id, wire_size, rs2_composite_option_id).
-    // No dedicated alias type: temporal_embedded_filter is the RS2_EXTENSION_* identity, this is
-    // the only place that ever constructs it (compare hdrd-embedded-filter.h, which needs a named
-    // alias because it's referenced from more than one place).
+    // Registers the ONE composite option this filter exposes. No dedicated alias type:
+    // temporal_embedded_filter is the RS2_EXTENSION_* identity, and this is the only place that
+    // ever constructs it (compare hdrd-embedded-filter.h, which needs a named alias).
     auto raw_depth_ep = std::dynamic_pointer_cast< uvc_sensor >( depth_sensor.get_raw_sensor() );
     depth_sensor.add_embedded_filter( std::make_shared<
         composite_embedded_filter< temporal_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_TEMPORAL > >(

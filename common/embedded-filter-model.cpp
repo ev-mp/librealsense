@@ -17,11 +17,9 @@ namespace rs2
 {
     namespace
     {
-        // DEBUG: every field actually read back from FW for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL -
-        // called right after each real GET (initial seed and the toggle's read-modify-write), never
-        // on every-frame no-op re-reads, so this reflects only genuine device round-trips.
-        // LOG_DEBUG (not std::cout) so this only emits when the app's configured log verbosity is
-        // DEBUG or more verbose, not at the default INFO level.
+        // DEBUG: every field read back from FW for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL - called
+        // only after a real GET, never an every-frame no-op re-read. LOG_DEBUG so this only
+        // emits at DEBUG+ verbosity, not the default INFO level.
         void print_hdrd_control( const rs2_hdrd_control & v )
         {
             LOG_DEBUG( "[Improved Close Range GET] version=" << (int)v.header.version
@@ -44,15 +42,8 @@ namespace rs2
         const ImVec4 manual_edit_color( 1.0f, 0.65f, 0.0f, 1.0f );
 
         // A real device's firmware may still speak the pre-design-review wire layout, so a field
-        // can land outside its enum's legal range. Called after every raw device read that
-        // populates a fresh rs2_hdrd_control, before any branching or display code
-        // uses it - clamping only at display time would leave the raw stored value inconsistent
-        // with what's shown (e.g. a garbage shift_mode of 200 displays as "Manual" but `== 2`
-        // never matches), and would leave the conditional branching in
-        // draw_hdrd_control_editor() looking at an undefined case.
-        // draw_hdrd_enum_field() (used below) is separately bounds-checked against
-        // its own labels count, so this isn't needed to prevent a crash - only to keep the
-        // displayed value and the branching consistent with each other.
+        // can land outside its enum's legal range. Called after every raw device read, before any
+        // branching/display code uses it, so the stored value and what's shown stay consistent.
         void sanitize_hdrd_control( rs2_hdrd_control & v )
         {
             v.filter_type = std::min( std::max( v.filter_type, 0 ), 1 );
@@ -82,10 +73,7 @@ namespace rs2
         }
 
         // No enum-valued fields to clamp here (unlike sanitize_hdrd_control() above) - every field
-        // is just range-bounded, and an out-of-range value displays/edits fine as-is, with nothing
-        // else in this editor branching on it. Still zeroes the reserved slots though - the same
-        // "MUST be zero on SET" rule, and the same risk of echoing back a non-zero byte the device
-        // happened to return on GET.
+        // is just range-bounded. Still zeroes the reserved slots - same "MUST be zero on SET" rule.
         void sanitize_temporal_filter_dpp_config( rs2_temporal_filter_dpp_config & v )
         {
             for( auto & r : v.reserved )
@@ -138,10 +126,8 @@ namespace rs2
             id_and_model.second.draw_option( update_read_only_options, is_streaming, error_message, *viewer.not_model );
         }
 
-        // Composite options have no generic per-field editing UI (see embedded-filter-model.h) -
-        // RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL and RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP
-        // each get their own hardcoded editor below; everything else just shows read-only
-        // metadata (description, byte size).
+        // Composite options have no generic per-field editing UI - HDRD and Temporal Filter DPP
+        // each get a hardcoded editor below; everything else shows read-only metadata.
         for( auto id : _composite_option_ids )
         {
             try
@@ -160,12 +146,9 @@ namespace rs2
                     continue;
                 }
 
-                // TextWrapped, not TextDisabled - this side panel is narrow enough that a
-                // one-line description reliably clips instead of just looking dim. Description is
-                // fetched BEFORE the push - if get_composite_option_description() throws while
-                // evaluated as TextWrapped's own argument (with the push already done), the catch
-                // below would swallow it without ever reaching PopStyleColor(), permanently
-                // unbalancing ImGui's style-color stack for every later frame.
+                // TextWrapped, not TextDisabled - a one-line description reliably clips in this
+                // narrow panel. Description fetched BEFORE the push - if it throws mid-argument
+                // with the push already done, PopStyleColor() would never run.
                 auto description = _embedded_filter->get_composite_option_description( id );
                 ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled] );
                 ImGui::TextWrapped( "%s", description );
@@ -181,16 +164,9 @@ namespace rs2
         }
     }
 
-    // "Slider enum" widget - an ImGui::SliderInt whose displayed text is the enum's own name
-    // (recomputed from the live value every frame) rather than a number, the same idiom Dear
-    // ImGui's own widget demo shows under Sliders ("slider enum") - see
-    // https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html. Deliberately not a
-    // dropdown/combo: picking a value is a single drag or click-to-position, no extra click to
-    // open a popup first, and it gets the same drag/arrow-key interaction as every numeric slider
-    // in this panel (see draw_hdrd_slider_with_arrows(), which this mirrors).
-    // touch()/finalize() drive the same debounced auto-commit every other field in this editor
-    // uses (see composite-control-editor.h): touch() on every drag tick so the countdown doesn't
-    // fire mid-drag, finalize() on release, or on a focused arrow-key nudge (fast_commit_delay).
+    // "Slider enum" widget - an ImGui::SliderInt showing the enum's own name instead of a number,
+    // the idiom from Dear ImGui's own Sliders demo. Not a dropdown: one drag/click, no popup, and
+    // it shares the drag/arrow-key interaction of every other slider (draw_hdrd_slider_with_arrows()).
     bool embedded_filter_model::draw_hdrd_enum_field( const char * label,
                                                                        const char * id,
                                                                        const char * const labels[],
@@ -212,9 +188,7 @@ namespace rs2
         if( ImGui::IsItemActive() )
             _hdrd_editor.touch();
         // Same fast_commit_delay as the arrow-key nudge below - releasing this slider IS the
-        // discrete choice (like a radio/checkbox click), so it gets the same near-immediate
-        // turnaround rather than the longer default commit_delay meant for the numeric fields'
-        // own release commits.
+        // discrete choice, so it gets near-immediate turnaround, not the longer numeric default.
         if( ImGui::IsItemDeactivatedAfterEdit() )
             _hdrd_editor.finalize( _hdrd_editor.fast_commit_delay );
         else if( ImGui::IsItemFocused() && ! ImGui::IsItemActive() )
@@ -261,11 +235,8 @@ namespace rs2
     }
 
     // The InputText half of draw_hdrd_manual_editable_field()'s two editing modes: a narrow,
-    // centered box seeded with the current value; Enter parses, clamps, and commits it, then
-    // flips back to slider mode. touch() is called every frame this box has focus, not just on
-    // change, so the debounce deadline stays parked at +infinity for the whole time the user is
-    // engaged - otherwise a countdown already running from an earlier edit could reach zero and
-    // fire a commit mid-edit.
+    // centered box seeded with the current value; Enter parses, clamps, commits, then flips back
+    // to slider mode. touch() fires every frame this box has focus so a countdown can't fire mid-edit.
     bool embedded_filter_model::draw_hdrd_manual_input( const char * id, int & value, int min_v, int max_v,
                                                           bool & edit_mode, std::string & edit_buf )
     {
@@ -310,9 +281,8 @@ namespace rs2
     }
 
     // The slider half of draw_hdrd_manual_editable_field()'s two editing modes. ImGui sliders
-    // don't do arrow-key nudging on their own, so it's implemented by hand: one focused arrow
-    // press is one complete, discrete edit (touch()+finalize() together), like a radio/checkbox
-    // click, rather than a drag that only finalizes on release.
+    // don't nudge via arrow keys on their own, so it's implemented by hand: one focused arrow
+    // press is one complete, discrete edit (touch()+finalize() together).
     bool embedded_filter_model::draw_hdrd_slider_with_arrows( const char * id, int & value, int min_v, int max_v )
     {
         std::string slider_id = rsutils::string::from() << "##" << id;
@@ -343,12 +313,8 @@ namespace rs2
     }
 
     // One "label + pencil-toggle + (slider OR manual InputText)" field - shared by Disparity
-    // Shift and Threshold (mm), which otherwise repeated this exact pattern twice. The pencil
-    // button toggles between the two edit_mode/edit_buf-backed widgets drawn by
-    // draw_hdrd_manual_input()/draw_hdrd_slider_with_arrows() above (the same edit_mode/edit_buf
-    // pattern option_model uses for ordinary scalar options in common/option-model.cpp, not
-    // ImGui's native SliderInt Ctrl+Click/double-click text-input, which turned out not to be
-    // reliably usable here).
+    // Shift and Threshold (mm), which otherwise repeated this pattern twice. The pencil toggles
+    // between draw_hdrd_manual_input()/draw_hdrd_slider_with_arrows() above.
     bool embedded_filter_model::draw_hdrd_manual_editable_field( const char * label, const char * id, int & value,
                                                                    int min_v, int max_v, bool & edit_mode,
                                                                    std::string & edit_buf )
@@ -394,17 +360,9 @@ namespace rs2
         return active;
     }
 
-    // Reset to Default starts hidden behind a small "..." marker tucked into the box's
-    // bottom-right corner - this is a destructive-ish, rarely-used action that doesn't need to
-    // compete for attention with the fields above it every time the box is open. Hovering
-    // anywhere within reveal_margin of the corner (not just exactly on the tiny marker, which
-    // would be fiddly to hit) swaps it for the real button in the same spot; moving away
-    // collapses it back to "...". Drawn as an absolute-position overlay via SetCursorScreenPos
-    // rather than inline in the normal top-to-bottom flow, so its presence/absence doesn't shift
-    // any of the fields above it - the cursor is restored afterward so the NEXT thing this panel
-    // draws isn't displaced. draw_hdrd_control_editor() reserves a blank row below
-    // the last field sized for this overlay's own (taller, expanded-button) height, so it sits in
-    // genuinely empty space instead of overlapping that field's row.
+    // Reset to Default starts hidden behind a small "..." marker in the box's bottom-right
+    // corner - a rarely-used action that shouldn't compete for attention. Hovering within
+    // reveal_margin swaps it for the real button, drawn as an absolute overlay.
     bool embedded_filter_model::draw_hdrd_reset_to_default_overlay( rs2_composite_option_id id,
                                                                       std::string & error_message,
                                                                       float frame_max_x,
@@ -426,14 +384,9 @@ namespace rs2
 
         if( nearby )
         {
-            // Goes through the exact same touch()/finalize() pipeline as every other field edit
-            // (one click = one discrete, debounced, atomically-committed change), rather than a
-            // separate commit path, so it gets the fade animation and the undo grace window for
-            // free. range.def is the FULL FW-reported default struct (header fields included);
-            // draw_hdrd_control_editor()'s before_commit forces enable back on regardless, same
-            // as any other edit in this box - "reset" doesn't leave the control disabled even if
-            // that's literally what the FW default says, for consistency with "touching this box
-            // means you want it on."
+            // Goes through the same touch()/finalize() pipeline as every other field edit, so it
+            // gets the fade animation and undo grace window for free. range.def is the FULL
+            // FW-reported default; before_commit still forces enable back on, same as any edit.
             ImGui::SetCursorScreenPos( button_pos );
             if( ImGui::Button( "Reset to Default##hdrd" ) )
             {
@@ -467,17 +420,9 @@ namespace rs2
         return any_active;
     }
 
-    // any_field_active lets the caller's end_frame_and_maybe_commit() tell "nothing of ours is
-    // active right now" apart from "focus genuinely left the group" - only the latter should cut
-    // the debounce countdown short. |= (not ||=): each call below draws real widgets as a side
-    // effect and must run every frame regardless of the flag accumulated so far.
-    // Every field is always shown, even ones filter_type/shift_mode/threshold_mode currently make
-    // irrelevant - BeginDisabled()/EndDisabled() greys those out and blocks interaction instead of
-    // hiding them outright, so the layout stays put and the greyed row itself is the cue that
-    // toggling its controlling field above will make it available (unlike the caller's whole-panel
-    // dim-while-disabled, ImGui::BeginDisabled() genuinely blocks the click, since there's nothing
-    // coherent for it to do yet - contrast the whole-panel case, where any edit is meant to
-    // implicitly turn the filter back on).
+    // any_field_active distinguishes "nothing of ours is active" from "focus left the group" for
+    // the caller's debounce countdown. |= (not ||=): each call draws real widgets and must run
+    // every frame. Irrelevant fields stay visible but BeginDisabled()-greyed, not hidden.
     bool embedded_filter_model::draw_hdrd_fields()
     {
         bool any_field_active = draw_hdrd_filter_type_field();
@@ -525,12 +470,9 @@ namespace rs2
             return;
         sanitize_hdrd_control( _hdrd_editor.value );
 
-        // Minimal indent - just enough padding that widget text doesn't sit flush on the frame
-        // border - rather than the tree's full default indent, so the group sits as far left as
-        // the panel allows. ImGui::Indent(w) ADDS w to the indent (so a negative w shifts left);
-        // the matching ImGui::Unindent(w) below MUST pass the same -5.f, not a different value -
-        // Unindent always SUBTRACTS its argument, so Unindent(-5.f) is what actually cancels
-        // Indent(-5.f) out (subtracting a negative = adding back the 5 we removed).
+        // Minimal indent so widget text doesn't sit flush on the frame border. Indent(w) ADDS w
+        // (negative shifts left); the matching Unindent below MUST pass the same -5.f, since
+        // Unindent SUBTRACTS its argument (Unindent(-5.f) is what actually cancels Indent(-5.f)).
         ImGui::Indent( -5.f );
         ImGui::Dummy( ImVec2( 0, 2 ) );
 
@@ -538,17 +480,14 @@ namespace rs2
         float frame_top = ImGui::GetCursorScreenPos().y - 4.0f;
         float frame_width = ImGui::GetContentRegionAvail().x;
 
-        // Every slider in the box (enum or numeric) shares this one pushed width rather than each
-        // picking its own - keeps them all ending at the exact same x. A few pixels narrower than
-        // the frame itself so they finish just inside its right edge instead of running flush
-        // against it, which read as the control overflowing its own border.
+        // Every slider in the box shares this one pushed width so they all end at the same x. A
+        // few pixels narrower than the frame so they finish just inside its right edge.
         constexpr float slider_right_inset = 8.0f;
         ImGui::PushItemWidth( frame_width - slider_right_inset );
 
-        // No separate Enable checkbox - the row header's own toggle (device-model.cpp's
-        // draw_embedded_filters()) drives rs2_hdrd_control::enable directly. Grey the whole box
-        // out while it reads off (global alpha, not BeginDisabled, so fields stay clickable -
-        // editing any of them while off forces enable back on at commit time below).
+        // No separate Enable checkbox - the row header's own toggle drives rs2_hdrd_control::enable
+        // directly. Grey the box via global alpha (not BeginDisabled) so fields stay clickable -
+        // editing while off forces enable back on at commit time below.
         const bool dim_while_disabled = ! _enabled;
         if( dim_while_disabled )
             ImGui::PushStyleVar( ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.35f );
@@ -560,9 +499,7 @@ namespace rs2
         ImGui::Dummy( ImVec2( 0, 2 ) );
 
         // Reserve a blank row below the last field for the Reset-to-Default corner overlay - just
-        // enough for the collapsed "..." marker to clear the last field's own row, not the full
-        // height of the taller, expanded-button hover state (that would push the frame down
-        // further than the marker actually needs).
+        // enough for the collapsed "..." marker, not the taller expanded-button hover state.
         ImVec2 reset_button_size = ImGui::CalcTextSize( "Reset to Default" );
         reset_button_size.y += ImGui::GetStyle().FramePadding.y * 2.0f;
         ImGui::Dummy( ImVec2( 0, ( reset_button_size.y + 6.0f ) * 0.5f ) );
@@ -574,10 +511,8 @@ namespace rs2
         any_field_active |= draw_hdrd_reset_to_default_overlay( id, error_message, frame_max.x, frame_max.y );
 
         // Draws the dirty-state fade/border and sends the whole struct once the debounce timer
-        // lapses (see composite_control_editor<T>). before_commit forces enable back on: without
-        // an Enable checkbox in here anymore, a user who only touches e.g. Threshold would
-        // otherwise send with enable unchanged (often off) - reflect that back into the row
-        // toggle's own state too.
+        // lapses. before_commit forces enable back on: with no Enable checkbox here, editing
+        // e.g. Threshold alone would otherwise send with enable unchanged (often off).
         _hdrd_editor.end_frame_and_maybe_commit( _embedded_filter, id, error_message, frame_min, frame_max, any_field_active,
             [this]( rs2_hdrd_control & v )
             {
@@ -592,9 +527,7 @@ namespace rs2
     }
 
     // ==== RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP editor - same scheme as the HDRD one =====
-    //
-    // The InputText half of draw_temporal_filter_dpp_manual_editable_field()'s two editing modes -
-    // see draw_hdrd_manual_input() above, which this mirrors field for field.
+    // The InputText half - see draw_hdrd_manual_input() above, which this mirrors field for field.
     bool embedded_filter_model::draw_temporal_filter_dpp_manual_input( const char * id, int & value, int min_v, int max_v,
                                                                         bool & edit_mode, std::string & edit_buf )
     {
@@ -661,10 +594,8 @@ namespace rs2
     }
 
     // One "label + pencil-toggle + (slider OR manual InputText)" field - see
-    // draw_hdrd_manual_editable_field() above, which this mirrors exactly. Every field in this
-    // struct uses this pattern (unlike HDRD, where it's only Shift Pixels/Threshold (mm)) - none
-    // of Temporal Filter DPP's fields are enum-valued, so there is no combo/slider-enum field here
-    // at all.
+    // draw_hdrd_manual_editable_field() above, which this mirrors exactly. Every field here uses
+    // this pattern (unlike HDRD) since none of them are enum-valued.
     bool embedded_filter_model::draw_temporal_filter_dpp_manual_editable_field( const char * label, const char * id, int & value,
                                                                                  int min_v, int max_v, bool & edit_mode,
                                                                                  std::string & edit_buf )
@@ -822,20 +753,16 @@ namespace rs2
 
     void embedded_filter_model::embedded_filter_enable_disable(bool actual, std::string * error_message)
     {
-        // Composite-only embedded filters (e.g. HKR Improved Close Range Control) register no
-        // RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar option at all - route the row header's
-        // toggle through the composite option's own `enable` field instead: read-modify-write
-        // so the other 4 fields go back exactly as the device last reported them, not
-        // zero-initialized.
+        // Composite-only embedded filters register no RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar
+        // option - route the toggle through the composite option's own `enable` field instead,
+        // read-modify-write so the other fields go back as last reported, not zero-initialized.
         if( _embedded_filter->supports_composite_option( RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL ) )
         {
             try
             {
-                // Only re-read from the device if we don't already have a live-tracked value (the
-                // editor panel was never opened this session, or a previous read failed) - once we
-                // do, it already mirrors every write we've made, including this toggle's own past
-                // flips, so a fresh GET here is a second blocking XU transaction for no benefit -
-                // it roughly doubles how long the toggle takes to respond.
+                // Only re-read if we don't already have a live-tracked value - once we do, it
+                // already mirrors every write made, so a fresh GET is a needless second XU
+                // transaction that roughly doubles the toggle's response time.
                 if( ! _hdrd_editor.initialized )
                 {
                     _hdrd_editor.value = _embedded_filter->get_composite_option_as< rs2_hdrd_control >(
@@ -894,10 +821,8 @@ namespace rs2
                                                           subdevice_model * model,
                                                           std::string & error_message )
     {
-        // Regular (scalar) options - own registry, own loop. DDS-based embedded filters (see
-        // src/dds/rs-dds-embedded-*-filter.cpp) still register RS2_OPTION_EMBEDDED_FILTER_ENABLED
-        // as a genuine scalar option here, so this stays the primary source of _enabled whenever
-        // it's present.
+        // Regular (scalar) options - own registry, own loop. DDS-based embedded filters still
+        // register RS2_OPTION_EMBEDDED_FILTER_ENABLED here, the primary source of _enabled.
         for (option_value option : _embedded_filter->get_supported_option_values())
         {
             // Build the model first and insert only on success: an option whose range cannot be read

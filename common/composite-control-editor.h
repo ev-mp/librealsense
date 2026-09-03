@@ -14,11 +14,9 @@
 
 namespace rs2
 {
-    // Shared "under change" color ramp - gold (just touched) fading to the panel's own
-    // ImGuiCol_FrameBgHovered blue (about to commit) - used by the framed group's own fill in
-    // end_frame_and_maybe_commit() below, and by anything else (e.g. the row header's enable
-    // toggle) that wants to visually echo the same pending-auto-commit state. `progress` is
-    // 0 = just touched/still editing, 1 = about to fire.
+    // Shared "under change" color ramp - gold (just touched) fading to
+    // ImGuiCol_FrameBgHovered (about to commit). progress: 0 = just
+    // touched, 1 = about to fire.
     inline ImVec4 composite_control_dirty_blend( float progress )
     {
         ImVec4 start_color( 255.f / 255.f, 210.f / 255.f, 40.f / 255.f, 90.f / 255.f );   // bright gold/yellow
@@ -34,36 +32,9 @@ namespace rs2
             start_color.w + ( target_blue.w - start_color.w ) * progress );
     }
 
-    // Reusable debounced-auto-commit editor for a composite option's local
-    // struct T. Extracted from the original HKR Improved Close Range Control implementation so any other
-    // multi-param composite option can get the same behavior - touch -> fade in -> reset on
-    // retouch -> hard commit on lapse - by holding one of these instead of re-implementing the
-    // mechanism. See embedded_filter_model::draw_hdrd_control_editor() for the reference usage.
-    //
-    // The whole framed group is treated as ONE editing unit, matching T being one atomic
-    // multi-field struct sent in a single UVC transaction - there is no per-field Send.
-    //
-    // Per-frame usage:
-    //   1. ensure_initialized(filter, id, error_message) - seeds `value` from a GET, once.
-    //   2. Draw the control-specific widgets against `value`. For each one:
-    //        - call touch() on every change while the edit is in progress (e.g. every tick of a
-    //          slider drag) - this flags the group dirty and defers any pending commit;
-    //        - call finalize() once that field's edit is done (slider release via
-    //          ImGui::IsItemDeactivatedAfterEdit(), or immediately after a checkbox/radio click,
-    //          which has no drag phase so touch+finalize happen together) - this (re)schedules
-    //          the real auto-commit `commit_delay` seconds out.
-    //   3. end_frame_and_maybe_commit(filter, id, error_message, frame_min, frame_max,
-    //      any_field_active_this_frame, before_commit) - draws the fading fill + shrinking border
-    //      around the widgets' bounding box (continuously, for the full commit_delay window - no
-    //      early freeze), shows the hover tooltip, and sends `value` to the device in one atomic
-    //      write once the debounce timer has lapsed with no further touch() calls.
-    //      `any_field_active_this_frame` is true if any of THIS control's own widgets is the one
-    //      currently active (mid-drag/mid-click) - pass false once focus has genuinely left the
-    //      group (some OTHER widget elsewhere is now active) to finish the countdown immediately
-    //      instead of making the user wait it out. `before_commit`, if set, is called with `value`
-    //      right before it's actually sent - this control's own code (which knows T's fields,
-    //      unlike this generic class) is the right place to enforce cross-field invariants, e.g.
-    //      "editing any field implies the control should be enabled too".
+    // Reusable debounced-auto-commit editor for a composite option's struct T:
+    // touch() -> fade in -> reset on retouch -> hard commit on lapse. See
+    // embedded_filter_model::draw_hdrd_control_editor() for a reference usage.
     template< typename T >
     class composite_control_editor
     {
@@ -77,11 +48,9 @@ namespace rs2
         static constexpr double numeric_commit_delay = 0.35;  // ditto, for a plain value slider/typed number
         static constexpr double fast_commit_delay = 0.1;      // ditto, for keyboard arrow-key nudges
 
-        // Seeds `value` from a real GET the first time this is called; a no-op afterward. Returns
-        // whether `value` is safe to use (false only if the initial GET failed). `on_read`, if
-        // set, is called with the freshly-read `value` right after this GET succeeds - the
-        // caller (which knows T's fields, unlike this generic class) is the right place to log
-        // what actually came back from the device.
+        // Seeds `value` from a GET the first time this is called; a no-op afterward. Returns
+        // whether `value` is safe to use. `on_read`, if set, runs on the freshly-read value -
+        // this generic class doesn't know T's fields, so logging is the caller's job.
         bool ensure_initialized( const std::shared_ptr< rs2::embedded_filter > & filter,
                                   rs2_composite_option_id id,
                                   std::string & error_message,
@@ -112,13 +81,9 @@ namespace rs2
             _commit_deadline = std::numeric_limits< double >::max();
         }
 
-        // Call once a field's edit is finalized (slider released, or immediately after a
-        // checkbox/radio click). Schedules the auto-commit out by `delay_seconds` - the default,
-        // commit_delay, is the deliberate, give-me-a-moment-to-change-my-mind pause a discrete
-        // choice (radio/combo-style selection, Reset to Default) gets; pass the shorter
-        // numeric_commit_delay for a plain value slider/typed-number edit, which doesn't carry the
-        // same "did I mean to pick that?" risk, or fast_commit_delay for a keyboard arrow-key
-        // nudge, which should feel closer to immediate feedback than either.
+        // Call once a field's edit is finalized (slider released, or right after a checkbox/
+        // radio click). Schedules auto-commit `delay_seconds` out. Default commit_delay is a
+        // deliberate pause for discrete choices; numeric/fast_commit_delay are shorter, for edits/nudges.
         void finalize( double delay_seconds = commit_delay )
         {
             _commit_deadline = ImGui::GetTime() + delay_seconds;
@@ -126,21 +91,15 @@ namespace rs2
             // longer) default commit_delay - otherwise a fast_commit_delay/numeric_commit_delay
             // countdown would report itself as almost-already-committed from the very first frame.
             _active_delay = delay_seconds;
-            // A discrete edit (radio/checkbox click, keyboard arrow-key nudge) calls touch()+
-            // finalize() together, synchronously, within the SAME frame as the
-            // end_frame_and_maybe_commit() call below that just set this deadline - unlike a
-            // mouse drag, which spans several frames with the widget genuinely active in
-            // between, giving the focus-loss shortcut no chance to fire on that exact frame.
-            // Suppress it for this one frame so it can't immediately collapse the deadline it
-            // was never meant to see yet.
+            // A discrete edit's touch()+finalize() run in the SAME frame as the draw call that
+            // just set this deadline - suppress the focus-loss shortcut for that one frame so
+            // it can't collapse it immediately.
             _just_finalized = true;
         }
 
-        // Side-effect-free readout of the same progress end_frame_and_maybe_commit() animates
-        // with: false if nothing is pending, true with `progress` in [0,1] (0 = just
-        // touched/still mid-edit, 1 = about to commit) otherwise. Lets other UI elements for the
-        // same control (e.g. an enable toggle drawn elsewhere) mirror the pending-commit state
-        // without duplicating the deadline math.
+        // Side-effect-free progress readout matching end_frame_and_maybe_commit()'s own
+        // animation - lets other UI (e.g. a row-header toggle) mirror the pending-commit
+        // state without duplicating the deadline math.
         bool try_get_progress( float & progress ) const
         {
             if( ! _dirty )
@@ -151,11 +110,9 @@ namespace rs2
             return true;
         }
 
-        // Draws the dirty-state fill/border for [frame_min, frame_max] - call after drawing this
-        // control's own fields, once their bounding box is known - and sends `value` to the
-        // device in one atomic write if the debounce timer has lapsed since the last touch().
-        // Delegates its four independent concerns (visuals, tooltip, focus-loss shortcut, the
-        // actual commit) to their own helpers below, so each can be read on its own.
+        // Draws the dirty-state fill/border for [frame_min, frame_max] and sends `value` once
+        // the debounce timer lapses. Delegates to the four helpers below so each concern
+        // (visuals/tooltip/focus/commit) reads on its own.
         void end_frame_and_maybe_commit( const std::shared_ptr< rs2::embedded_filter > & filter,
                                           rs2_composite_option_id id,
                                           std::string & error_message,
@@ -171,19 +128,9 @@ namespace rs2
         }
 
     private:
-        // While actively being edited (deadline parked at +infinity by touch()) the fill and
-        // border sit at their starting intensity: 0% faded (bright gold), 400% border width.
-        // Once a countdown is actually running (finalize() set a real deadline), both fade
-        // smoothly over the ENTIRE commit_delay window, right up until the instant maybe_commit()
-        // below actually fires - no early cap/freeze partway through, or the animation visibly
-        // stalls for the remainder of the wait, which reads as a bug rather than a fade. The fill
-        // cools from gold toward the border's own blue (ImGuiCol_FrameBgHovered - the same color
-        // the border is drawn in, so the fill settles into harmony with it rather than into the
-        // panel background); the border shrinks from 400% down to 250% of normal. The commit
-        // itself then snaps both back to their plain idle look (no fill, 100% border) in one
-        // abrupt jump rather than continuing the gentle fade, so the moment something was
-        // actually sent reads as a distinct, more pronounced change than the animation leading up
-        // to it.
+        // Fades gold->blue and shrinks the border (400%->250%) over the full commit_delay
+        // window while dirty; snaps to the plain idle look in one abrupt jump the instant
+        // maybe_commit() actually fires.
         void draw_dirty_fill_and_border( const ImVec2 & frame_min, const ImVec2 & frame_max )
         {
             constexpr float base_border_thickness = 1.0f;
@@ -206,10 +153,8 @@ namespace rs2
                 border_thickness );
         }
 
-        // Skip when an inner widget (a combo, a slider, ...) is itself hovered - that widget
-        // either draws its own, more specific tooltip or none at all; either way this box-wide
-        // description would otherwise render directly on top of whatever field the mouse is
-        // over, which reads as if the field's own content had changed.
+        // Skipped when an inner widget is itself hovered - it already draws its own tooltip
+        // (or none), and this box-wide one would otherwise cover it.
         void draw_hover_tooltip( const std::shared_ptr< rs2::embedded_filter > & filter,
                                   rs2_composite_option_id id,
                                   const ImVec2 & frame_min,
@@ -227,13 +172,9 @@ namespace rs2
             }
         }
 
-        // Shortcut: focus genuinely left the group - some OTHER widget elsewhere is active this
-        // frame, not just "nothing is active right now" (which is also true during the normal
-        // quiet gap between finishing one field and touching the next one in THIS group, and must
-        // NOT cut the wait short). When that happens, don't make the user wait out the rest of
-        // the countdown - finish it now, same as if it had lapsed naturally. Skipped on the one
-        // frame finalize() just ran on (see its comment) - a discrete edit's own deadline must
-        // survive at least until the NEXT frame.
+        // If focus left the group entirely (not just the normal gap between fields), finish
+        // the countdown now instead of making the user wait - skipped on finalize()'s own
+        // frame so a fresh deadline can survive.
         void collapse_deadline_on_focus_loss( bool any_field_active_this_frame )
         {
             if( _dirty && ! any_field_active_this_frame && ImGui::IsAnyItemActive() && ! _just_finalized )

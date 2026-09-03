@@ -354,16 +354,9 @@ namespace librealsense
             if (pHeader->MembersCount < 1)
                 throw std::exception("no data ksprop");
 
-            // Each entry in the underlying KS reply is exactly `length` bytes wide (pStruct is
-            // advanced by `length` between entries below) - so the copy amount must be `length`
-            // too, not an artificial 4-byte cap. That cap was correct for classic scalar PU/CT
-            // controls (a value is genuinely at most a 4-byte int there, so length itself is <=4
-            // and this was a no-op), but silently truncated multi-field composite XU controls
-            // (e.g. HKR Improved Close Range Control's 38-byte rs2_hdrd_control, RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL):
-            // the destination vector was correctly sized to the full option_range_size, but only
-            // its first 4 bytes ever got populated from the device's real response - every field
-            // past that offset silently stayed at std::vector's zero-init default, regardless of
-            // what the device actually reported.
+            // Each KS reply entry is exactly `length` bytes wide - the old 4-byte cap was correct
+            // for scalar PU/CT controls (length <=4 there) but silently truncated multi-field
+            // composite XU controls (e.g. rs2_hdrd_control's 38 bytes) to their first 4 bytes.
             auto option_range_size = std::max(sizeof(uint32_t), (size_t)length);
             switch (pHeader->MembersFlags)
             {
@@ -372,9 +365,8 @@ namespace librealsense
             case KSPROPERTY_MEMBER_STEPPEDRANGES:
             {
                 // Must cover the two fixed headers PLUS the 3 variable-length entries (step, min,
-                // max) that follow them - not just 3 placeholder bytes - otherwise a short/
-                // malformed KS reply (DescriptionSize satisfied only for the legacy <=4-byte case)
-                // would let the memcpy calls below read past the end of the real reply.
+                // max), not just 3 placeholder bytes - else a short/malformed reply would let
+                // the memcpy calls below read past the end of the real reply.
                 if (pDesc->DescriptionSize < sizeof(KSPROPERTY_DESCRIPTION) + sizeof(KSPROPERTY_MEMBERSHEADER)
                                                  + 3 * static_cast<size_t>(length))
                 {

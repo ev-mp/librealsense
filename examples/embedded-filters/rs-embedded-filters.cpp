@@ -153,12 +153,9 @@ try
     std::cout << "=========================================" << std::endl;
 
     // Unlike Decimation above, this filter has no RS2_OPTION_EMBEDDED_FILTER_ENABLED scalar
-    // option at all - its whole configuration, enable included, is one atomically-exchanged
-    // struct (see rs_hkr_hdrd_control.h). It's currently registered on the D500
-    // USB path only (see hdrd_filter_feature in
-    // src/ds/features/hdrd-filter-feature.cpp), not over DDS, so - unlike the
-    // rest of this file - it's looked up across every connected device rather than the one DDS
-    // device selected above.
+    // option - its whole configuration is one atomically-exchanged struct. It's D500 USB-only
+    // (not DDS), so it's looked up across every connected device, not the DDS device above.
+    //
     // rs2::embedded_filter/rs2::depth_sensor have no default constructor - a 0-or-1-element
     // vector stands in for "found or not" instead of a nullable local.
     std::vector<rs2::embedded_filter> found_filter;
@@ -221,10 +218,8 @@ try
             }
             else
             {
-                // Streams a short burst on close_range_depth_sensor's own current configuration
-                // and returns the minimum non-zero (i.e. valid) depth value seen - a simple,
-                // honest way to show the effect without asserting anything about what's actually
-                // in front of the camera right now.
+                // Streams a short burst and returns the minimum non-zero (valid) depth value
+                // seen - shows the effect without asserting anything about the actual scene.
                 auto capture_min_valid_depth = [&](int frames_to_skip, int frames_to_measure) -> uint16_t
                 {
                     rs2::frame_queue queue(1);

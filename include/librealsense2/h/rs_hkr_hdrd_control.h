@@ -3,15 +3,9 @@
 
 /** \file rs_hkr_hdrd_control.h
 * \brief
-* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL, exchanged via
-* rs2_set_composite_option/rs2_get_composite_option/rs2_get_composite_option_range (see
-* rs_composite_option.h). Post-design-review 7-field layout (Confluence pageId=74058359). Wire
-* layout: dpp_header (see rs_dpp_header.h) + 8 fixed int32 param slots, 7 used here (1 reserved,
-* MUST be zero on SET) - 38 bytes total, little-endian, #pragma pack(1). ctl_id = 0x0008
-* (dpp_hdrd_filter), confirmed against a real device.
-*
-* Open item: this control activates at 720p/960p only; how that's surfaced to the host is still
-* undecided, so no resolution-gating is encoded here.
+* Cast-target struct for RS2_COMPOSITE_OPTION_HKR_HDRD_CONTROL (see rs_composite_option.h). Wire
+* layout: dpp_header + 8 int32 param slots, 7 used (38 bytes, little-endian, pack(1)); ctl_id =
+* 0x0008. Open item: activates at 720p/960p only - resolution-gating not yet encoded here.
 */
 
 #ifndef LIBREALSENSE_RS2_HKR_HDRD_CONTROL_H

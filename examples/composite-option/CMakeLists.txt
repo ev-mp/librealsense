@@ -4,18 +4,9 @@ cmake_minimum_required(VERSION 3.10)
 
 project(RealsenseExamplesCompositeOption)
 
-# Reference sample: a "how do I use the composite-option API" sample,
-# exercising the FULL surface (enumeration, get, read-modify-write set, get_range, metadata
-# queries) against every composite option found on every embedded filter of every depth sensor of
-# every connected device - no fake/mock transport. Each composite option id found gets its own
-# try/catch, so a control that's registered but non-functional on this device/FW (e.g.
-# RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP's ctrl_id not being validated against real
-# firmware, see src/ds/d500/d500-factory.cpp's rs555_device comment) is reported per-id rather
-# than aborting the whole sample - see rs-composite-option.cpp for the full sequence and
-# per-id dispatch. Drives everything through the REAL PUBLIC API
-# (rs2::options::get_supported_composite_options()/set_composite_option()/get_composite_option()/
-# get_composite_option_range()/is_composite_option_read_only()/get_composite_option_description()),
-# so it links against realsense2 like any other example.
+# Reference sample: exercises the FULL composite-option surface (enumeration, get,
+# read-modify-write set, get_range, metadata) against every composite option found on every
+# embedded filter of every connected device - no fake/mock transport. See rs-composite-option.cpp.
 add_executable(rs-composite-option
     rs-composite-option.cpp
 )

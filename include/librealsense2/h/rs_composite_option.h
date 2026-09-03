@@ -4,11 +4,8 @@
 /** \file rs_composite_option.h
 * \brief
 * Generic entry points shared by every composite (multi-field, atomically-exchanged) XU control.
-* Composite options are a separate identity space from rs2_option - keyed by
-* rs2_composite_option_id, its own enumeration (rs2_get_composite_options_list), never mixed with
-* scalar options. Any rs2_options* handle (sensor or embedded_filter) that supports a given
-* composite option can be driven through the calls below. Each call is exactly one UVC
-* transaction: all fields of the option's payload travel together, atomically.
+* A separate identity space from rs2_option, keyed by rs2_composite_option_id. Each call below
+* is exactly one UVC transaction: all fields of the option's payload travel together, atomically.
 */
 
 #ifndef LIBREALSENSE_RS2_COMPOSITE_OPTION_H
@@ -21,9 +18,8 @@ extern "C" {
 #include "rs_types.h"
 
 /** Identifies a composite (multi-field, atomically-exchanged) control. Completely independent
-* of rs2_option (see rs_option.h) - a different enum, with its own namespace and its own
-* registration/enumeration path (rs2_get_composite_options_list), never mixed with scalar
-* options. */
+* of rs2_option (see rs_option.h) - its own namespace and enumeration path, never mixed with
+* scalar options. */
 typedef enum rs2_composite_option_id
 {
     /** HKR Depth Post-Processing "Temporal Filter" - see rs_hkr_temporal_filter_dpp.h. */
@@ -35,21 +31,16 @@ typedef enum rs2_composite_option_id
 
 /**
 * Returns the composite option id's name, or "UNKNOWN" otherwise - the composite-option analogue
-* of rs2_option_to_string. Unlike rs2_option, composite option ids have no from_string() reverse
-* lookup - there is no equivalent registry-based custom-name mechanism for them (see
-* rs2_option_from_string() in rs_option.h).
+* of rs2_option_to_string. Unlike rs2_option, there is no from_string() reverse lookup.
 * \param[in] id    the composite option identifier
 */
 const char* rs2_composite_option_id_to_string(rs2_composite_option_id id);
 
 /**
 * rs2_set_composite_option - generic composite-option setter.
-* Writes size bytes from data to the device in ONE atomic UVC control transaction (one set_xu
-* call). The caller is responsible for knowing the documented wire layout for option (e.g. see
-* rs2_temporal_filter_dpp_config in rs_hkr_temporal_filter_dpp.h for
-* RS2_COMPOSITE_OPTION_HKR_TEMPORAL_FILTER_DPP) and passing a pointer to a matching struct +
-* sizeof(...) as data/size. No ownership transfer - data remains caller-owned, exactly like
-* rs2_set_option.
+* Writes size bytes from data to the device in ONE atomic UVC control transaction. The caller is
+* responsible for knowing the documented wire layout for option and passing a pointer to a
+* matching struct + sizeof(...) as data/size. No ownership transfer, exactly like rs2_set_option.
 * \param[in]  options  Options container (sensor or embedded_filter) that exposes this composite option
 * \param[in]  option   Which composite option to write
 * \param[in]  data     Pointer to the caller's struct matching the option's documented wire layout
@@ -60,12 +51,9 @@ void rs2_set_composite_option(const rs2_options* options, rs2_composite_option_i
 
 /**
 * rs2_get_composite_option - generic composite-option getter.
-* Reads the current value from the device in ONE atomic UVC control transaction (one get_xu
-* call). The caller has no generic way to know the wire size of an arbitrary composite option in
-* advance (only the SDK-side control for that specific option knows it), so the SDK
-* heap-allocates and returns the result as an rs2_raw_data_buffer - read its bytes with
-* rs2_get_raw_data_size/rs2_get_raw_data and free it with rs2_delete_raw_data when done (mirrors
-* rs2_get_safety_preset / rs2_send_and_receive_raw_data).
+* Reads the current value in ONE atomic UVC transaction. The caller has no generic way to know
+* the wire size in advance, so the SDK heap-allocates and returns it as an rs2_raw_data_buffer -
+* read with rs2_get_raw_data_size/rs2_get_raw_data, free with rs2_delete_raw_data.
 * \param[in]   options  Options container (sensor or embedded_filter) that exposes this composite option
 * \param[in]   option   Which composite option to read
 * \param[out]  error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
@@ -78,9 +66,8 @@ const rs2_raw_data_buffer* rs2_get_composite_option(const rs2_options* options, 
 /**
 * rs2_get_composite_option_range - generic composite-option range getter.
 * Reads the option's supported {min, max, step, def} - one instance of the option's struct per
-* bound (see e.g. rs2_temporal_filter_dpp_range in rs_hkr_temporal_filter_dpp.h) - packed
-* together into a single SDK-allocated rs2_raw_data_buffer, mirroring rs2_get_composite_option's
-* ownership model. This is the composite-option analogue of rs2_get_option_range.
+* bound - packed into a single SDK-allocated rs2_raw_data_buffer, the composite-option analogue
+* of rs2_get_option_range.
 * \param[in]   options  Options container (sensor or embedded_filter) that exposes this composite option
 * \param[in]   option   Which composite option's range to read
 * \param[out]  error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
@@ -91,10 +78,8 @@ const rs2_raw_data_buffer* rs2_get_composite_option_range(const rs2_options* opt
 
 /**
 * rs2_get_composite_options_list - the composite-option analogue of rs2_get_options_list: the
-* full set of composite ids this options container (sensor or embedded_filter) supports. Never
-* contains a scalar rs2_option - composite and scalar options are enumerated completely
-* separately, so generic code walking one list never has to worry about hitting an entry from
-* the other.
+* full set of composite ids this options container supports. Never contains a scalar rs2_option -
+* composite and scalar options are enumerated completely separately.
 * \param[in]  options  Options container (sensor or embedded_filter)
 * \param[out] error    If non-null, receives any error that occurs during this call, otherwise, errors are ignored
 * \return              List of supported composite option ids. Free with rs2_delete_composite_options_list.

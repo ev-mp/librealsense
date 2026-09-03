@@ -625,11 +625,9 @@ const char * get_string( rs2_eth_link_priority value )
 #undef CASE
 }
 
-// rs2_composite_option_id: a completely separate id space from rs2_option (see
-// rs_composite_option.h) - a plain static name array, no options_registry involvement (composite
-// options have no dynamic per-device custom-name registration mechanism, unlike rs2_option
-// below). std::string const& return type mirrors rs2_option_type's get_string(), since
-// options_container::get_composite_option_name() returns std::string const&.
+// rs2_composite_option_id: a separate id space from rs2_option - a plain static name array, no
+// options_registry involvement (no dynamic per-device custom-name registration, unlike
+// rs2_option below). std::string const& return type mirrors rs2_option_type's get_string().
 std::string const & get_string( rs2_composite_option_id value )
 {
     static auto str_array = []()
