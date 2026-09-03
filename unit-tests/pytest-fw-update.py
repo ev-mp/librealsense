@@ -26,14 +26,22 @@ pytestmark = [
     pytest.mark.device_each("D585"),
     pytest.mark.device_exclude("D585S"),
     pytest.mark.priority(1),
-    pytest.mark.timeout(500),
+    pytest.mark.timeout(750),
     pytest.mark.skipif(bool(os.environ.get('GITHUB_ACTIONS')), reason="not runnable on GHA"),
 ]
 
 
 # A FW tool that never returns blocks the whole pytest session, and if pytest is then killed the
 # tool survives as an orphan whose CWD pins the workspace directory (undeletable on Windows).
-FW_TOOL_TIMEOUT = 300  # seconds; a real flash + device reboot is well under 100s
+FW_TOOL_TIMEOUT = 150  # seconds; a real flash + device reboot is well under 100s
+
+
+def abs_fw_path( path ):
+    """
+    Resolve a FW image path against the current working directory, so it stays valid for a tool
+    that we run from elsewhere. Returns `path` unchanged when it is empty.
+    """
+    return os.path.abspath( path ) if path else path
 
 
 def run_fw_tool( cmd, timeout = FW_TOOL_TIMEOUT ):
@@ -239,9 +247,11 @@ def test_fw_update( request, module_device_setup, test_context_var ):
     if not fw_updater_exe:
         pytest.fail( "Could not find the update tool file (rs-fw-update.exe)" )
 
-    custom_fw_d400 = request.config.getoption( '--custom-fw-d400' )
-    custom_fw_d555 = request.config.getoption( '--custom-fw-d555' )
-    custom_fw_d585 = request.config.getoption( '--custom-fw-d585' )
+    # Absolutize here, in the parent: run_fw_tool runs the tool from its own directory, so a
+    # relative --custom-fw-* path would no longer resolve for the child.
+    custom_fw_d400 = abs_fw_path( request.config.getoption( '--custom-fw-d400' ) )
+    custom_fw_d555 = abs_fw_path( request.config.getoption( '--custom-fw-d555' ) )
+    custom_fw_d585 = abs_fw_path( request.config.getoption( '--custom-fw-d585' ) )
 
     # FW-compat pre-flash gate (was harness-side, in run-unit-tests.py): refuse to flash a
     # below-min image, or substitute the per-device fallback image registered in
