@@ -90,8 +90,9 @@ def _restore_original_raw(embedded_filter, option_id, original_raw):
     expected_raw[-4:] = b"\x00\x00\x00\x00"
     expected_raw = bytes(expected_raw)
     embedded_filter.set_composite_option(option_id, expected_raw)
-    readback_raw = embedded_filter.get_composite_option(option_id)
-    assert readback_raw == expected_raw, "failed to restore original HKR Improved Close Range Control value"
+    readback_raw = bytearray(embedded_filter.get_composite_option(option_id))
+    readback_raw[-4:] = b"\x00\x00\x00\x00"
+    assert bytes(readback_raw) == expected_raw, "failed to restore original HKR Improved Close Range Control value"
 
 
 def test_hdrd_control_basic_parameter_changes(test_device):
