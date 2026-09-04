@@ -255,11 +255,8 @@ namespace
 
         print_bytes( "Get Range", opts.get_composite_option_range( id ) );
         auto range = opts.get_composite_option_range_as< rs2_temporal_filter_dpp_range >( id );
-        std::cout << "      Range: enabled[" << range.min.enabled << ".."
-                  << range.max.enabled << "] smooth_alpha[" << range.min.smooth_alpha << ".." << range.max.smooth_alpha
-                  << "] smooth_delta[" << range.min.smooth_delta << ".." << range.max.smooth_delta
-                  << "] persistency_index[" << range.min.persistency_index << ".." << range.max.persistency_index
-                  << "]\n";
+        std::cout << "      Range:\n";
+        print_range( std::cout, temporal_filter_dpp_fields(), range.min, range.max, range.def, range.step );
 
         std::cout << "      Read-only: " << ( opts.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
@@ -277,8 +274,8 @@ namespace
     }
 
     // Full read-modify-write + range + metadata sequence for RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP.
-    // Magnitude is currently a fixed FW range ([2,2]) - the Set below still exercises the full
-    // atomic write path, just with the only in-range value available today.
+    // Sends the FW-reported default rather than a hardcoded literal - the documented range was a
+    // fixed [2,2] at design time but real firmware may report a wider one (confirmed: [2,4]).
     void exercise_decimation_filter_dpp( rs2::options & opts, rs2_composite_option_id id )
     {
         print_bytes( "Get (before)", opts.get_composite_option( id ) );
@@ -303,8 +300,8 @@ namespace
                   << ")\n";
 
         print_bytes( "Get Range", opts.get_composite_option_range( id ) );
-        std::cout << "      Range: enabled[" << range.min.enabled << ".." << range.max.enabled
-                  << "] magnitude[" << range.min.magnitude << ".." << range.max.magnitude << "]\n";
+        std::cout << "      Range:\n";
+        print_range( std::cout, decimation_filter_dpp_fields(), range.min, range.max, range.def, range.step );
 
         std::cout << "      Read-only: " << ( opts.is_composite_option_read_only( id ) ? "true" : "false" ) << '\n';
         std::cout << "      Description: \"" << opts.get_composite_option_description( id ) << "\"\n";
