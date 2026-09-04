@@ -24,6 +24,8 @@ decimation_filter_feature::decimation_filter_feature( d500_depth_sensor & depth_
     // decimation_embedded_filter already exists for the DDS path's own scalar-option filter -
     // reused here as-is, since it's just the RS2_EXTENSION_* identity, no DDS-specific state.
     auto raw_depth_ep = std::dynamic_pointer_cast< uvc_sensor >( depth_sensor.get_raw_sensor() );
+    if( ! raw_depth_ep )
+        throw std::runtime_error( "Decimation Filter DPP requires a UVC depth sensor" );
     depth_sensor.add_embedded_filter( std::make_shared<
         composite_embedded_filter< decimation_embedded_filter, RS2_EMBEDDED_FILTER_TYPE_DECIMATION > >(
         raw_depth_ep,
