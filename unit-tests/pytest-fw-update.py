@@ -26,14 +26,14 @@ pytestmark = [
     pytest.mark.device_each("D585"),
     pytest.mark.device_exclude("D585S"),
     pytest.mark.priority(1),
-    pytest.mark.timeout(750),
+    pytest.mark.timeout(1600),
     pytest.mark.skipif(bool(os.environ.get('GITHUB_ACTIONS')), reason="not runnable on GHA"),
 ]
 
 
 # A FW tool that never returns blocks the whole pytest session, and if pytest is then killed the
 # tool survives as an orphan whose CWD pins the workspace directory (undeletable on Windows).
-FW_TOOL_TIMEOUT = 150  # seconds; a real flash + device reboot is well under 100s
+FW_TOOL_TIMEOUT = 600  # seconds; a USB flash takes ~50s, a GMSL/MIPI one ~385s
 
 
 def abs_fw_path( path ):
@@ -231,7 +231,7 @@ def recover_dds_device_on_golden_domain( serial, context, fw_updater_exe ):
         # its DDS domain to the rig's configured value.
         cmd = [dds_config_exe, '--serial-number', serial,
                '--transient-sdk-domain-id', '0', '--domain-id', str( config_domain )]
-        result = run_fw_tool( cmd )
+        result = run_fw_tool( cmd, timeout = 30 )  # a domain write plus reboot, not a flash
         if result.returncode != 0:
             log.warning( f"rs-dds-config returned rc={result.returncode}; camera may not be on DDS domain {config_domain}" )
         wait_for_reboot( same_version=False )
