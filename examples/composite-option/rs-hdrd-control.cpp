@@ -6,9 +6,9 @@
 // value, through the public C++ wrapper (rs2::options), a thin pass-through to the C API.
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_decimation_filter_dpp.h>
 #include <librealsense2/h/rs_temporal_filter_dpp.h>
 #include <librealsense2/h/rs_hdrd_control.h>
-#include <librealsense2/h/rs_decimation_filter_dpp.h>
 
 #include <iostream>
 #include <string>
@@ -19,11 +19,22 @@ namespace
     {
         switch( id )
         {
+        case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:  return "DECIMATION_FILTER_DPP";
         case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:    return "TEMPORAL_FILTER_DPP";
         case RS2_COMPOSITE_OPTION_HDRD_CONTROL:           return "HDRD_CONTROL";
-        case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:  return "DECIMATION_FILTER_DPP";
         default:                                           return "UNKNOWN";
         }
+    }
+
+    void print_decimation_filter_dpp( const rs2_decimation_filter_dpp_config & v )
+    {
+        std::cout << "        version=" << (int)v.header.version
+                   << " flags=" << (int)v.header.flags
+                   << " ctl_id=0x" << std::hex << v.header.ctl_id << std::dec
+                   << " param_count=" << (int)v.header.param_count
+                   << " param_type=" << (int)v.header.param_type
+                   << " enabled=" << v.enabled
+                   << " magnitude=" << v.magnitude << '\n';
     }
 
     void print_temporal_filter_dpp( const rs2_temporal_filter_dpp_config & v )
@@ -55,17 +66,6 @@ namespace
                    << " threshold_mm=" << v.threshold_mm << '\n';
     }
 
-    void print_decimation_filter_dpp( const rs2_decimation_filter_dpp_config & v )
-    {
-        std::cout << "        version=" << (int)v.header.version
-                   << " flags=" << (int)v.header.flags
-                   << " ctl_id=0x" << std::hex << v.header.ctl_id << std::dec
-                   << " param_count=" << (int)v.header.param_count
-                   << " param_type=" << (int)v.header.param_type
-                   << " enabled=" << v.enabled
-                   << " magnitude=" << v.magnitude << '\n';
-    }
-
     // Prints every field of `id`'s current value, dispatching to the right typed cast - no
     // generic "print any composite option" mechanism by design, so a new id needs a case here too.
     void print_composite_option_value( const rs2::options & opts, rs2_composite_option_id id )
@@ -74,14 +74,14 @@ namespace
         {
             switch( id )
             {
+            case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:
+                print_decimation_filter_dpp( opts.get_composite_option_as< rs2_decimation_filter_dpp_config >( id ) );
+                break;
             case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
                 print_temporal_filter_dpp( opts.get_composite_option_as< rs2_temporal_filter_dpp_config >( id ) );
                 break;
             case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
                 print_hdrd_control( opts.get_composite_option_as< rs2_hdrd_control >( id ) );
-                break;
-            case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:
-                print_decimation_filter_dpp( opts.get_composite_option_as< rs2_decimation_filter_dpp_config >( id ) );
                 break;
             default:
                 std::cout << "        (no typed printer registered for this composite option id)\n";

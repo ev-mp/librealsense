@@ -6,9 +6,9 @@
    raw C API: no exceptions, no templates, no RAII, no pointer-to-member field tables. */
 
 #include <librealsense2/rs.h>
-#include <librealsense2/h/rs_hdrd_control.h>
-#include <librealsense2/h/rs_temporal_filter_dpp.h>
 #include <librealsense2/h/rs_decimation_filter_dpp.h>
+#include <librealsense2/h/rs_temporal_filter_dpp.h>
+#include <librealsense2/h/rs_hdrd_control.h>
 #include "example.h"   /* shared check_error()/print_device_info() used by every Examples/C sample */
 
 #include <stdio.h>
@@ -19,9 +19,9 @@ static const char * composite_option_name( rs2_composite_option_id id )
 {
     switch( id )
     {
+    case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:  return "DECIMATION_FILTER_DPP";
     case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:    return "TEMPORAL_FILTER_DPP";
     case RS2_COMPOSITE_OPTION_HDRD_CONTROL:           return "HDRD_CONTROL";
-    case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:  return "DECIMATION_FILTER_DPP";
     default:                                           return "UNKNOWN";
     }
 }
@@ -50,6 +50,72 @@ static void print_bytes( const char * label, const unsigned char * data, int siz
             printf( "%s%02x", ( i % bytes_per_line == 0 ) ? "\n        " : " ", data[i] );
     }
     printf( "\n" );
+}
+
+/* C99 equivalent of print_struct(decimation_filter_dpp_fields(), ...) - no pointer-to-member
+   table to drive it in C, so every field is spelled out here once, in wire order. */
+static void print_decimation_filter_dpp_struct( const rs2_decimation_filter_dpp_config * v )
+{
+    printf( "        %-16s = %d\n", "version", (int)v->header.version );
+    printf( "        %-16s = %d\n", "flags", (int)v->header.flags );
+    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->header.ctl_id );
+    printf( "        %-16s = %d\n", "param_count", (int)v->header.param_count );
+    printf( "        %-16s = %d\n", "param_type", (int)v->header.param_type );
+    printf( "        %-16s = %d\n", "enabled", v->enabled );
+    printf( "        %-16s = %d\n", "magnitude", v->magnitude );
+}
+
+/* C99 equivalent of the C++ sample's generic print_range() for this struct. */
+static void print_decimation_filter_dpp_range( const rs2_decimation_filter_dpp_range * r )
+{
+    printf( "        %-16s   [ min, max, default, step ]\n", "" );
+#define DECIMATION_FILTER_DPP_ROW( label, field ) \
+    printf( "        %-16s = [ %d, %d, %d, %d ]\n", label, \
+            (int)r->min.field, (int)r->max.field, (int)r->def.field, (int)r->step.field )
+    DECIMATION_FILTER_DPP_ROW( "version", header.version );
+    DECIMATION_FILTER_DPP_ROW( "flags", header.flags );
+    DECIMATION_FILTER_DPP_ROW( "ctl_id", header.ctl_id );
+    DECIMATION_FILTER_DPP_ROW( "param_count", header.param_count );
+    DECIMATION_FILTER_DPP_ROW( "param_type", header.param_type );
+    DECIMATION_FILTER_DPP_ROW( "enabled", enabled );
+    DECIMATION_FILTER_DPP_ROW( "magnitude", magnitude );
+#undef DECIMATION_FILTER_DPP_ROW
+}
+
+/* C99 equivalent of print_struct(temporal_filter_dpp_fields(), ...) - see
+   print_decimation_filter_dpp_struct() above. smooth_alpha is [0,1] scaled into [0,1000] (every
+   DPP param slot is an int32), so it prints as a plain %d like every other field, not a float. */
+static void print_temporal_filter_dpp_struct( const rs2_temporal_filter_dpp_config * v )
+{
+    printf( "        %-16s = %d\n", "version", (int)v->header.version );
+    printf( "        %-16s = %d\n", "flags", (int)v->header.flags );
+    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->header.ctl_id );
+    printf( "        %-16s = %d\n", "param_count", (int)v->header.param_count );
+    printf( "        %-16s = %d\n", "param_type", (int)v->header.param_type );
+    printf( "        %-16s = %d\n", "enabled", v->enabled );
+    printf( "        %-16s = %d\n", "smooth_alpha", v->smooth_alpha );
+    printf( "        %-16s = %d\n", "smooth_delta", v->smooth_delta );
+    printf( "        %-16s = %d\n", "persistency_index", v->persistency_index );
+}
+
+/* C99 equivalent of the C++ sample's generic print_range() for this struct - see
+   print_decimation_filter_dpp_range() above. */
+static void print_temporal_filter_dpp_range( const rs2_temporal_filter_dpp_range * r )
+{
+    printf( "        %-16s   [ min, max, default, step ]\n", "" );
+#define TEMPORAL_FILTER_DPP_ROW( label, field ) \
+    printf( "        %-16s = [ %d, %d, %d, %d ]\n", label, \
+            (int)r->min.field, (int)r->max.field, (int)r->def.field, (int)r->step.field )
+    TEMPORAL_FILTER_DPP_ROW( "version", header.version );
+    TEMPORAL_FILTER_DPP_ROW( "flags", header.flags );
+    TEMPORAL_FILTER_DPP_ROW( "ctl_id", header.ctl_id );
+    TEMPORAL_FILTER_DPP_ROW( "param_count", header.param_count );
+    TEMPORAL_FILTER_DPP_ROW( "param_type", header.param_type );
+    TEMPORAL_FILTER_DPP_ROW( "enabled", enabled );
+    TEMPORAL_FILTER_DPP_ROW( "smooth_alpha", smooth_alpha );
+    TEMPORAL_FILTER_DPP_ROW( "smooth_delta", smooth_delta );
+    TEMPORAL_FILTER_DPP_ROW( "persistency_index", persistency_index );
+#undef TEMPORAL_FILTER_DPP_ROW
 }
 
 /* C99 equivalent of the C++ sample's generic print_struct(hdrd_fields(), ...) - no
@@ -94,256 +160,8 @@ static void print_hdrd_range( const rs2_hdrd_control_range * r )
 #undef HDRD_ROW
 }
 
-/* C99 equivalent of print_struct(temporal_filter_dpp_fields(), ...) - see print_hdrd_struct()
-   above. smooth_alpha is [0,1] scaled into [0,1000] (every DPP param slot is an int32), so it
-   prints as a plain %d like every other field, not a float. */
-static void print_temporal_filter_dpp_struct( const rs2_temporal_filter_dpp_config * v )
-{
-    printf( "        %-16s = %d\n", "version", (int)v->header.version );
-    printf( "        %-16s = %d\n", "flags", (int)v->header.flags );
-    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->header.ctl_id );
-    printf( "        %-16s = %d\n", "param_count", (int)v->header.param_count );
-    printf( "        %-16s = %d\n", "param_type", (int)v->header.param_type );
-    printf( "        %-16s = %d\n", "enabled", v->enabled );
-    printf( "        %-16s = %d\n", "smooth_alpha", v->smooth_alpha );
-    printf( "        %-16s = %d\n", "smooth_delta", v->smooth_delta );
-    printf( "        %-16s = %d\n", "persistency_index", v->persistency_index );
-}
-
-/* C99 equivalent of the C++ sample's generic print_range() for this struct - see
-   print_hdrd_range() above. */
-static void print_temporal_filter_dpp_range( const rs2_temporal_filter_dpp_range * r )
-{
-    printf( "        %-16s   [ min, max, default, step ]\n", "" );
-#define TEMPORAL_FILTER_DPP_ROW( label, field ) \
-    printf( "        %-16s = [ %d, %d, %d, %d ]\n", label, \
-            (int)r->min.field, (int)r->max.field, (int)r->def.field, (int)r->step.field )
-    TEMPORAL_FILTER_DPP_ROW( "version", header.version );
-    TEMPORAL_FILTER_DPP_ROW( "flags", header.flags );
-    TEMPORAL_FILTER_DPP_ROW( "ctl_id", header.ctl_id );
-    TEMPORAL_FILTER_DPP_ROW( "param_count", header.param_count );
-    TEMPORAL_FILTER_DPP_ROW( "param_type", header.param_type );
-    TEMPORAL_FILTER_DPP_ROW( "enabled", enabled );
-    TEMPORAL_FILTER_DPP_ROW( "smooth_alpha", smooth_alpha );
-    TEMPORAL_FILTER_DPP_ROW( "smooth_delta", smooth_delta );
-    TEMPORAL_FILTER_DPP_ROW( "persistency_index", persistency_index );
-#undef TEMPORAL_FILTER_DPP_ROW
-}
-
-/* C99 equivalent of print_struct(decimation_filter_dpp_fields(), ...) - see print_hdrd_struct()
-   above. */
-static void print_decimation_filter_dpp_struct( const rs2_decimation_filter_dpp_config * v )
-{
-    printf( "        %-16s = %d\n", "version", (int)v->header.version );
-    printf( "        %-16s = %d\n", "flags", (int)v->header.flags );
-    printf( "        %-16s = 0x%x\n", "ctl_id", (unsigned int)v->header.ctl_id );
-    printf( "        %-16s = %d\n", "param_count", (int)v->header.param_count );
-    printf( "        %-16s = %d\n", "param_type", (int)v->header.param_type );
-    printf( "        %-16s = %d\n", "enabled", v->enabled );
-    printf( "        %-16s = %d\n", "magnitude", v->magnitude );
-}
-
-/* C99 equivalent of the C++ sample's generic print_range() for this struct - see
-   print_hdrd_range() above. */
-static void print_decimation_filter_dpp_range( const rs2_decimation_filter_dpp_range * r )
-{
-    printf( "        %-16s   [ min, max, default, step ]\n", "" );
-#define DECIMATION_FILTER_DPP_ROW( label, field ) \
-    printf( "        %-16s = [ %d, %d, %d, %d ]\n", label, \
-            (int)r->min.field, (int)r->max.field, (int)r->def.field, (int)r->step.field )
-    DECIMATION_FILTER_DPP_ROW( "version", header.version );
-    DECIMATION_FILTER_DPP_ROW( "flags", header.flags );
-    DECIMATION_FILTER_DPP_ROW( "ctl_id", header.ctl_id );
-    DECIMATION_FILTER_DPP_ROW( "param_count", header.param_count );
-    DECIMATION_FILTER_DPP_ROW( "param_type", header.param_type );
-    DECIMATION_FILTER_DPP_ROW( "enabled", enabled );
-    DECIMATION_FILTER_DPP_ROW( "magnitude", magnitude );
-#undef DECIMATION_FILTER_DPP_ROW
-}
-
-/* Sets *cfg and reads it back into *after. Returns 1 on success, 0 (SKIPPED message printed) on
-   failure. */
-static int hdrd_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
-                                                    const rs2_hdrd_control * cfg,
-                                                    rs2_hdrd_control * after )
-{
-    rs2_error * e = NULL;
-    const rs2_raw_data_buffer * raw;
-    const unsigned char * bytes;
-
-    rs2_set_composite_option( opts, id, cfg, sizeof( *cfg ), &e );
-    if( e )
-        goto failed;
-
-    raw = rs2_get_composite_option( opts, id, &e );
-    if( e )
-        goto failed;
-    bytes = rs2_get_raw_data( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto failed;
-    }
-    memcpy( after, bytes, sizeof( *after ) );
-    rs2_delete_raw_data( raw );
-    return 1;
-
-failed:
-    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
-    rs2_free_error( e );
-    return 0;
-}
-
-/* Sets *cfg and reads it back into *after - the C99 equivalent of hdrd_set_and_readback() above,
-   for rs2_temporal_filter_dpp_config instead. Returns 1 on success, 0 (SKIPPED message printed)
-   on failure. */
-static int temporal_filter_dpp_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
-                                                   const rs2_temporal_filter_dpp_config * cfg,
-                                                   rs2_temporal_filter_dpp_config * after )
-{
-    rs2_error * e = NULL;
-    const rs2_raw_data_buffer * raw;
-    const unsigned char * bytes;
-
-    rs2_set_composite_option( opts, id, cfg, sizeof( *cfg ), &e );
-    if( e )
-        goto failed;
-
-    raw = rs2_get_composite_option( opts, id, &e );
-    if( e )
-        goto failed;
-    bytes = rs2_get_raw_data( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto failed;
-    }
-    memcpy( after, bytes, sizeof( *after ) );
-    rs2_delete_raw_data( raw );
-    return 1;
-
-failed:
-    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
-    rs2_free_error( e );
-    return 0;
-}
-
-/* Full read-modify-write + range + metadata sequence - the C99 equivalent of
-   exercise_temporal_filter_dpp() in rs-composite-option.cpp. A non-functional control is
-   reported as SKIPPED via `goto skipped` rather than aborting the whole program. */
-static int exercise_temporal_filter_dpp( const rs2_options * opts, rs2_composite_option_id id )
-{
-    rs2_error * e = NULL;
-    const rs2_raw_data_buffer * raw;
-    const unsigned char * bytes;
-    int size;
-    rs2_temporal_filter_dpp_config current, cfg, after;
-    rs2_temporal_filter_dpp_range range;
-
-    /* 1) Get (before) - both forms of the read, same as the C++ sample: the raw untyped
-       bytes get_composite_option() returns, and (here, by hand) the typed cast. */
-    raw = rs2_get_composite_option( opts, id, &e );
-    if( e )
-        goto skipped;
-    size = rs2_get_raw_data_size( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto skipped;
-    }
-    if( (size_t)size != sizeof( current ) )
-    {
-        printf( "      unexpected payload size: %d (expected %zu)\n", size, sizeof( current ) );
-        rs2_delete_raw_data( raw );
-        return 0;
-    }
-    bytes = rs2_get_raw_data( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto skipped;
-    }
-    print_bytes( "      Get Raw Data:", bytes, size );
-    memcpy( &current, bytes, sizeof( current ) );
-    rs2_delete_raw_data( raw );
-    printf( "      Get Structured Data:\n" );
-    print_temporal_filter_dpp_struct( &current );
-
-    /* 2) Set + Get read-modify-write - wire fields carried over untouched from `current` on
-       every step below, same discipline as exercise_hdrd_control() above. */
-    cfg = current;
-    cfg.enabled = 1;
-    cfg.smooth_alpha = 550;  /* normalized [0,1] scaled into [0,1000] - i.e. 0.55 */
-    cfg.smooth_delta = 35;
-    cfg.persistency_index = 5;
-    if( ! temporal_filter_dpp_set_and_readback( opts, id, &cfg, &after ) )
-        goto skipped;
-    printf( "      Set (enabled=1 smooth_alpha=550 smooth_delta=35 persistency_index=5): %s\n",
-            ( after.enabled == cfg.enabled && after.smooth_alpha == cfg.smooth_alpha
-              && after.smooth_delta == cfg.smooth_delta && after.persistency_index == cfg.persistency_index )
-                ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
-    print_temporal_filter_dpp_struct( &after );
-
-    /* Restore the original value read in step 1 - leaving no lasting effect on the device
-       matters more here than the ceremony of one more Set/Get pair. */
-    if( ! temporal_filter_dpp_set_and_readback( opts, id, &current, &after ) )
-        goto skipped;
-    printf( "      Restore original value: %s\n",
-            ( after.enabled == current.enabled && after.smooth_alpha == current.smooth_alpha
-              && after.smooth_delta == current.smooth_delta && after.persistency_index == current.persistency_index )
-                ? "ok" : "FAILED to restore - device may be left in the sample's last test state" );
-
-    /* 3) Get range - raw bytes, then the manual cast to rs2_temporal_filter_dpp_range (4 full
-       copies of the struct - min/max/step/def). */
-    raw = rs2_get_composite_option_range( opts, id, &e );
-    if( e )
-        goto skipped;
-    size = rs2_get_raw_data_size( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto skipped;
-    }
-    if( (size_t)size != sizeof( range ) )
-    {
-        printf( "      unexpected range payload size: %d (expected %zu)\n", size, sizeof( range ) );
-        rs2_delete_raw_data( raw );
-        return 0;
-    }
-    bytes = rs2_get_raw_data( raw, &e );
-    if( e )
-    {
-        rs2_delete_raw_data( raw );
-        goto skipped;
-    }
-    print_bytes( "      Get Range", bytes, size );
-    memcpy( &range, bytes, sizeof( range ) );
-    rs2_delete_raw_data( raw );
-    printf( "      Range:\n" );
-    print_temporal_filter_dpp_range( &range );
-
-    /* 4) Query info. */
-    printf( "      Read-only: %s\n", rs2_is_composite_option_read_only( opts, id, &e ) ? "true" : "false" );
-    if( e )
-        goto skipped;
-    {
-        const char * description = rs2_get_composite_option_description( opts, id, &e );
-        if( e )
-            goto skipped;
-        printf( "      Description: \"%s\"\n", description );
-    }
-
-    return 1;
-
-skipped:
-    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
-    rs2_free_error( e );
-    return 0;
-}
-
-/* Sets *cfg and reads it back into *after - the C99 equivalent of hdrd_set_and_readback() above,
-   for rs2_decimation_filter_dpp_config instead. Returns 1 on success, 0 (SKIPPED message
-   printed) on failure. */
+/* Sets *cfg and reads it back into *after - the C99 equivalent for rs2_decimation_filter_dpp_config.
+   Returns 1 on success, 0 (SKIPPED message printed) on failure. */
 static int decimation_filter_dpp_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
                                                      const rs2_decimation_filter_dpp_config * cfg,
                                                      rs2_decimation_filter_dpp_config * after )
@@ -377,7 +195,8 @@ failed:
 
 /* Full read-modify-write + range + metadata sequence - the C99 equivalent of
    exercise_decimation_filter_dpp() in rs-composite-option.cpp. Magnitude is currently a fixed
-   FW range ([2,2]) - the Set below still exercises the full atomic write path. */
+   FW range ([2,2]) on some builds, wider on others - the Set below still exercises the full
+   atomic write path using the FW-reported default rather than a hardcoded literal. */
 static int exercise_decimation_filter_dpp( const rs2_options * opts, rs2_composite_option_id id )
 {
     rs2_error * e = NULL;
@@ -474,6 +293,185 @@ static int exercise_decimation_filter_dpp( const rs2_options * opts, rs2_composi
     return 1;
 
 skipped:
+    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
+    rs2_free_error( e );
+    return 0;
+}
+
+/* Sets *cfg and reads it back into *after - the C99 equivalent for rs2_temporal_filter_dpp_config.
+   Returns 1 on success, 0 (SKIPPED message printed) on failure. */
+static int temporal_filter_dpp_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
+                                                   const rs2_temporal_filter_dpp_config * cfg,
+                                                   rs2_temporal_filter_dpp_config * after )
+{
+    rs2_error * e = NULL;
+    const rs2_raw_data_buffer * raw;
+    const unsigned char * bytes;
+
+    rs2_set_composite_option( opts, id, cfg, sizeof( *cfg ), &e );
+    if( e )
+        goto failed;
+
+    raw = rs2_get_composite_option( opts, id, &e );
+    if( e )
+        goto failed;
+    bytes = rs2_get_raw_data( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto failed;
+    }
+    memcpy( after, bytes, sizeof( *after ) );
+    rs2_delete_raw_data( raw );
+    return 1;
+
+failed:
+    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
+    rs2_free_error( e );
+    return 0;
+}
+
+/* Full read-modify-write + range + metadata sequence - the C99 equivalent of
+   exercise_temporal_filter_dpp() in rs-composite-option.cpp. A non-functional control is
+   reported as SKIPPED via `goto skipped` rather than aborting the whole program. */
+static int exercise_temporal_filter_dpp( const rs2_options * opts, rs2_composite_option_id id )
+{
+    rs2_error * e = NULL;
+    const rs2_raw_data_buffer * raw;
+    const unsigned char * bytes;
+    int size;
+    rs2_temporal_filter_dpp_config current, cfg, after;
+    rs2_temporal_filter_dpp_range range;
+
+    /* 1) Get (before) - both forms of the read, same as the C++ sample: the raw untyped
+       bytes get_composite_option() returns, and (here, by hand) the typed cast. */
+    raw = rs2_get_composite_option( opts, id, &e );
+    if( e )
+        goto skipped;
+    size = rs2_get_raw_data_size( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto skipped;
+    }
+    if( (size_t)size != sizeof( current ) )
+    {
+        printf( "      unexpected payload size: %d (expected %zu)\n", size, sizeof( current ) );
+        rs2_delete_raw_data( raw );
+        return 0;
+    }
+    bytes = rs2_get_raw_data( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto skipped;
+    }
+    print_bytes( "      Get Raw Data:", bytes, size );
+    memcpy( &current, bytes, sizeof( current ) );
+    rs2_delete_raw_data( raw );
+    printf( "      Get Structured Data:\n" );
+    print_temporal_filter_dpp_struct( &current );
+
+    /* 2) Set + Get read-modify-write - wire fields carried over untouched from `current` on
+       every step below, same discipline as exercise_hdrd_control() below. */
+    cfg = current;
+    cfg.enabled = 1;
+    cfg.smooth_alpha = 550;  /* normalized [0,1] scaled into [0,1000] - i.e. 0.55 */
+    cfg.smooth_delta = 35;
+    cfg.persistency_index = 5;
+    if( ! temporal_filter_dpp_set_and_readback( opts, id, &cfg, &after ) )
+        goto skipped;
+    printf( "      Set (enabled=1 smooth_alpha=550 smooth_delta=35 persistency_index=5): %s\n",
+            ( after.enabled == cfg.enabled && after.smooth_alpha == cfg.smooth_alpha
+              && after.smooth_delta == cfg.smooth_delta && after.persistency_index == cfg.persistency_index )
+                ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
+    print_temporal_filter_dpp_struct( &after );
+
+    /* Restore the original value read in step 1 - leaving no lasting effect on the device
+       matters more here than the ceremony of one more Set/Get pair. */
+    if( ! temporal_filter_dpp_set_and_readback( opts, id, &current, &after ) )
+        goto skipped;
+    printf( "      Restore original value: %s\n",
+            ( after.enabled == current.enabled && after.smooth_alpha == current.smooth_alpha
+              && after.smooth_delta == current.smooth_delta && after.persistency_index == current.persistency_index )
+                ? "ok" : "FAILED to restore - device may be left in the sample's last test state" );
+
+    /* 3) Get range - raw bytes, then the manual cast to rs2_temporal_filter_dpp_range (4 full
+       copies of the struct - min/max/step/def). */
+    raw = rs2_get_composite_option_range( opts, id, &e );
+    if( e )
+        goto skipped;
+    size = rs2_get_raw_data_size( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto skipped;
+    }
+    if( (size_t)size != sizeof( range ) )
+    {
+        printf( "      unexpected range payload size: %d (expected %zu)\n", size, sizeof( range ) );
+        rs2_delete_raw_data( raw );
+        return 0;
+    }
+    bytes = rs2_get_raw_data( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto skipped;
+    }
+    print_bytes( "      Get Range", bytes, size );
+    memcpy( &range, bytes, sizeof( range ) );
+    rs2_delete_raw_data( raw );
+    printf( "      Range:\n" );
+    print_temporal_filter_dpp_range( &range );
+
+    /* 4) Query info. */
+    printf( "      Read-only: %s\n", rs2_is_composite_option_read_only( opts, id, &e ) ? "true" : "false" );
+    if( e )
+        goto skipped;
+    {
+        const char * description = rs2_get_composite_option_description( opts, id, &e );
+        if( e )
+            goto skipped;
+        printf( "      Description: \"%s\"\n", description );
+    }
+
+    return 1;
+
+skipped:
+    printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
+    rs2_free_error( e );
+    return 0;
+}
+
+/* Sets *cfg and reads it back into *after. Returns 1 on success, 0 (SKIPPED message printed) on
+   failure. */
+static int hdrd_set_and_readback( const rs2_options * opts, rs2_composite_option_id id,
+                                                    const rs2_hdrd_control * cfg,
+                                                    rs2_hdrd_control * after )
+{
+    rs2_error * e = NULL;
+    const rs2_raw_data_buffer * raw;
+    const unsigned char * bytes;
+
+    rs2_set_composite_option( opts, id, cfg, sizeof( *cfg ), &e );
+    if( e )
+        goto failed;
+
+    raw = rs2_get_composite_option( opts, id, &e );
+    if( e )
+        goto failed;
+    bytes = rs2_get_raw_data( raw, &e );
+    if( e )
+    {
+        rs2_delete_raw_data( raw );
+        goto failed;
+    }
+    memcpy( after, bytes, sizeof( *after ) );
+    rs2_delete_raw_data( raw );
+    return 1;
+
+failed:
     printf( "      SKIPPED (registered but not functional on this device/FW): %s\n", rs2_get_error_message( e ) );
     rs2_free_error( e );
     return 0;
@@ -628,12 +626,12 @@ static int exercise_composite_option( const rs2_options * opts, rs2_composite_op
 {
     switch( id )
     {
-    case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
-        return exercise_hdrd_control( opts, id );
-    case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
-        return exercise_temporal_filter_dpp( opts, id );
     case RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP:
         return exercise_decimation_filter_dpp( opts, id );
+    case RS2_COMPOSITE_OPTION_TEMPORAL_FILTER_DPP:
+        return exercise_temporal_filter_dpp( opts, id );
+    case RS2_COMPOSITE_OPTION_HDRD_CONTROL:
+        return exercise_hdrd_control( opts, id );
     default:
         printf( "      (no typed handler registered for this composite option id)\n" );
         return -1;

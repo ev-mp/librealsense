@@ -25,9 +25,9 @@
 #include <src/ds/ds-thermal-monitor.h>
 #include <src/ds/d500/d500-options.h>
 #include <src/ds/d500/d500-auto-calibration.h>
+#include <src/ds/features/decimation-filter-feature.h>
 #include <src/ds/features/temporal-filter-feature.h>
 #include <src/ds/features/hdrd-filter-feature.h>
-#include <src/ds/features/decimation-filter-feature.h>
 
 #include <src/platform/platform-utils.h>
 
@@ -140,9 +140,14 @@ namespace librealsense
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            // Temporal Filter DPP composite option - reuses the same FW gate Improved Close
-            // Range uses just below, as a reasonable proxy for "same SKU/FW scope" (both are
-            // depth-XU controls introduced together on this SKU).
+            // Decimation Filter DPP composite option - USB-only, alongside the DDS-connected
+            // path's own independent scalar-option decimation filter.
+            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
+                register_feature( std::make_shared< decimation_filter_feature >(
+                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+
+            // Temporal Filter DPP composite option - reuses the same FW gate as Decimation
+            // above (same protocol family, introduced together on this SKU).
             if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< temporal_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
@@ -152,13 +157,6 @@ namespace librealsense
             // old scalar-only semantics at this same XU control id (0x14).
             if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< hdrd_filter_feature >(
-                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
-
-            // Decimation Filter DPP composite option - USB-only, alongside the DDS-connected
-            // path's own independent scalar-option decimation filter. Same FW gate as Temporal
-            // Filter DPP above (same protocol family, introduced together on this SKU).
-            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
-                register_feature( std::make_shared< decimation_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
 
             // Dual-RGB rectification toggle, supported by the D585 2C USB firmware only. Depth and both
@@ -238,9 +236,13 @@ namespace librealsense
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            // Temporal Filter DPP composite option - reuses the same FW/MIPI gate Improved
-            // Close Range uses just below, as a reasonable proxy for "same SKU/FW scope" (both are
-            // depth-XU controls introduced together on this SKU).
+            // Decimation Filter DPP composite option - USB-only, skipped on MIPI (no V4L2 CID
+            // for the depth-XU selector 0x11).
+            if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
+                register_feature( std::make_shared< decimation_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+
+            // Temporal Filter DPP composite option - reuses the same FW/MIPI gate as Decimation
+            // above (same protocol family, introduced together on this SKU).
             if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< temporal_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
 
@@ -249,11 +251,6 @@ namespace librealsense
             // selector 0x14); gated on FW for older scalar-only semantics at this same id.
             if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< hdrd_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
-
-            // Decimation Filter DPP composite option - USB-only, same FW/MIPI gate as Temporal
-            // Filter DPP above.
-            if( ! _is_mipi_device && d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
-                register_feature( std::make_shared< decimation_filter_feature >( dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
@@ -311,9 +308,13 @@ namespace librealsense
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            // Temporal Filter DPP composite option - reuses the same FW gate Improved Close
-            // Range uses just below, as a reasonable proxy for "same SKU/FW scope" (both are
-            // depth-XU controls introduced together on this SKU).
+            // Decimation Filter DPP composite option - USB toggle.
+            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
+                register_feature( std::make_shared< decimation_filter_feature >(
+                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
+
+            // Temporal Filter DPP composite option - reuses the same FW gate as Decimation
+            // above (same protocol family, introduced together on this SKU).
             if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< temporal_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
@@ -323,12 +324,6 @@ namespace librealsense
             // this same XU control id (0x14), not the new composite/dpp_header wire format.
             if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
                 register_feature( std::make_shared< hdrd_filter_feature >(
-                        dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
-
-            // Decimation Filter DPP composite option - USB toggle, same FW gate as Temporal
-            // Filter DPP above.
-            if( d500_device::_fw_version >= firmware_version( "7.58.45911.14188" ) )
-                register_feature( std::make_shared< decimation_filter_feature >(
                         dynamic_cast< d500_depth_sensor & >( get_depth_sensor() ) ) );
         }
 
@@ -476,9 +471,15 @@ namespace librealsense
                                               std::make_shared< thermal_compensation >( _thermal_monitor, thermal_compensation_toggle ) );
             } );  // group_multiple_fw_calls
 
-            // Temporal Filter DPP composite option - D555 only. Reuses the same FW gate
-            // Improved Close Range Depth uses, as a reasonable proxy for "same SKU/FW scope"
-            // (both are depth-XU controls introduced together on this SKU).
+            // Decimation Filter DPP composite option - D555 only.
+            if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
+            {
+                register_feature( std::make_shared< decimation_filter_feature >(
+                    dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
+            }
+
+            // Temporal Filter DPP composite option - D555 only, same FW gate as Decimation
+            // above (same protocol family, introduced together on this SKU).
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< temporal_filter_feature >(
@@ -490,13 +491,6 @@ namespace librealsense
             if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
             {
                 register_feature( std::make_shared< hdrd_filter_feature >(
-                    dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
-            }
-
-            // Decimation Filter DPP composite option - D555 only, same FW gate as above.
-            if( d500_device::_fw_version >= firmware_version( "7.58.39807.10573" ) )
-            {
-                register_feature( std::make_shared< decimation_filter_feature >(
                     dynamic_cast< d500_depth_sensor & >( depth_sensor ) ) );
             }
         }
