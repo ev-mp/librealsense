@@ -1,30 +1,19 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-"""Verifies the *effect* of the Decimation Filter DPP composite option on the actual depth
-stream, as distinct from pytest-decimation-filter-dpp.py (which only bounces the control's
-fields and checks readback - it never opens a stream). Per the HKR Depth Post Processing SW
-Arch doc (Confluence pageId=10789655, Use-Case #2) and 640x360 is also a natively-offered depth
-profile (produced by the sensor without any DPP involvement), so frame size alone can't tell
-the two apart - the RS2_FRAME_METADATA_EMBEDDED_FILTERS bitmask is the only way to confirm the
-640x360 frames were actually produced by the DPP decimation block rather than the native path:
-  1. With Decimation Filter DPP enabled (enable=1, magnitude=2) *before* streaming starts and the
-     640x360 depth profile selected, the resulting frames are still expected to be 640x360.
-  2. Those same frames are expected to report RS2_FRAME_METADATA_EMBEDDED_FILTERS with the
-     decimation bit (1u << 0) set - proving the DPP block, not the native path, produced them.
-  3. With Decimation Filter DPP disabled, the 640x360 profile still streams at 640x360, but the
-     decimation bit must NOT be set (the frames come from the native path instead).
+"""Verifies the effect of Decimation Filter DPP on the actual depth stream, unlike
+pytest-decimation-filter-dpp.py which only bounces the control's fields and never streams.
+640x360 is also a natively-offered profile with no DPP involvement, so frame size alone can't
+tell the two apart - RS2_FRAME_METADATA_EMBEDDED_FILTERS is the only way to confirm a 640x360
+frame came from the DPP decimation block rather than the native path.
 
-Known FW limitation (confirmed 2026-09-04 on D585 Proto Dual RGB, decimation-filter-dpp branch):
-RS2_FRAME_METADATA_EMBEDDED_FILTERS is wired up in d500-device.cpp and *is* reliable - reading it
-with Temporal Filter DPP or HDRD/Improved Close Range Control enabled instead (see
-pytest-embedded-filters-metadata.py) correctly and additively sets their respective bits, and
-reads back 0x00 with all three DPP filters disabled. Decimation's documented bit (1u<<0) is the
-one exception: it never sets, regardless of the Decimation Filter DPP enable state, at both
-1280x720 and 640x360. So this isn't a metadata-plumbing bug - it's specific to the decimation DPP
-block itself not being applied by FW on this prototype build. test_..._with_metadata_set is left
-as a real (non-xfail) failing assertion until FW implements it - see that test's own docstring for
-why xfail isn't used in this repo.
+Known FW gap (RSDEV-14424): the metadata field itself is reliable - Temporal Filter DPP and
+HDRD/Improved Close Range Control both set their bits correctly (see
+pytest-embedded-filters-metadata.py), and it reads 0x00 with all three DPP filters disabled.
+Only Decimation's bit (1u<<0) never sets, at both 1280x720 and 640x360. Not a metadata-plumbing
+bug - the decimation DPP block itself isn't being applied by FW on this build.
+test_..._with_metadata_set is left as a real (non-xfail) failing assertion - see its own
+docstring for why.
 """
 
 import pytest
@@ -35,11 +24,11 @@ log = logging.getLogger(__name__)
 pytestmark = [
     pytest.mark.device_each("D555"),
     pytest.mark.device_each("D585"),
-    pytest.mark.device_exclude("D585S"),  # not registered on the safety-certified D585S (see d500-factory.cpp)
+    pytest.mark.device_exclude("D585S"),
 ]
 
 STREAM_WIDTH, STREAM_HEIGHT = 640, 360
-DECIMATION_APPLIED_BIT = 1 << 0  # RS2_FRAME_METADATA_EMBEDDED_FILTERS bit layout, per Confluence doc
+DECIMATION_APPLIED_BIT = 1 << 0  # RS2_FRAME_METADATA_EMBEDDED_FILTERS bit layout
 
 
 def _find_decimation_filter_dpp_filter(sensor):

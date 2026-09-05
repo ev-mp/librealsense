@@ -266,7 +266,7 @@ static int exercise_decimation_filter_dpp( const rs2_options * opts, rs2_composi
     cfg.enabled = 1;
     cfg.magnitude = range.def.magnitude;
     if( ! decimation_filter_dpp_set_and_readback( opts, id, &cfg, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Set (enabled=1 magnitude=%d): %s\n", cfg.magnitude,
             ( after.enabled == cfg.enabled && after.magnitude == cfg.magnitude )
                 ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
@@ -275,7 +275,7 @@ static int exercise_decimation_filter_dpp( const rs2_options * opts, rs2_composi
     /* Restore the original value read in step 1 - same discipline as the other controls, even
        though this one also reverts on its own once Depth/IR starts streaming. */
     if( ! decimation_filter_dpp_set_and_readback( opts, id, &current, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Restore original value: %s\n",
             ( after.enabled == current.enabled && after.magnitude == current.magnitude )
                 ? "ok" : "FAILED to restore - device may be left in the sample's last test state" );
@@ -380,7 +380,7 @@ static int exercise_temporal_filter_dpp( const rs2_options * opts, rs2_composite
     cfg.smooth_delta = 35;
     cfg.persistency_index = 5;
     if( ! temporal_filter_dpp_set_and_readback( opts, id, &cfg, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Set (enabled=1 smooth_alpha=550 smooth_delta=35 persistency_index=5): %s\n",
             ( after.enabled == cfg.enabled && after.smooth_alpha == cfg.smooth_alpha
               && after.smooth_delta == cfg.smooth_delta && after.persistency_index == cfg.persistency_index )
@@ -390,7 +390,7 @@ static int exercise_temporal_filter_dpp( const rs2_options * opts, rs2_composite
     /* Restore the original value read in step 1 - leaving no lasting effect on the device
        matters more here than the ceremony of one more Set/Get pair. */
     if( ! temporal_filter_dpp_set_and_readback( opts, id, &current, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Restore original value: %s\n",
             ( after.enabled == current.enabled && after.smooth_alpha == current.smooth_alpha
               && after.smooth_delta == current.smooth_delta && after.persistency_index == current.persistency_index )
@@ -530,7 +530,7 @@ static int exercise_hdrd_control( const rs2_options * opts, rs2_composite_option
     cfg.shift_mode = 2;
     cfg.shift_pixels = 100;
     if( ! hdrd_set_and_readback( opts, id, &cfg, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Set (filter_type=Lookup Shift, shift_mode=Manual, shift_pixels=100): %s\n",
             ( after.filter_type == cfg.filter_type && after.shift_mode == cfg.shift_mode
               && after.shift_pixels == cfg.shift_pixels )
@@ -541,7 +541,7 @@ static int exercise_hdrd_control( const rs2_options * opts, rs2_composite_option
     cfg.filter_type = 0;
     cfg.downscale_ratio = 2;
     if( ! hdrd_set_and_readback( opts, id, &cfg, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Set (filter_type=Downscale, downscale_ratio=x4): %s\n",
             ( after.filter_type == cfg.filter_type && after.downscale_ratio == cfg.downscale_ratio )
                 ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
@@ -553,7 +553,7 @@ static int exercise_hdrd_control( const rs2_options * opts, rs2_composite_option
         cfg.threshold_mode = mode;
         cfg.threshold_mm = ( mode == 2 ) ? 300 : 0;
         if( ! hdrd_set_and_readback( opts, id, &cfg, &after ) )
-            goto skipped;
+            return 0;  /* helper already printed and freed its own error */
         printf( "      Set (threshold_mode=%d): %s\n", mode,
                 ( after.threshold_mode == cfg.threshold_mode )
                     ? "matches what was sent" : "differs - FW may quantize/clamp on write" );
@@ -564,7 +564,7 @@ static int exercise_hdrd_control( const rs2_options * opts, rs2_composite_option
        state changes (unlike a single-field toggle), so leaving no lasting effect on the device
        matters more here. */
     if( ! hdrd_set_and_readback( opts, id, &current, &after ) )
-        goto skipped;
+        return 0;  /* helper already printed and freed its own error */
     printf( "      Restore original value: %s\n",
             ( after.filter_type == current.filter_type && after.downscale_ratio == current.downscale_ratio
               && after.shift_mode == current.shift_mode && after.shift_pixels == current.shift_pixels

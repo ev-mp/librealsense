@@ -131,7 +131,6 @@ namespace librealsense
         preset_attribute                = (1u << 6),
         emitter_mode_attribute          = (1u << 7),
         led_power_attribute             = (1u << 8)
-        // embedded_filters has no flags-bit gate of its own - see md_depth_control::embedded_filters below.
     };
     
     /**\brief md_mipi_depth_control_attributes - bit mask to find active attributes,
@@ -430,10 +429,9 @@ namespace librealsense
         uint32_t    exposure_roi_bottom;
         uint32_t    preset;
         uint8_t     emitterMode;
-        uint8_t     embedded_filters;   // Bitmask of DPP filters applied to this frame:
-                                         // decimation=(1u<<0), spatial=(1u<<1), temporal=(1u<<2),
-                                         // holes_filling=(1u<<3); HDRD/ICR uses (1u<<5), observed
-                                         // empirically - not yet in the Confluence spec.
+        uint8_t     embedded_filters;   // Bitmask of DPP filters applied: decimation=(1u<<0),
+                                         // spatial=(1u<<1), temporal=(1u<<2), holes_filling=(1u<<3),
+                                         // HDRD/ICR=(1u<<5, undocumented).
         uint16_t    ledPower;
     };
 

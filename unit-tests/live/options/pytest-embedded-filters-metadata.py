@@ -1,18 +1,13 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-"""Verifies RS2_FRAME_METADATA_EMBEDDED_FILTERS (wired up in d500-device.cpp) correctly and
-additively reflects which DPP composite-option filters are actually applied to a depth frame, for
-Temporal Filter DPP and HDRD/Improved Close Range Control - the two filters confirmed to work.
-(Decimation Filter DPP is deliberately NOT covered here - see pytest-decimation-filter-dpp-effect.py
-and its module docstring for the confirmed FW gap: its bit never sets, unlike these two.)
+"""Verifies RS2_FRAME_METADATA_EMBEDDED_FILTERS correctly and additively reflects which DPP
+composite-option filters are applied to a depth frame, for Temporal Filter DPP and HDRD/Improved
+Close Range Control. Decimation Filter DPP is excluded - see pytest-decimation-filter-dpp-effect.py,
+its bit never sets (RSDEV-14424).
 
-Bit layout, from real HW (D585 Proto Dual RGB, 2026-09-04, all bits read with all 3 DPP filters
-disabled = 0x00 baseline):
-  - Temporal Filter DPP: bit 1u<<2 - documented (Confluence pageId=10789655).
-  - HDRD/Improved Close Range Control: bit 1u<<5 - NOT in that documented table; empirically
-    observed only. Flag to FW/doc owners if this needs to be added to the spec.
-  - Combining both at once additively produced 0x24 (0x04 | 0x20), as expected of a bitmask.
+Temporal's bit is documented (1u<<2); HDRD's (1u<<5) is empirically observed only and should be
+added to the spec. Both together produce 0x24 (0x04 | 0x20), confirming additive bitmask behavior.
 """
 
 import pytest
@@ -23,12 +18,13 @@ log = logging.getLogger(__name__)
 pytestmark = [
     pytest.mark.device_each("D555"),
     pytest.mark.device_each("D585"),
-    pytest.mark.device_exclude("D585S"),  # not registered on the safety-certified D585S (see d500-factory.cpp)
+    pytest.mark.device_exclude("D585S"),
 ]
 
 STREAM_WIDTH, STREAM_HEIGHT = 640, 360
+HDRD_WIDTH, HDRD_HEIGHT = 1280, 720  # HDRD only activates at 720p/960p (see rs_hdrd_control.h)
 TEMPORAL_APPLIED_BIT = 1 << 2  # documented
-HDRD_APPLIED_BIT = 1 << 5      # empirically observed only, not in the Confluence doc's bit table
+HDRD_APPLIED_BIT = 1 << 5      # empirically observed only, undocumented
 
 
 def _find_filter(sensor, composite_option_id):
@@ -107,10 +103,9 @@ def test_temporal_filter_dpp_sets_embedded_filters_metadata_bit(test_device):
 
 def test_hdrd_control_sets_embedded_filters_metadata_bit(test_device):
     """Enabling HDRD/Improved Close Range Control before streaming is expected to set RS2_FRAME_
-    METADATA_EMBEDDED_FILTERS's empirically-observed bit (1u<<5, undocumented in the Confluence
-    DPP filter table) on the resulting depth frames, and disabling it again is expected to clear
-    it. HDRD activates at 720p/960p only (see rs_hdrd_control.h) - 640x360 is used here to match
-    the other tests in this module and stay well clear of that resolution-gating open item."""
+    METADATA_EMBEDDED_FILTERS's empirically-observed bit (1u<<5) on the resulting depth frames,
+    and disabling it again is expected to clear it. Streams at 1280x720 - HDRD only activates at
+    720p/960p (see rs_hdrd_control.h)."""
     dev, ctx = test_device
     depth_sensor = dev.first_depth_sensor()
     option_id = rs.composite_option_id.hdrd_control
@@ -126,7 +121,7 @@ def test_hdrd_control_sets_embedded_filters_metadata_bit(test_device):
         cfg = embedded_filter.get_hdrd_control(option_id)
         cfg.enable = 1
         embedded_filter.set_hdrd_control(option_id, cfg)
-        frame = _stream_one_depth_frame(dev, ctx, STREAM_WIDTH, STREAM_HEIGHT)
+        frame = _stream_one_depth_frame(dev, ctx, HDRD_WIDTH, HDRD_HEIGHT)
         assert frame is not None, "No depth frame received with HDRD control enabled"
         value = _embedded_filters_value(frame)
         assert value & HDRD_APPLIED_BIT, (
@@ -136,7 +131,7 @@ def test_hdrd_control_sets_embedded_filters_metadata_bit(test_device):
         cfg = embedded_filter.get_hdrd_control(option_id)
         cfg.enable = 0
         embedded_filter.set_hdrd_control(option_id, cfg)
-        frame = _stream_one_depth_frame(dev, ctx, STREAM_WIDTH, STREAM_HEIGHT)
+        frame = _stream_one_depth_frame(dev, ctx, HDRD_WIDTH, HDRD_HEIGHT)
         assert frame is not None, "No depth frame received with HDRD control disabled"
         value = _embedded_filters_value(frame)
         assert not (value & HDRD_APPLIED_BIT), (
